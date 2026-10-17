@@ -16,7 +16,7 @@ uv run ruff format      # format
 - **Specs drive the work.** Each milestone has `specs/<milestone>/spec.md` (what and why) and `tasks.md` (ordered steps). Implement from the current milestone's spec. Don't build anything the spec doesn't ask for.
 - **Don't change scope or fill gaps by guessing.** If a spec is unclear, contradicts itself or turns out to be wrong, write the question in `specs/<milestone>/questions.md` (what you found, the options you see, which task is blocked) and stop. The maintainer answers and updates the spec.
 - **Milestones are not version numbers.** Releases stay 0.x; never tag 1.0 unless the maintainer says so.
-- **ADRs record technical decisions** in `docs/adr/`. Add one when a decision would surprise a future reader. Never rewrite an accepted ADR; supersede it with a new one.
+- **ADRs record technical decisions** in `docs/adr/`. Add one when a decision would surprise a future reader. Agents propose ADRs with status Proposed; only the maintainer accepts them. Never rewrite an accepted ADR; supersede it with a new one.
 - **Spikes are throwaway.** Code in `spikes/` answers one question and is never imported by `packages/`.
 - This repo holds code and technical docs only.
 
@@ -43,3 +43,4 @@ uv run ruff format      # format
 
 - Short imperative subject line; explain why in the body when it isn't obvious.
 - AI-assisted commits end with a `Co-Authored-By:` trailer naming the model.
+- Commit when a task is done. Don't push unless the maintainer asks.

@@ -4,4 +4,4 @@ Throwaway experiments. Each spike answers one question, lives in its own folder 
 
 | Spike | Question | Answer |
 |---|---|---|
-| [`metricflow-compile`](metricflow-compile/) | Can MetricFlow compile a query from the dbt semantic manifest while Prumi executes the SQL over its own connection? | Yes, with caveats ([ADR 0002](../docs/adr/0002-dbt-adapter-metricflow-compiles.md), Proposed) |
+| [`metricflow-compile`](metricflow-compile/) | Can MetricFlow compile a query from the dbt semantic manifest while Prumi executes the SQL over its own connection? | Yes, with caveats ([ADR 0002](../docs/adr/0002-dbt-adapter-metricflow-compiles.md), Accepted) |
