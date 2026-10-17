@@ -12,6 +12,8 @@ members = [
     "packages/prumi-core",
     "packages/prumi-adapter-dbt",
 ]
+# Spikes and examples are standalone projects with their own dependencies.
+exclude = ["spikes/*", "examples/*"]
 
 [tool.uv.sources]
 prumi-core = { workspace = true }
