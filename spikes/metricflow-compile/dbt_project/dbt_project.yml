@@ -1,0 +1,19 @@
+name: spike_shop
+version: "1.0.0"
+profile: spike_shop
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+
+flags:
+  send_anonymous_usage_stats: false
+
+seeds:
+  spike_shop:
+    raw_orders:
+      +column_types:
+        order_id: integer
+        order_date: date
+        customer_id: integer
+        region: varchar
+        amount: decimal(10,2)

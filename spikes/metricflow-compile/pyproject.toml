@@ -1,0 +1,13 @@
+[project]
+name = "spike-metricflow-compile"
+version = "0.0.0"
+description = "Throwaway spike: MetricFlow compiles, Prumi executes"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "metricflow==0.213.0",
+    "dbt-core==1.12.6",
+    "dbt-duckdb==1.11.0",
+]
+
+[tool.uv]
+package = false

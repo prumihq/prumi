@@ -1,0 +1,75 @@
+version: 2
+
+models:
+  - name: time_spine_daily
+    description: One row per day; MetricFlow needs a time spine for time grains.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        granularity: day
+
+  - name: orders
+    description: One row per order.
+
+semantic_models:
+  - name: orders
+    description: Orders placed in the shop, one row per order.
+    model: ref('orders')
+    defaults:
+      agg_time_dimension: order_date
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+    dimensions:
+      - name: order_date
+        type: time
+        label: Order date
+        type_params:
+          time_granularity: day
+      - name: region
+        type: categorical
+        label: Region
+        description: Sales region of the order.
+    measures:
+      - name: order_amount
+        description: Order amount in USD.
+        agg: sum
+        expr: amount
+      - name: order_count
+        agg: sum
+        expr: "1"
+      - name: distinct_customers
+        agg: count_distinct
+        expr: customer_id
+
+metrics:
+  - name: revenue
+    label: Revenue
+    description: Sum of order amounts in USD.
+    type: simple
+    type_params:
+      measure: order_amount
+  - name: orders
+    label: Orders
+    description: Number of orders.
+    type: simple
+    type_params:
+      measure: order_count
+  - name: average_order_value
+    label: Average order value
+    description: Revenue divided by number of orders.
+    type: ratio
+    type_params:
+      numerator: revenue
+      denominator: orders
+  - name: customers
+    label: Customers
+    description: Number of distinct customers who placed an order.
+    type: simple
+    type_params:
+      measure: distinct_customers

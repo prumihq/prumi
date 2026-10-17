@@ -1,0 +1,7 @@
+spike_shop:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('SPIKE_DUCKDB_PATH', 'spike.duckdb') }}"
+      threads: 1
