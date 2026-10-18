@@ -811,7 +811,7 @@ Each criterion has at least one automated test unless it says otherwise.
 25. Logs from a full test run contain no row values or filter values (a test runs blocks and agent queries with a sentinel filter value and asserts it never appears in captured logs).
 
 **MCP**
-26. An MCP client over Streamable HTTP lists exactly the seven tools (the six of section 14 plus `authoring_guide` from section 18), and the server instructions match section 14 as amended by section 18.
+26. An MCP client over Streamable HTTP lists exactly the nine tools (the six of section 14, `authoring_guide` from section 18, `list_dashboards` and `get_dashboard` from section 19), and the server instructions match section 14 as amended by sections 18 and 19.
 27. `find_metrics("average order value")` ranks `average_order_value` first; `describe_metric("customers")` includes the non-additive caveat.
 28. `query` for revenue by day over two years returns 200 rows, `truncated: true`, `row_count`, and a `total` equal to a source query.
 29. **End to end:** a scripted MCP session runs `find_metrics` → `query` → `validate_spec` (with an error, then fixed) → `publish_dashboard`; a browser opens the URL and the bound numbers equal hand-written SQL; `prumi certify` makes the badge certified; publishing an HTML edit makes it a draft again.
