@@ -7,7 +7,8 @@ A dashboard is two things you write side by side: a **spec** (JSON) that says wh
 1. `find_metrics`, then `describe_metric` for each metric you'll use. Use only catalog metrics and the dimensions `describe_metric` lists; if one is missing, call `request_metric`.
 2. `query` to look at the data (at most 200 rows, for exploring only).
 3. Write the spec and the HTML below.
-4. `validate_spec` with both, and fix every error. Send the HTML straight to `validate_spec`; don't write it to a local file first. Validation renders the page in a browser with the blocks' data and checks every number it shows (see "Every number comes from Prumi"). A successful result has a `candidate_id`.
+4. `validate_spec` with both, and fix every error. Send the HTML straight to `validate_spec`; don't write it to a local file first. Validation renders the page in a browser with the blocks' data and checks every number it shows (see "Every number comes from Prumi"). The result always has a `candidate_id`: publish it when `ok`; when it isn't, fix it with `validate_spec(base=candidate_id, html_edits=[...])` instead of sending the page again. A runtime error gives the line and column in your HTML and a short stack.
+   - Pass `check_states` to check filter states viewers will pick, not just the defaults: up to 5, like `[{"filters": {"region": ["North America"]}}, {"filters": {"period": {"last": 52, "grain": "week"}}}]`. Each is rendered and checked the same way; its issues start with "With the filters …". The states stay with the candidate and are checked again when it's published.
 5. `publish_dashboard` with that `candidate_id` (don't send the spec and HTML again). Give the user the URL; the dashboard starts as an uncertified draft.
 6. If you can open a browser, take one screenshot of the draft at desktop width; don't read the page's text.
 
@@ -59,10 +60,16 @@ Your HTML runs in a sandboxed frame. It **can't** call any server (no `fetch`, `
 
 The rules:
 
-- A shown number matches a delivered value at the precision shown, also scaled (`$2.7M`, `31%`). Dates, years, counts of periods ("Last 12 weeks"), numbers from the spec and row counts are fine anywhere.
+- A shown number matches a delivered value at the precision shown, also scaled (`$2.7M`, `31%`).
+- **Not data, fine anywhere** (bound or not), exactly these patterns:
+  - dates: `2026-10-14`, `2026-10`, `2026/10/14`, `10/14/2026`, `14.10.2026`, `Oct 14`, `Oct 14, 2026`, `14 October 2026`, `Oct 2026`, `Oct '26`, `Q3`, `Q3 2026`, `2026 Q3`, `FY2026`, `W42`, `Week 42`, and times (`06:30`, `6:30 pm`);
+  - years: whole numbers from 1900 to 2199 written without separators (`2026`);
+  - period counts: a whole number followed by `day`, `week`, `wk`, `month`, `mo`, `quarter`, `qtr`, `year` or `yr` (singular or plural), not after a currency symbol: "Last 26 weeks", "12 wk";
+  - numbers from the spec or result metadata: anything written in the spec (`last`, `top_n`) or in a label, a block's row count, numbers inside dimension values ("Store 12");
+  - axis ticks (below).
 - **Tooltips** are checked too, on hover. Render them inside the bound chart element, or give them an element in the HTML (`<div id="tip" hidden></div>`) and bind it to the blocks they show (`"#tip": ["trend", "weekly_regions"]`).
-- **Layout math is fine**: scales, widths, positions, color ranges. Compute anything you need to *draw*; *show* only delivered values.
-- **Axis ticks** aren't data: put them in an element marked `data-prumi-role="axis"` (an SVG `<g>`, a `<div>`). There, round numbers with at most two significant digits (`0`, `50K`, `2.5M`, `20%`) are allowed. Inside an `<svg>`, three or more evenly spaced ones pass without the marker; in HTML they always need it.
+- **Layout math is fine**: scales, widths, positions, color ranges, and ordering or sorting by a value computed in JavaScript, as long as the computed value isn't shown. Compute anything you need to *draw* or *arrange*; *show* only delivered values.
+- **Axis ticks** aren't data. Inside an `<svg>`, or an element marked `data-prumi-role="axis"` (an SVG `<g>`, a `<div>`), three or more evenly spaced numbers are ticks at any precision: `$280, $286, $292` is a fine axis. A single round number (at most two significant digits: `0`, `50K`, `2.5M`, `20%`) is a tick only in an axis-marked element. Outside both, nothing is a tick.
 - **Nothing the check can't read**: no `<canvas>` (`html.canvas`), no `<iframe>` (`html.iframe`), no closed shadow roots (`html.closed_shadow_root`) and no images (`html.image`: `<img>`, SVG `<image>`, CSS background images; the frame blocks them too). Draw charts with SVG or HTML elements (chart libraries that render to SVG are fine), and icons as inline SVG.
 - If a viewer's browser later finds a number Prumi didn't deliver (new data, another filter state), the viewer sees "This page shows numbers Prumi didn't deliver." and the dashboard is marked `needs_attention` in `list_dashboards` and `get_dashboard` until it's fixed.
 - A page that throws while rendering (`html.runtime_error`) or never stops changing (`html.render_timeout`, after 10 s) fails validation too. In the browser, a callback that throws, or a block that fails without a `prumi.onError` handler, shows "This part of the dashboard couldn't load." in the block's bound elements.
@@ -112,7 +119,7 @@ What `prumi.on` callbacks receive:
 
 - `rows` are objects keyed by column name. Blocks with a `time_grain` have a `metric_time` column: the ISO date of each period's start. Rows of the current, partial period have `_partial: true`.
 - Blocks with `compare` add `_previous`, `_delta` and `_delta_pct` to each row, each an object keyed by metric (`row._delta_pct.revenue` is a fraction: 0.12 is +12%; `null` when there's nothing to compare with).
-- `others` (with `top_n` and `others`) and `total` (with `total`) are objects keyed by metric, or `null` when not asked for or when every group is already in the top N.
+- `others` (with `top_n` and `others`) and `total` (with `total`) are objects keyed by metric, or `null` when not asked for or when every group is already in the top N. They carry no comparison values in this release: `_previous`, `_delta` and `_delta_pct` are on rows only. For an overall change, add a block without dimensions that has `compare`.
 - An empty result has `rows: []`, for example a month to date on its first day. Draw an empty state.
 - Format metric values (and `_previous`, `_delta`, `total`, `others`) with `prumi.format(value, "<metric>")`. Percent metrics are fractions (0.25 shows as 25%). `_delta_pct` is a fraction too, whatever the metric's unit: show it as a percent with `new Intl.NumberFormat(undefined, {style: "percent", maximumFractionDigits: 1}).format(value)`.
 
@@ -212,7 +219,7 @@ Replace `revenue` and `customer__region` with metrics and dimensions from `find_
 ## Changing a dashboard
 
 1. `list_dashboards` lists the published dashboards (`needs_attention`: viewers' browsers found numbers Prumi didn't deliver); `get_dashboard(id)` gives the current version's spec and HTML, and its `checks`: what viewers' browsers flagged, per filter state.
-2. `validate_spec(base=..., html_edits=[...], spec=...)` validates a change without resending the page. `base` is a `candidate_id` or `{"dashboard_id": "...", "version": 3}`; `html_edits` are `{"old": "...", "new": "..."}` replacements applied in order, and each `old` must occur exactly once in the HTML at that point (`edit.no_match`, `edit.ambiguous`); `spec` is a full new spec (default: the base's). The result is validated like any content and has its own `candidate_id`.
+2. `validate_spec(base=..., html_edits=[...], spec=...)` validates a change without resending the page. `base` is a `candidate_id` (also one whose validation failed), a dashboard id for its current version (`"sales-weekly"`), or `{"dashboard_id": "...", "version": 3}`; `html_edits` are `{"old": "...", "new": "..."}` replacements applied in order, and each `old` must occur exactly once in the HTML at that point (`edit.no_match`, `edit.ambiguous`); `spec` is a full new spec (default: the base's). The result is validated like any content and has its own `candidate_id`. Edits of a candidate keep its `check_states` unless you pass new ones.
 3. `publish_dashboard` with that `candidate_id` makes a new version, a draft again.
 
 ## The spec's JSON Schema

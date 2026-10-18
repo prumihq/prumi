@@ -60,6 +60,13 @@ def test_the_guide_covers_numbers_theme_and_editing():
         "Every element that shows numbers must be bound", '"#table": ["regions", "regions_total"]',
         "R8.unbound_number", "R8.unverified_number", "R8.copied_number", "Tooltips",
         '<div id="tip" hidden></div>', "html.iframe", "html.closed_shadow_root", "html.image",
-        "in HTML they always need it", "needs_attention",
+        "needs_attention",
+        # Exempt patterns, sorting, comparisons on totals, check_states, fixing a failed page.
+        "`Oct 14, 2026`", "from 1900 to 2199", "Last 26 weeks", "Store 12",
+        "ordering or sorting by a value computed in JavaScript",
+        "as long as the computed value isn't shown", "`$280, $286, $292`",
+        "They carry no comparison values in this release", "check_states", "With the filters",
+        "also one whose validation failed", "base=candidate_id, html_edits=",
+        "a dashboard id for its current version",
     ):  # fmt: skip
         assert text in GUIDE, text
