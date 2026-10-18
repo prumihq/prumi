@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18 and 19 on 2026-10-18)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; 18 and 19.1–19.12 accepted 2026-10-18; 19.13 awaits acceptance)
 
 ## Goal
 
@@ -730,6 +730,40 @@ Ctrl+C or SIGTERM stops the server within 5 s even while MCP clients or browsers
 - `docs/bi-rules.md`: R8 explains provenance (19.1), its two checks and what they can't see (visual encoding); `R8.unverified_number`, `html.canvas` and the other new codes are listed.
 - README: "Restart your agent sessions after upgrading Prumi". Open sessions keep the tool list and instructions they loaded at the start.
 
+#### 19.13 Tightening after the proof (added 2026-10-18; status: draft)
+
+The provenance proof (task 34) worked, and showed four gaps:
+- a hard-coded number that's correct today passes at publish;
+- text the scan can't read (closed shadow roots, nested frames, images);
+- evenly spaced fake numbers pass as axis ticks;
+- a low-precision number matches by chance one of the many values on a page. A JavaScript-computed weekly average shown as `$228K` often equals some week's rounded revenue.
+
+**1. Copied numbers (`R8.copied_number`, error).** At the server check, the stored HTML source is scanned for numbers equal to a value delivered in the dry run: in text with 3+ significant digits, in script literals with 4+. Any match was copied into the page instead of coming through `prumi.on`. Honest pages render data numbers from callbacks, so their source holds none. Round layout constants like `1200` have few significant digits and don't count; attribute values (e.g. SVG coordinates) are ignored.
+
+**2. Every number belongs to a bound block (`R8.unbound_number`, error).**
+- Every number shown, other than the allowed non-data numbers of 19.1, must sit inside an element matched by a `presentation.bindings` selector, and must match a value of **that binding's block or blocks**. The nearest bound ancestor wins.
+- A binding's value may be a block id or a list of block ids (`"#table": ["regions", "regions_total"]`).
+- A number outside any bound element is flagged with its element path and the hint "bind this element to the block it shows". So are tooltips appended outside a bound element.
+- This applies to both checks (server and browser) and replaces matching against every value on the page.
+
+**3. Nothing the scan can't read.**
+- `<iframe>` (`html.iframe`), `attachShadow({mode: "closed"})` (`html.closed_shadow_root`) and images (`html.image`: `<img>`, CSS `background-image`, `<image>` in SVG) are errors, found statically and by the server check.
+- The frame's CSP sets `img-src 'none'`. Icons work as inline SVG.
+
+**4. Unmarked axis ticks only in SVG.** The rule that 3+ evenly spaced round numbers count as ticks without `data-prumi-role="axis"` applies only inside `<svg>` charts. Elsewhere, tick-like numbers need the marker.
+
+**5. When a published dashboard gets flagged later.** When a browser report (19.1b) flags a published version, for example because the data changed or for a filter state the server didn't check:
+- the shell shows a bar to that viewer: "This page shows numbers Prumi didn't deliver.", with the list on click;
+- the version is marked `needs_attention` in `list_dashboards`, `get_dashboard` and the status API, until a new version is published or a later report for the same filter state is clean.
+
+This replaces 19.1b's "nothing is shown to viewers": publishing can't catch what only appears after publishing.
+
+**Fixtures:** the first-run dashboard fixture gets bindings in its spec, so it stays a must-pass page under rule 2. Add must-fail fixtures for:
+- a correct-today hard-coded number;
+- a JavaScript average that coincides with a bucket value at the precision shown;
+- an image with numbers in it;
+- an evenly spaced fake series outside SVG.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -843,3 +877,9 @@ Each criterion has at least one automated test unless it says otherwise.
 49. `prumi serve` without Chromium fails at startup with the install command.
 50. The guide and the instructions contain the additions of 19.9; `docs/bi-rules.md` and the README contain those of 19.12.
 51. *(review)* Benchmark: a fresh agent session with the README's prompt. Record the time to publish and the output tokens, and compare with the two earlier runs (360 s / ~46k and 373 s / ~42k).
+52. The 19.13 must-fail fixtures each fail with their code (`R8.copied_number`, `R8.unverified_number` or `R8.unbound_number`, `html.image`), and every must-pass fixture still passes.
+53. A page whose source contains a delivered value with 3+ significant digits in text gives `R8.copied_number`; a layout constant like `1200` in a script doesn't.
+54. A number outside any bound element gives `R8.unbound_number` with its element path; a binding with a list of blocks accepts numbers from each.
+55. `<iframe>`, a closed shadow root and each image form give their errors, and the frame's CSP has `img-src 'none'`.
+56. Evenly spaced round numbers count as ticks inside `<svg>` without the marker, and are flagged outside it.
+57. *(browser test)* A published version whose browser report flags a number shows the bar to that viewer and is marked `needs_attention` in `list_dashboards` and `get_dashboard`, until a clean report or a new version.
