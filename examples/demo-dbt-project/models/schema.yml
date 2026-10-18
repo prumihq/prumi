@@ -1,0 +1,313 @@
+version: 2
+
+models:
+  - name: metricflow_time_spine
+    description: One row per day; MetricFlow needs a time spine for time grains.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        granularity: day
+
+  - name: customers
+    description: One row per customer.
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+
+  - name: products
+    description: One row per product.
+    columns:
+      - name: product_id
+        data_tests: [unique, not_null]
+
+  - name: orders
+    description: One row per order.
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+
+  - name: order_items
+    description: One row per order line, with the order's date and customer.
+    columns:
+      - name: order_item_id
+        data_tests: [unique, not_null]
+
+  - name: inventory_snapshots
+    description: Units on hand per product at the end of each day.
+
+semantic_models:
+  - name: customers
+    description: Customers of the shop.
+    model: ref('customers')
+    entities:
+      - name: customer
+        type: primary
+        expr: customer_id
+    dimensions:
+      - name: region
+        type: categorical
+        label: Region
+        description: Sales region of the customer. Missing for some customers.
+      - name: country
+        type: categorical
+        label: Country
+        description: Country of the customer.
+      - name: segment
+        type: categorical
+        label: Segment
+        description: Customer segment (Consumer, Small business, Enterprise).
+
+  - name: products
+    description: Products sold in the shop.
+    model: ref('products')
+    entities:
+      - name: product
+        type: primary
+        expr: product_id
+    dimensions:
+      - name: category
+        type: categorical
+        label: Product category
+        description: Category of the product.
+
+  - name: orders
+    description: Orders placed in the shop, one row per order.
+    model: ref('orders')
+    defaults:
+      agg_time_dimension: order_date
+    entities:
+      - name: order
+        type: primary
+        expr: order_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+    dimensions:
+      - name: order_date
+        type: time
+        label: Order date
+        type_params:
+          time_granularity: day
+      - name: channel
+        type: categorical
+        label: Channel
+        description: Where the order was placed (web, store, marketplace).
+    measures:
+      - name: order_count
+        description: Number of orders.
+        agg: count
+        expr: order_id
+      - name: distinct_customers
+        description: Number of distinct customers who placed an order.
+        agg: count_distinct
+        expr: customer_id
+
+  - name: order_items
+    description: Order lines, one row per product in an order.
+    model: ref('order_items')
+    defaults:
+      agg_time_dimension: order_date
+    entities:
+      - name: order_item
+        type: primary
+        expr: order_item_id
+      - name: order
+        type: foreign
+        expr: order_id
+      - name: customer
+        type: foreign
+        expr: customer_id
+      - name: product
+        type: foreign
+        expr: product_id
+    dimensions:
+      - name: order_date
+        type: time
+        label: Order date
+        type_params:
+          time_granularity: day
+    measures:
+      - name: revenue_amount
+        description: Net sales after discounts, in USD.
+        agg: sum
+        expr: revenue
+      - name: cost_amount
+        description: Cost of the goods sold, in USD.
+        agg: sum
+        expr: cost
+      - name: units
+        description: Units sold.
+        agg: sum
+        expr: quantity
+      - name: gross_sales_amount
+        description: Sales at list price before discounts, in USD.
+        agg: sum
+        expr: gross_amount
+      - name: discount_total
+        description: Discounts given, in USD.
+        agg: sum
+        expr: discount_amount
+
+  - name: inventory_snapshots
+    description: Units on hand per product at the end of each day.
+    model: ref('inventory_snapshots')
+    primary_entity: inventory_snapshot
+    defaults:
+      agg_time_dimension: snapshot_date
+    entities:
+      - name: product
+        type: foreign
+        expr: product_id
+    dimensions:
+      - name: snapshot_date
+        type: time
+        label: Snapshot date
+        type_params:
+          time_granularity: day
+    measures:
+      - name: inventory_units
+        description: Units on hand. A balance, so it is never summed over time.
+        agg: sum
+        expr: units_on_hand
+        non_additive_dimension:
+          name: snapshot_date
+          window_choice: max
+
+metrics:
+  - name: revenue
+    label: Revenue
+    description: Net sales after discounts, in USD.
+    type: simple
+    type_params:
+      measure: revenue_amount
+    config:
+      meta:
+        prumi: {format: currency, unit: USD, decimals: 2}
+        owner: sales-analytics
+
+  - name: orders
+    label: Orders
+    description: Number of orders placed.
+    type: simple
+    type_params:
+      measure: order_count
+    config:
+      meta:
+        prumi: {format: integer, unit: orders}
+        owner: sales-analytics
+
+  - name: units_sold
+    label: Units sold
+    description: Number of product units sold.
+    type: simple
+    type_params:
+      measure: units
+    config:
+      meta:
+        prumi: {format: integer, unit: units}
+        owner: sales-analytics
+
+  - name: average_order_value
+    label: Average order value
+    description: Revenue divided by the number of orders.
+    type: ratio
+    type_params:
+      numerator: revenue
+      denominator: orders
+    config:
+      meta:
+        prumi: {format: currency, unit: USD, decimals: 2}
+        owner: sales-analytics
+
+  - name: customers
+    label: Customers
+    description: Number of distinct customers who placed an order.
+    type: simple
+    type_params:
+      measure: distinct_customers
+    config:
+      meta:
+        prumi: {format: integer, unit: customers}
+        owner: sales-analytics
+
+  # Input of gross_margin: MetricFlow derived metrics only take metrics as inputs.
+  - name: cost
+    label: Cost of goods sold
+    description: Cost of the goods sold, in USD.
+    type: simple
+    type_params:
+      measure: cost_amount
+    config:
+      meta:
+        prumi: {format: currency, unit: USD, decimals: 2}
+        owner: finance
+
+  - name: gross_margin
+    label: Gross margin
+    description: Revenue minus the cost of the goods sold, in USD.
+    type: derived
+    type_params:
+      expr: revenue - cost
+      metrics:
+        - name: revenue
+        - name: cost
+    config:
+      meta:
+        prumi: {format: currency, unit: USD, decimals: 2}
+        owner: finance
+
+  - name: gross_margin_pct
+    label: Gross margin %
+    description: Gross margin as a share of revenue.
+    type: ratio
+    type_params:
+      numerator: gross_margin
+      denominator: revenue
+    config:
+      meta:
+        prumi: {format: percent, decimals: 1}
+        owner: finance
+
+  - name: units_on_hand
+    label: Units on hand
+    description: Units in stock at the end of the last day of the period.
+    type: simple
+    type_params:
+      measure: inventory_units
+    config:
+      meta:
+        prumi: {format: integer, unit: units}
+        owner: operations
+
+  # Inputs of discount_rate: MetricFlow ratio metrics only take metrics as inputs.
+  - name: gross_sales
+    label: Gross sales
+    description: Sales at list price before discounts, in USD.
+    type: simple
+    type_params:
+      measure: gross_sales_amount
+    config:
+      meta:
+        prumi: {format: currency, unit: USD, decimals: 2}
+        owner: sales-analytics
+
+  - name: discounts
+    label: Discounts
+    description: Discounts given, in USD.
+    type: simple
+    type_params:
+      measure: discount_total
+    config:
+      meta:
+        prumi: {format: currency, unit: USD, decimals: 2}
+        owner: sales-analytics
+
+  # No format declared on purpose: Prumi's validator warns about it (R10).
+  - name: discount_rate
+    label: Discount rate
+    description: Discounts as a share of gross sales.
+    type: ratio
+    type_params:
+      numerator: discounts
+      denominator: gross_sales

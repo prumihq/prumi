@@ -1,0 +1,21 @@
+# The configuration the demo runs with:  prumi serve --config examples/demo-dbt-project/prumi.toml
+# Relative paths resolve against this file's folder.
+
+[server]
+host = "127.0.0.1"
+port = 8484
+data_dir = ".prumi"
+as_of = "2026-10-15"  # pins "today": October 2026 is a partial month, data ends the day before
+script_hosts = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
+style_hosts = ["fonts.googleapis.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
+font_hosts = ["fonts.gstatic.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
+
+[source]
+adapter = "dbt"
+
+[source.dbt]
+semantic_manifest = "target/semantic_manifest.json"
+
+[source.dbt.connection]
+type = "duckdb"
+path = "demo.duckdb"

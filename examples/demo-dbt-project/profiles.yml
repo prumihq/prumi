@@ -1,0 +1,9 @@
+prumi_demo:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # build.py sets an absolute path. DuckDB names the database after the file (`demo`), and
+      # dbt bakes that name into the semantic manifest's relations.
+      path: "{{ env_var('DEMO_DUCKDB_PATH', 'demo.duckdb') }}"
+      threads: 4

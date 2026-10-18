@@ -1,0 +1,12 @@
+name: prumi_demo
+version: "1.0.0"
+profile: prumi_demo
+
+model-paths: ["models"]
+
+flags:
+  send_anonymous_usage_stats: false
+
+models:
+  prumi_demo:
+    +materialized: table

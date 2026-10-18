@@ -31,3 +31,7 @@ logs/
 .vscode/
 .idea/
 .DS_Store
+
+# Prumi data dirs and the demo build's temporary folders
+.prumi/
+.build-*/

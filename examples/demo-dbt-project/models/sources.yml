@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw tables written by generate.py.
+    schema: raw
+    tables:
+      - name: customers
+      - name: products
+      - name: orders
+      - name: order_items
+      - name: inventory_snapshots
