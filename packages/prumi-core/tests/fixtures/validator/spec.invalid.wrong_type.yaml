@@ -1,0 +1,28 @@
+# code: spec.invalid
+# path: data[1].top_n
+# message: `data[1].top_n` must be a whole number.
+# Text where a number belongs.
+spec_version: 0
+dashboard: {id: sales, title: Sales}
+filters:
+  - {id: period, type: time, default: {last: 12, grain: week}}
+  - {id: region, type: dimension, dimension: customer__region, default: []}
+data:
+  - id: kpi
+    metrics: [revenue, average_order_value]
+    filters: [period, region]
+    compare: previous_year
+  - id: by_region
+    metrics: [revenue]
+    dimensions: [customer__region]
+    filters: [period]
+    sort: {by: revenue, descending: true}
+    top_n: five
+    others: true
+    total: true
+  - id: trend
+    metrics: [revenue]
+    time_grain: week
+    filters: [period, region]
+interactions:
+  - {from: by_region, on: click, sets_filter: region}

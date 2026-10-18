@@ -1,6 +1,7 @@
 # code: spec.invalid
 # path: data[1].top_n
-# top_n must be 1 to 100.
+# message: `data[1].top_n` must be at least 1.
+# A value outside its range.
 spec_version: 0
 dashboard: {id: sales, title: Sales}
 filters:

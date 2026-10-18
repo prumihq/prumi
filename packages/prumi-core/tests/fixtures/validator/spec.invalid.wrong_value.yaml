@@ -1,0 +1,28 @@
+# code: spec.invalid
+# path: filters[0].default.grain
+# message: `filters[0].default.grain` must be one of `day`, `week`, `month`, `quarter`, `year`.
+# A grain that doesn't exist.
+spec_version: 0
+dashboard: {id: sales, title: Sales}
+filters:
+  - {id: period, type: time, default: {last: 12, grain: fortnight}}
+  - {id: region, type: dimension, dimension: customer__region, default: []}
+data:
+  - id: kpi
+    metrics: [revenue, average_order_value]
+    filters: [period, region]
+    compare: previous_year
+  - id: by_region
+    metrics: [revenue]
+    dimensions: [customer__region]
+    filters: [period]
+    sort: {by: revenue, descending: true}
+    top_n: 5
+    others: true
+    total: true
+  - id: trend
+    metrics: [revenue]
+    time_grain: week
+    filters: [period, region]
+interactions:
+  - {from: by_region, on: click, sets_filter: region}

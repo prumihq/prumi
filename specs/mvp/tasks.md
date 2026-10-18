@@ -43,7 +43,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 ## First-use fixes (spec section 18; added 2026-10-18)
 
-- [ ] 28. Plain `spec.invalid` messages: map pydantic error types to the section 18 wording, with fixtures for the five kinds (AC 34)
+- [x] 28. Plain `spec.invalid` messages: map pydantic error types to the section 18 wording, with fixtures for the five kinds (AC 34)
 - [ ] 29. `prumi.format` accepts a format object, and warns once in the console for unknown arguments (AC 35)
 - [ ] 30. Candidates: `candidate_id` in `validate_spec`, the in-memory store, `publish_dashboard(candidate_id)` with re-validation and `publish.unknown_candidate` (AC 33)
 - [ ] 31. `authoring_guide` tool and its Markdown file, with the three tests (AC 32)

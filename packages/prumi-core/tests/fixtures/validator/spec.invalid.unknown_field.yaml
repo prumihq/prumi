@@ -1,0 +1,28 @@
+# code: spec.invalid
+# path: dashboard.description
+# message: `dashboard.description` isn't a field of `dashboard`; its fields are `id`, `title`.
+# A field the format doesn't have.
+spec_version: 0
+dashboard: {id: sales, title: Sales, description: Weekly}
+filters:
+  - {id: period, type: time, default: {last: 12, grain: week}}
+  - {id: region, type: dimension, dimension: customer__region, default: []}
+data:
+  - id: kpi
+    metrics: [revenue, average_order_value]
+    filters: [period, region]
+    compare: previous_year
+  - id: by_region
+    metrics: [revenue]
+    dimensions: [customer__region]
+    filters: [period]
+    sort: {by: revenue, descending: true}
+    top_n: 5
+    others: true
+    total: true
+  - id: trend
+    metrics: [revenue]
+    time_grain: week
+    filters: [period, region]
+interactions:
+  - {from: by_region, on: click, sets_filter: region}

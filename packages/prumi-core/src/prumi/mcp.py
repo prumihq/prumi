@@ -26,7 +26,7 @@ from prumi.issues import Issue, error
 from prumi.services import Services
 from prumi.spec import Block, DashboardSpec, Sort
 from prumi.time import Compare, Grain, Window
-from prumi.validate._parse import SCHEMA_HINT, spec_path
+from prumi.validate._parse import plain_issues
 from prumi.validate.rules import REQUEST_METRIC_HINT, check_spec
 
 INSTRUCTIONS = """\
@@ -253,12 +253,7 @@ def create_mcp(services: Services) -> MCPServer:
                 total=total,
             )
         except ValidationError as exc:
-            return _fail(
-                [
-                    error("spec.invalid", spec_path({}, e["loc"]), f"{e['msg']}.", SCHEMA_HINT)
-                    for e in exc.errors()
-                ]
-            )
+            return _fail(plain_issues(exc, {}, Block))
         issues = _check_query(services, block)
         filters, where_issues = _where(services, block, where or [])
         issues += where_issues

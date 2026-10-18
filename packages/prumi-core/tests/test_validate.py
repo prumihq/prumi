@@ -92,6 +92,8 @@ def test_a_fixture_produces_its_code_and_only_it(path, fake_source, as_of):
     assert (issue.code, issue.path) == (header["code"], header["path"])
     assert issue.severity == header.get("severity", "error")
     assert issue.message and issue.hint
+    if "message" in header:
+        assert issue.message == header["message"]
     assert report.ok is (issue.severity == "warning")
 
 
@@ -118,8 +120,12 @@ def test_spec_invalid_reports_every_pydantic_error_with_spec_paths(fake_source, 
         ("spec.invalid", "data[2].filters"),
     }
     messages = {i.path: i.message for i in report.errors}
-    assert messages["filters[1].colour"] == "Unknown field 'colour'."
-    assert messages["data[2].filters"] == "Missing required field 'filters'."
+    assert messages["filters[1].colour"] == (
+        "`filters[1].colour` isn't a field of `filters[1]`; its fields are `id`, `type`, "
+        "`dimension`, `default`."
+    )
+    assert messages["data[2].filters"] == "`data[2].filters` is required."
+    assert messages["filters[0].default.last"] == "`filters[0].default.last` must be at least 1."
 
 
 def test_issues_found_through_a_shared_filter_are_reported_once(fake_source, as_of):
@@ -157,3 +163,17 @@ def test_no_dry_run_when_static_checks_fail(fake_source, fake_adapter, as_of):
 def test_query_failed_says_why(fake_source, as_of):
     [issue] = run(FIXTURES / "query.failed.yaml", fake_source, as_of).errors
     assert "'trend'" in issue.message and "the warehouse refused the query" in issue.message
+
+
+PYDANTIC_WORDS = ("tuple", "model", "union", "dict", "input should be")
+MESSAGE_KINDS = {"missing_field", "unknown_field", "wrong_container", "wrong_value", "wrong_type"}
+
+
+def test_spec_invalid_messages_use_the_specs_words(fake_source, as_of):
+    """AC 34: plain messages, and a fixture for each kind of message in spec section 18."""
+    fixtures = [p for p in FIXTURE_FILES if fixture_header(p)["code"] == "spec.invalid"]
+    kinds = {p.stem.removeprefix("spec.invalid.") for p in fixtures}
+    assert MESSAGE_KINDS <= kinds
+    for path in fixtures:
+        for issue in run(path, fake_source, as_of).issues:
+            assert not [w for w in PYDANTIC_WORDS if w in issue.message.lower()], issue.message
