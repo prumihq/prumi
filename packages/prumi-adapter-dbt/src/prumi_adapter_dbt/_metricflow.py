@@ -7,16 +7,21 @@ receives provides the dialect and refuses to run anything.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from metricflow.engine.metricflow_engine import MetricFlowEngine, MetricFlowQueryRequest
+from metricflow.engine.models import Dimension as MfDimension
+from metricflow.engine.models import Metric as MfMetric
 from metricflow.protocols.sql_client import SqlEngine
 from metricflow.sql.render.duckdb_renderer import DuckDbSqlPlanRenderer
 from metricflow.sql.render.sql_plan_renderer import SqlPlanRenderer
-from metricflow_semantics.model.dbt_manifest_parser import (
-    parse_manifest_from_dbt_generated_manifest,
+from metricflow_semantic_interfaces.implementations.semantic_manifest import (
+    PydanticSemanticManifest,
 )
+from metricflow_semantics.model.dbt_manifest_parser import transform_dbt_generated_manifest
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 from prumi.adapters import AdapterStartupError
 
@@ -103,10 +108,78 @@ class CompileRequest:
     limit: int | None = None
 
 
+@dataclass(frozen=True)
+class SourceDimension:
+    """A dimension as MetricFlow lists it for a metric: one entry per join path."""
+
+    name: str  # the query name, e.g. "order__customer__region"
+    element: str  # e.g. "region"
+    entity_path: tuple[str, ...]  # e.g. ("order", "customer")
+    categorical: bool
+    label: str | None = None
+    description: str | None = None
+
+
+@dataclass(frozen=True)
+class SourceMetric:
+    """A metric as MetricFlow describes it, in plain types."""
+
+    name: str
+    type: str  # simple, ratio, derived, cumulative or conversion
+    label: str | None = None
+    description: str | None = None
+    aggregation: str | None = None  # simple metrics: e.g. "sum", "count_distinct"
+    non_additive_dimension: str | None = None  # semi-additive simple metrics
+    meta: Mapping[str, Any] = field(default_factory=dict)  # config.meta
+    filter: str | None = None
+    dimensions: tuple[SourceDimension, ...] = ()
+
+
+def _source_dimension(dimension: MfDimension) -> SourceDimension:
+    return SourceDimension(
+        name=dimension.dunder_name,
+        element=dimension.name,
+        entity_path=tuple(link.element_name for link in dimension.entity_links),
+        categorical=dimension.type.value == "categorical",
+        label=dimension.label,
+        description=dimension.description,
+    )
+
+
+def _source_metric(metric: MfMetric, declared_aggregations: Mapping[str, str]) -> SourceMetric:
+    aggregation = non_additive = None
+    params = metric.type_params.metric_aggregation_params
+    if params is not None:
+        measure = metric.type_params.measure
+        aggregation = declared_aggregations.get(measure.name if measure else "", params.agg.value)
+        if params.non_additive_dimension is not None:
+            non_additive = params.non_additive_dimension.name
+    where = metric.filter.where_filters if metric.filter is not None else []
+    return SourceMetric(
+        name=metric.name,
+        type=metric.type.value,
+        label=metric.label,
+        description=metric.description,
+        aggregation=aggregation,
+        non_additive_dimension=non_additive,
+        meta=dict(metric.config.meta) if metric.config is not None else {},
+        filter=" AND ".join(w.where_sql_template for w in where) or None,
+        dimensions=tuple(_source_dimension(d) for d in metric.dimensions),
+    )
+
+
 _MAX_REASON = 300
 
 
-def load_manifest(path: Path) -> SemanticManifestLookup:
+@dataclass(frozen=True)
+class LoadedManifest:
+    lookup: SemanticManifestLookup
+    # Measure name -> its aggregation as declared. MetricFlow rewrites some while parsing
+    # (count becomes a sum of 1s, median a percentile); the catalog shows the declared one.
+    declared_aggregations: Mapping[str, str]
+
+
+def load_manifest(path: Path) -> LoadedManifest:
     if not path.is_file():
         raise ManifestError(
             f"The semantic manifest {path} doesn't exist. Run `dbt parse` in the dbt project "
@@ -114,8 +187,15 @@ def load_manifest(path: Path) -> SemanticManifestLookup:
             "[source.dbt] in prumi.toml."
         )
     try:
-        manifest = parse_manifest_from_dbt_generated_manifest(path.read_text(encoding="utf-8"))
-        return SemanticManifestLookup(manifest)
+        text = path.read_text(encoding="utf-8")
+        declared = {
+            measure.name: measure.agg.value
+            for model in PydanticSemanticManifest.parse_raw(text).semantic_models
+            for measure in model.measures
+        }
+        # What parse_manifest_from_dbt_generated_manifest does, on a fresh copy.
+        manifest = transform_dbt_generated_manifest(PydanticSemanticManifest.parse_raw(text))
+        return LoadedManifest(SemanticManifestLookup(manifest), declared)
     except Exception as exc:  # MetricFlow raises many types here; all mean "can't use it"
         # Some errors quote the whole document; keep the message short.
         reason = " ".join(str(exc).split())
@@ -131,11 +211,18 @@ class MetricFlowCompiler:
     """Compiles queries to SQL for one manifest and dialect, without running anything."""
 
     def __init__(self, manifest_path: Path, dialect: str) -> None:
-        self._lookup = load_manifest(manifest_path)
+        self._manifest = load_manifest(manifest_path)
+        self._lookup = self._manifest.lookup
         self.client = CompileOnlySqlClient(dialect)
         self._engine = MetricFlowEngine(
             semantic_manifest_lookup=self._lookup, sql_client=self.client
         )
+
+    def metrics(self) -> tuple[SourceMetric, ...]:
+        """The manifest's public metrics, each with every dimension MetricFlow lists for it."""
+        declared = self._manifest.declared_aggregations
+        metrics = self._engine.list_metrics(include_dimensions=True)
+        return tuple(_source_metric(m, declared) for m in metrics)
 
     def relations(self) -> dict[str, str]:
         """Semantic model name -> its relation, as dbt resolved it ("db"."schema"."table")."""

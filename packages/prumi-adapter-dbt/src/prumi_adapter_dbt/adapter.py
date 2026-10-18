@@ -17,6 +17,7 @@ from prumi.adapters import (
 
 from prumi_adapter_dbt import _query
 from prumi_adapter_dbt._metricflow import MetricFlowCompiler
+from prumi_adapter_dbt.catalog import SourceCatalog, build_catalog
 from prumi_adapter_dbt.connections import Connection, open_connection
 
 
@@ -26,6 +27,7 @@ class DbtAdapter:
     def __init__(self, compiler: MetricFlowCompiler, connection: Connection) -> None:
         self._compiler = compiler
         self._connection = connection
+        self._catalog: SourceCatalog = build_catalog(compiler.metrics())  # read once
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any], config_dir: Path) -> DbtAdapter:
@@ -71,12 +73,22 @@ class DbtAdapter:
         return Capabilities(identity_mode=self._connection.identity_mode)
 
     def discover(self) -> Catalog:
-        raise NotImplementedError
+        return self._catalog.catalog
 
     def relations(self, metrics: Sequence[str]) -> frozenset[str]:
-        raise NotImplementedError
+        return self._catalog.relations(metrics)
 
     def execute(self, query: SemanticQuery, viewer: Viewer) -> Result:
+        # Only the catalog's names: MetricFlow would also accept the longer join paths that
+        # the shortest-path rule drops.
+        valid = self.relations(query.metrics)
+        used = {*query.dimensions, *(f.dimension for f in query.filters)}
+        unknown = sorted(used - valid)
+        if unknown:
+            raise ValueError(
+                f"Not a dimension of {', '.join(query.metrics) or 'the catalog'}: "
+                f"{', '.join(unknown)}"
+            )
         sql = self._compiler.compile(_query.compile_request(query))
         names, rows = self._connection.query(sql, viewer)
         return _query.to_result(query, names, rows)

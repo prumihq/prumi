@@ -42,7 +42,7 @@ Every number Prumi shows has to be computed by the source at the grain it's show
 | `units_on_hand` | simple, sum, `non_additive_dimension` on `snapshot_date` (last value) | integer, `units` | no | **Semi-additive balance.** Summing daily stock over a month is meaningless. It also can't be joined to customer dimensions. |
 | `discount_rate` | ratio `discounts / gross_sales` | **none declared** | no | **No format:** Prumi warns (R10). |
 
-`cost`, `gross_sales` and `discounts` are simple sums (currency USD) that exist only as inputs: MetricFlow's derived and ratio metrics take metrics, not measures, as inputs.
+`cost`, `gross_sales` and `discounts` are simple sums (currency USD, additive) that exist because MetricFlow builds derived and ratio metrics only from other metrics, and this YAML form can't hide a metric. They're ordinary metrics in Prumi's catalog: whether a metric is public is the source's decision.
 
 Dimensions: `customer__region`, `customer__country`, `customer__segment`, `order__channel`, `product__category`, plus `metric_time`. The fact models carry the foreign keys they need, so each dimension is one entity hop away. `units_on_hand` only joins to `product__category`.
 
