@@ -62,7 +62,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 41. `list_dashboards`, `get_dashboard`, `can_read`/`can_edit` and `dashboard.forbidden` (AC 45)
 - [x] 42. Editing with `base` + `html_edits` (AC 46)
 - [x] 43. Default theme: `/theme.css`, injection, CSP, contrast test (AC 47)
-- [ ] 44. Shutdown within 5 s (AC 48)
+- [x] 44. Shutdown within 5 s (AC 48)
 - [ ] 45. Guide, instructions, `docs/bi-rules.md` and README updates (AC 50)
 - [ ] 46. Benchmark run (AC 51). The maintainer does this one.
 - [ ] 47. Remove every spec-section and AC reference from code, comments and test names (rewrite each as the *why*, or as a pointer to an ADR, a BI rule or an issue code), and make the tests that read `specs/` compare against the shipped text instead (see AGENTS.md, code style). Done when `git grep -nE "spec(\.md)? section|\bAC [0-9]|specs/" -- packages examples` finds nothing. Do it last, after tasks 34–45
