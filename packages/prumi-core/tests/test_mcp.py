@@ -14,6 +14,7 @@ from prumi.spec import DashboardSpec
 
 SPEC_MD = Path(__file__).parents[3] / "specs" / "mvp" / "spec.md"
 TOOLS = {
+    "authoring_guide",
     "find_metrics",
     "describe_metric",
     "query",
@@ -62,7 +63,7 @@ def issues(result) -> list[dict]:
 # AC 26
 
 
-def test_exactly_six_tools_and_the_instructions(server):
+def test_exactly_seven_tools_and_the_instructions(server):
     async def work(client):
         listed = await client.list_tools()
         return listed.tools, client.instructions, client.server_info
@@ -391,3 +392,11 @@ def test_publish_revalidates_a_candidate(
     result = asyncio.run(work())
     assert [i["code"] for i in issues(result)] == ["R7.unknown_metric"]
     assert demo_services.registry.dashboards() == []
+
+
+def test_authoring_guide_returns_the_guide(server):
+    from prumi.mcp import AUTHORING_GUIDE
+
+    result = call(server, "authoring_guide")
+    assert not result.is_error
+    assert result.content[0].text == AUTHORING_GUIDE.read_text(encoding="utf-8")

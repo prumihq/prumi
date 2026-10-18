@@ -312,3 +312,34 @@ def test_the_frame_html_as_a_standalone_file(page, server, tmp_path):
     assert page.locator("#prumi-notice").text_content() == "This dashboard only works inside Prumi"
     assert page.evaluate("window.__calls") == {}
     assert page.locator("#kpi").text_content() == ""
+
+
+def test_the_authoring_guide_example_renders(page, server, services):
+    """Agents copy the guide's example, so it must work in a real browser."""
+    import json
+
+    from prumi.mcp import AUTHORING_GUIDE
+
+    guide = AUTHORING_GUIDE.read_text(encoding="utf-8")
+
+    def fenced(heading, language):
+        section = guide.split(heading, 1)[1]
+        return re.search(rf"```{language}\n(.*?)```", section, re.S).group(1)
+
+    report, published = services.publish(
+        json.loads(fenced("### Example spec", "json")), fenced("### Example HTML", "html")
+    )
+    assert report.ok, report.issues
+    console = []
+    page.on("console", lambda m: m.type in ("warning", "error") and console.append(m.text))
+    page.goto(f"{server.url}/d/{published.dashboard_id}")
+    frame = page.frame_locator("#prumi-frame")
+    frame.locator("#regions button").first.wait_for()
+    frame.locator("#trend li").first.wait_for()
+    assert re.fullmatch(r"\$[\d,]+\.\d\d", frame.locator("#revenue").text_content())
+    assert re.fullmatch(r"[+-]?[\d.]+% vs last year", frame.locator("#change").text_content())
+    assert frame.locator("#regions button").count() == 5
+    assert frame.locator("#others").text_content().startswith("Others: $")
+    frame.locator("#regions button").first.click()
+    page.wait_for_timeout(500)
+    assert not console, console

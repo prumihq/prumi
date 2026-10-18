@@ -18,8 +18,8 @@ from prumi.spec import Block, DashboardSpec, DimensionFilter, Interaction, TimeF
 from prumi.time import LastWindow, RangeWindow, ToDateWindow, window_form
 
 SCHEMA_HINT = (
-    "Fix the field to match the dashboard spec format (spec_version 0); its JSON Schema "
-    "lists every field."
+    "Fix the field to match the dashboard spec format (spec_version 0); authoring_guide "
+    "describes every field and has an example."
 )
 
 # Tagged-union members, by the tag pydantic puts into an error's location.

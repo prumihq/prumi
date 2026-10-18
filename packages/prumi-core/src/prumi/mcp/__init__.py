@@ -15,6 +15,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Sequence
+from pathlib import Path
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
@@ -41,6 +42,8 @@ Prumi serves official metrics from the company's semantic layer. Build dashboard
 3. Write a spec and the HTML. Every number on the page must come from `prumi.on(...)` in the HTML. Never write numbers, totals or datasets into the HTML, and never compute totals, averages or ratios in JavaScript; declare `total`, `others` or `compare` in the spec instead. Format values with `prumi.format`.
 4. Every data block must list its `filters` explicitly. Prefer full-period windows like `{last: 12, grain: week}`.
 5. Call `validate_spec` with the spec and the HTML and fix every error. Then `publish_dashboard` and give the user the URL. The dashboard starts as an uncertified draft; only the data team can certify it."""  # noqa: E501
+
+AUTHORING_GUIDE = Path(__file__).with_name("authoring_guide.md")
 
 STOPWORDS = frozenset(
     "a an and are as at be by do does for from how i in is it many me much my of on or per "
@@ -166,6 +169,12 @@ def _dashboard_url(services: Services, dashboard_id: str) -> str:
 
 def create_mcp(services: Services) -> MCPServer:
     mcp = MCPServer(name="prumi", instructions=INSTRUCTIONS)
+
+    @mcp.tool()
+    def authoring_guide() -> str:
+        """How to write a dashboard: the spec format, the page API (prumi.*), the result
+        object, a working example and the spec's JSON Schema. Call it once before writing."""
+        return AUTHORING_GUIDE.read_text(encoding="utf-8")
 
     @mcp.tool()
     def find_metrics(question: str, limit: int = 20) -> MetricsFound:
