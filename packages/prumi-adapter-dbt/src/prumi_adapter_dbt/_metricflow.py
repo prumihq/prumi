@@ -18,6 +18,7 @@ from metricflow_semantics.model.dbt_manifest_parser import (
     parse_manifest_from_dbt_generated_manifest,
 )
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
+from prumi.adapters import AdapterStartupError
 
 # Connection type -> MetricFlow's dialect for it.
 _DIALECTS: dict[str, tuple[SqlEngine, type[SqlPlanRenderer]]] = {
@@ -25,11 +26,11 @@ _DIALECTS: dict[str, tuple[SqlEngine, type[SqlPlanRenderer]]] = {
 }
 
 
-class ManifestError(Exception):
+class ManifestError(AdapterStartupError):
     """The semantic manifest is missing or MetricFlow can't read it."""
 
 
-class UnsupportedDialectError(Exception):
+class UnsupportedDialectError(AdapterStartupError):
     """No MetricFlow dialect for the connection type."""
 
 
@@ -53,8 +54,8 @@ class CompileOnlySqlClient:
         if dialect not in _DIALECTS:
             supported = ", ".join(sorted(_DIALECTS))
             raise UnsupportedDialectError(
-                f"Connection type {dialect!r} has no MetricFlow dialect in Prumi "
-                f"(supported: {supported})."
+                f"Prumi doesn't support the connection type {dialect!r} (supported: {supported}). "
+                "Check `type` under [source.dbt.connection] in prumi.toml."
             )
         engine, renderer = _DIALECTS[dialect]
         self._engine = engine
@@ -102,6 +103,9 @@ class CompileRequest:
     limit: int | None = None
 
 
+_MAX_REASON = 300
+
+
 def load_manifest(path: Path) -> SemanticManifestLookup:
     if not path.is_file():
         raise ManifestError(
@@ -113,8 +117,12 @@ def load_manifest(path: Path) -> SemanticManifestLookup:
         manifest = parse_manifest_from_dbt_generated_manifest(path.read_text(encoding="utf-8"))
         return SemanticManifestLookup(manifest)
     except Exception as exc:  # MetricFlow raises many types here; all mean "can't use it"
+        # Some errors quote the whole document; keep the message short.
+        reason = " ".join(str(exc).split())
+        if len(reason) > _MAX_REASON:
+            reason = reason[:_MAX_REASON] + "..."
         raise ManifestError(
-            f"MetricFlow can't read the semantic manifest {path}: {exc}. Check that it was "
+            f"MetricFlow can't read the semantic manifest {path}: {reason} Check that it was "
             "written by a dbt version this Prumi release supports, and run `dbt parse` again."
         ) from exc
 
@@ -123,10 +131,18 @@ class MetricFlowCompiler:
     """Compiles queries to SQL for one manifest and dialect, without running anything."""
 
     def __init__(self, manifest_path: Path, dialect: str) -> None:
+        self._lookup = load_manifest(manifest_path)
         self.client = CompileOnlySqlClient(dialect)
         self._engine = MetricFlowEngine(
-            semantic_manifest_lookup=load_manifest(manifest_path), sql_client=self.client
+            semantic_manifest_lookup=self._lookup, sql_client=self.client
         )
+
+    def relations(self) -> dict[str, str]:
+        """Semantic model name -> its relation, as dbt resolved it ("db"."schema"."table")."""
+        return {
+            model.name: model.node_relation.relation_name
+            for model in self._lookup.semantic_manifest.semantic_models
+        }
 
     def compile(self, request: CompileRequest) -> str:
         explained = self._engine.explain(

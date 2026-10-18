@@ -25,6 +25,7 @@ __all__ = [
     "Adapter",
     "AdapterFactory",
     "AdapterNotFoundError",
+    "AdapterStartupError",
     "Capabilities",
     "Catalog",
     "CatalogWarning",
@@ -221,13 +222,17 @@ class Adapter(Protocol):
 
 ENTRY_POINT_GROUP = "prumi.adapters"
 
-# What an adapter package registers: called with the adapter's own config table
-# (`[source.<name>]`) and the folder that relative paths in it resolve against.
+# What an adapter package registers: `factory(config, config_dir)`, called with the adapter's
+# own config table (`[source.<name>]`) and the folder that relative paths in it resolve against.
 AdapterFactory = Callable[[Mapping[str, Any], Path], Adapter]
 
 
 class AdapterNotFoundError(LookupError):
     pass
+
+
+class AdapterStartupError(Exception):
+    """An adapter can't start. The message names the file or relation and what to do."""
 
 
 def adapter_names() -> list[str]:

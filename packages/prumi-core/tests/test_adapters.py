@@ -26,9 +26,9 @@ from prumi.adapters import Capabilities, Catalog, Result
 class FakeAdapter:
     name = "fake"
 
-    def __init__(self, settings, base_dir):
-        self.settings = settings
-        self.base_dir = base_dir
+    def __init__(self, config, config_dir):
+        self.config = config
+        self.config_dir = config_dir
 
     def capabilities(self):
         return Capabilities(identity_mode="shared_account")
@@ -43,8 +43,8 @@ class FakeAdapter:
         return Result(columns=(), rows=(), row_count=0)
 
 
-def create(settings, base_dir):
-    return FakeAdapter(settings, base_dir)
+def create(config, config_dir):
+    return FakeAdapter(config, config_dir)
 """
 
 
@@ -75,7 +75,8 @@ def test_a_registered_adapter_is_found_by_name(fake_adapter_installed):
     adapter = factory({"option": 1}, fake_adapter_installed)
     assert isinstance(adapter, Adapter)
     assert adapter.name == "fake"
-    assert adapter.settings == {"option": 1}
+    assert adapter.config == {"option": 1}
+    assert adapter.config_dir == fake_adapter_installed
     assert adapter.capabilities() == Capabilities(identity_mode="shared_account")
     assert adapter.discover() == Catalog(metrics=(), dimensions=())
 

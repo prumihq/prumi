@@ -15,6 +15,9 @@ dependencies = [
 [project.optional-dependencies]
 duckdb = ["duckdb"]
 
+[project.entry-points."prumi.adapters"]
+dbt = "prumi_adapter_dbt.adapter:create_adapter"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
