@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Release: 0.1.0 · Status: accepted
+Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; section 18 awaits acceptance)
 
 ## Goal
 

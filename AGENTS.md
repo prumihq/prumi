@@ -13,7 +13,7 @@ uv run ruff format      # format
 
 ## How work is organized
 
-- **Specs drive the work.** Each milestone has `specs/<milestone>/spec.md` (what and why) and `tasks.md` (ordered steps). Implement from the current milestone's spec. Don't build anything the spec doesn't ask for.
+- **Specs drive the work.** Each planned minor release has a spec folder named by goal, `specs/<goal>/` with `spec.md` (what and why) and `tasks.md` (ordered steps); see `specs/README.md` for the terms and when a spec may change. Implement from the current spec, and only from its accepted sections. Don't build anything the spec doesn't ask for, and never edit a spec whose status is `done`.
 - **Don't change scope or fill gaps by guessing.** If a spec is unclear, contradicts itself or turns out to be wrong, write the question in `specs/<milestone>/questions.md` (what you found, the options you see, which task is blocked) and stop. The maintainer answers and updates the spec.
 - **Milestones are not version numbers.** Releases stay 0.x; never tag 1.0 unless the maintainer says so.
 - **ADRs record technical decisions** in `docs/adr/`. Add one when a decision would surprise a future reader. Agents propose ADRs with status Proposed; only the maintainer accepts them. Never rewrite an accepted ADR; supersede it with a new one.
