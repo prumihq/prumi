@@ -44,8 +44,10 @@ The other commands are `uncertify`, `delete`, `requests` (metrics agents asked f
 Prumi's MCP endpoint is `http://127.0.0.1:8484/mcp` (Streamable HTTP). With Claude Code:
 
 ```sh
-claude mcp add --transport http prumi http://127.0.0.1:8484/mcp
+claude mcp add --scope user --transport http prumi http://127.0.0.1:8484/mcp
 ```
+
+`--scope user` makes Prumi available in every folder. Without it, Claude Code registers the server only for the folder you ran the command in.
 
 Any MCP client that runs on your machine and supports Streamable HTTP can connect the same way. Clients that connect from their vendor's cloud (connectors configured in a web app, for example) can't reach a server on your machine.
 
