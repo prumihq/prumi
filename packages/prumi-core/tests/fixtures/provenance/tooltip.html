@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- A bar chart whose tooltip, a <div> of <body> outside the chart, shows a week's revenue on
+     hover. Unbound, the hover pass flags it; bound to the weekly block ("#tip": "weekly"), it
+     passes. -->
+<html>
+<head><meta charset="utf-8"><title>Weekly revenue</title>
+<style>#tip { position: fixed; background: #fff; border: 1px solid #ccc; padding: 4px; }</style>
+</head>
+<body>
+  <h1>Weekly revenue</h1>
+  <svg id="chart" width="600" height="200"></svg>
+  <div id="tip" hidden></div>
+  <script>
+    var NS = "http://www.w3.org/2000/svg";
+    var tip = document.getElementById("tip");
+    prumi.on("weekly", function (b) {
+      var svg = document.getElementById("chart");
+      var max = Math.max.apply(null, b.rows.map(function (r) { return r.revenue; }));
+      svg.replaceChildren();
+      b.rows.forEach(function (row, i) {
+        var bar = document.createElementNS(NS, "rect");
+        var h = row.revenue / max * 180;
+        bar.setAttribute("x", 10 + i * 48);
+        bar.setAttribute("y", 190 - h);
+        bar.setAttribute("width", 40);
+        bar.setAttribute("height", h);
+        bar.addEventListener("mouseenter", function (e) {
+          tip.textContent = row.metric_time + ": " + prumi.format(row.revenue, "revenue");
+          tip.style.left = e.clientX + 8 + "px";
+          tip.style.top = e.clientY + 8 + "px";
+          tip.hidden = false;
+        });
+        bar.addEventListener("mouseleave", function () { tip.hidden = true; });
+        svg.appendChild(bar);
+      });
+    });
+  </script>
+</body>
+</html>

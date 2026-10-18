@@ -87,13 +87,26 @@ _SCAN = """(() => {
   const setup = %s;
   const delivered = p.fromResults(setup.results);
   const allowed = p.fromData([setup.spec, setup.labels], delivered.allowed);
-  const found = p.scan(
-    document, { blocks: delivered.blocks, bindings: setup.bindings, allowed }, %d
-  );
+  // Kept for the hover pass's scans, in this isolated world only.
+  window.prumiCheck = { blocks: delivered.blocks, bindings: setup.bindings, allowed };
+  const found = p.scan(document, window.prumiCheck, %d);
   found.copied = p.copied(%s, delivered.values, %d);
   found.unreadable = p.unreadable(document);
   return found;
 })()"""
+
+# After a hover: let the page draw its tooltip, then scan again.
+_RESCAN = """new Promise((resolve) => requestAnimationFrame(() => resolve(
+  window.prumiProvenance.scan(document, window.prumiCheck, %d).flagged
+)))"""
+HOVER_SAMPLES = 20
+_HOVER_EVENTS = {"mouseover", "mouseenter", "mousemove", "pointerover", "pointerenter",
+                 "pointermove"}  # fmt: skip
+_SVG_SHAPES = "rect, path, circle, ellipse, polygon, polyline, line"
+TOOLTIP_HINT = (
+    "Render the tooltip inside the bound element, or bind it to the blocks it shows "
+    "(a binding can list several)."
+)
 
 _CSP_URL = re.compile(r"'((?:https?|wss?)://[^']+)'")
 
@@ -105,9 +118,15 @@ class BrowserStartupError(Exception):
 class PageChecker:
     """Renders dashboard pages in one shared headless Chromium and reports what they show."""
 
-    def __init__(self, settle_ms: int = SETTLE_MS, timeout_s: float = TIMEOUT_S) -> None:
+    def __init__(
+        self,
+        settle_ms: int = SETTLE_MS,
+        timeout_s: float = TIMEOUT_S,
+        hover_samples: int = HOVER_SAMPLES,
+    ) -> None:
         self.settle_ms = settle_ms
         self.timeout_s = timeout_s
+        self.hover_samples = hover_samples
         self._jobs: queue.Queue[tuple[Callable[[Any], Any], Future] | None] = queue.Queue()
         self._thread: threading.Thread | None = None
         self._started: Future = Future()
@@ -290,9 +309,79 @@ class PageChecker:
             source = json.dumps(source_html).replace("<", "\\u003c")
             scan = evaluate(_SCAN % (setup_json, MAX_LISTED, source, MAX_LISTED))
             scan["unreadable"]["closed_shadow_root"] = _has_closed_shadow_root(cdp)
+            if settled and self.hover_samples:
+                found = {(f["text"], f["path"]) for f in scan["flagged"]}
+                for flagged in _hover_pass(page, cdp, evaluate, setup, self.hover_samples):
+                    for item in flagged:
+                        if (item["text"], item["path"]) not in found:
+                            found.add((item["text"], item["path"]))
+                            scan["flagged"].append({**item, "hover": True})
+                scan["flagged"] = scan["flagged"][:MAX_LISTED]
         finally:
             context.close()
         return _issues(scan, errors, blocked, settled, self.timeout_s)
+
+
+def _hover_pass(page, cdp, evaluate, setup, samples: int):
+    """Hover a sample of chart marks and yield what each scan then flags.
+
+    Tooltips often appear only on hover, in an element appended to <body>. The targets are
+    elements under bound elements that have hover listeners, then SVG shapes inside bound
+    elements (charts often listen on the <svg> and work out the mark from the position),
+    taken in turn from each bound element so every chart gets some.
+    """
+    document = _frame_document(cdp)
+    if document is None:
+        return
+    groups: list[list[dict[str, int]]] = []
+    for selector in setup["bindings"]:
+        try:
+            roots = cdp.send(
+                "DOM.querySelectorAll", {"nodeId": document["nodeId"], "selector": selector}
+            )["nodeIds"]
+        except Exception:  # a selector Chromium doesn't accept binds nothing
+            continue
+        for root in roots:
+            targets: list[dict[str, int]] = []
+            node = cdp.send("DOM.resolveNode", {"nodeId": root})["object"]["objectId"]
+            listeners = cdp.send(
+                "DOMDebugger.getEventListeners", {"objectId": node, "depth": -1, "pierce": True}
+            )["listeners"]
+            for listener in listeners:
+                target = {"backendNodeId": listener.get("backendNodeId")}
+                if (
+                    listener["type"] in _HOVER_EVENTS
+                    and target["backendNodeId"]
+                    and (target not in targets)
+                ):
+                    targets.append(target)
+            shapes = cdp.send("DOM.querySelectorAll", {"nodeId": root, "selector": _SVG_SHAPES})
+            targets += [{"nodeId": n} for n in shapes["nodeIds"]]
+            groups.append(targets)
+    picked: list[dict[str, int]] = []
+    while len(picked) < samples and any(groups):
+        for targets in groups:
+            if targets and len(picked) < samples:
+                picked.append(targets.pop(0))
+    for target in picked:
+        try:
+            cdp.send("DOM.scrollIntoViewIfNeeded", target)
+            quad = cdp.send("DOM.getBoxModel", target)["model"]["content"]
+        except Exception:  # not rendered (display: none, removed meanwhile)
+            continue
+        page.mouse.move(sum(quad[0::2]) / 4, sum(quad[1::2]) / 4)
+        yield evaluate(_RESCAN % MAX_LISTED)
+    page.mouse.move(0, 0)
+
+
+def _frame_document(cdp) -> dict | None:
+    todo = [cdp.send("DOM.getDocument", {"depth": -1, "pierce": True})["root"]]
+    while todo:
+        node = todo.pop()
+        if "contentDocument" in node:
+            return node["contentDocument"]
+        todo.extend(node.get("children", []))
+    return None
 
 
 def _has_closed_shadow_root(cdp) -> bool:
@@ -392,13 +481,14 @@ def _issues(
         )
     for item in scan.get("flagged", []):
         if item.get("code") == "R8.unbound_number":
+            shown = "on hover shows" if item.get("hover") else "shows"
             issues.append(
                 error(
                     "R8.unbound_number",
                     "html",
-                    f"The page shows {item['text']} (in {item['path']}), outside every bound "
+                    f"The page {shown} {item['text']} (in {item['path']}), outside every bound "
                     "element, so it can't be checked against the block it comes from.",
-                    UNBOUND_HINT,
+                    TOOLTIP_HINT if item.get("hover") else UNBOUND_HINT,
                 )
             )
         else:

@@ -1,0 +1,26 @@
+{
+  "spec_version": 0,
+  "dashboard": {
+    "id": "tooltip",
+    "title": "Weekly revenue"
+  },
+  "data": [
+    {
+      "id": "weekly",
+      "metrics": [
+        "revenue"
+      ],
+      "time_grain": "week",
+      "window": {
+        "last": 12,
+        "grain": "week"
+      },
+      "filters": []
+    }
+  ],
+  "presentation": {
+    "bindings": {
+      "#chart": "weekly"
+    }
+  }
+}

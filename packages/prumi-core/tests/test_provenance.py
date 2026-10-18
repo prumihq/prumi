@@ -23,7 +23,7 @@ RUNTIME = Path(__file__).parents[2] / "prumi-runtime" / "src"
 EXPECTED = json.loads((FIXTURES / "expected.json").read_text())
 SHOWN = re.compile(r"The page shows (.+) \(in (.+)\), which isn't a value Prumi delivered.*")
 # The number an R8 issue is about, whatever the code.
-NUMBER = re.compile(r"(?:The page shows|The page's source has) (.+?) \((?:in|on) ")
+NUMBER = re.compile(r"(?:The page (?:on hover )?shows|The page's source has) (.+?) \((?:in|on) ")
 FLAGGED = {"html.image", "html.iframe", "html.closed_shadow_root", "html.canvas"}
 
 KPI_SPEC = {
@@ -355,3 +355,37 @@ def test_a_binding_must_name_known_blocks(demo_services):
     report = demo_services.validate(two_blocks({"#weeks": ["weekly", "nope"]}), TWO_BLOCKS_PAGE)
     [issue] = report.errors
     assert (issue.code, issue.path) == ("spec.unknown_block", "presentation.bindings['#weeks'][1]")
+
+
+# The hover pass
+
+
+def test_the_hover_pass_finds_unbound_tooltips(demo_services):
+    spec, html = fixture("tooltip")
+    report = demo_services.validate(spec, html)
+    assert report.errors and {i.code for i in report.errors} == {"R8.unbound_number"}
+    for issue in report.errors:
+        assert (
+            issue.message.startswith("The page on hover shows $")
+            and "(in div#tip)" in issue.message
+        )
+        assert issue.hint.startswith("Render the tooltip inside the bound element")
+    spec["presentation"]["bindings"]["#tip"] = "weekly"
+    assert demo_services.validate(spec, html).ok
+
+
+def test_the_hover_pass_adds_about_a_second_at_most(demo_services, monkeypatch):
+    import time
+
+    spec, html = fixture("first_run")  # a page with many marks to hover
+    demo_services.validate(spec, html)  # warm up
+
+    def timed() -> float:
+        started = time.monotonic()
+        assert demo_services.validate(spec, html).ok
+        return time.monotonic() - started
+
+    with_hover = min(timed() for _ in range(2))
+    monkeypatch.setattr(demo_services.checker, "hover_samples", 0)
+    without = min(timed() for _ in range(2))
+    assert with_hover - without < 1.5
