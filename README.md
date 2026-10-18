@@ -57,7 +57,7 @@ The server tells the agent how to work with it: use only catalog metrics and ask
 - **`query` results:** warehouse → Prumi → the agent → the agent's LLM provider. That's why `query` returns at most 200 rows.
 - **What Prumi stores:** specs, HTML, certifications and metric requests, in `registry.sqlite3` under the config's `data_dir` (`.prumi` by default). No query results, and no row data or filter values in logs.
 
-Every number on a dashboard is computed by the source at the grain it's shown: Prumi never re-aggregates ratios, averages or distinct counts. The dashboard's HTML runs in a sandboxed frame that can't call any server, and the badge and data freshness come from Prumi, not from the HTML.
+Every number on a dashboard is computed by the source at the grain it's shown: Prumi never re-aggregates ratios, averages or distinct counts. The ten BI rules Prumi checks, and their issue codes, are explained in [docs/bi-rules.md](docs/bi-rules.md). The dashboard's HTML runs in a sandboxed frame that can't call any server, and the badge and data freshness come from Prumi, not from the HTML.
 
 ## Repository layout
 

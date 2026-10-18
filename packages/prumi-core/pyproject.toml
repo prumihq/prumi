@@ -6,11 +6,12 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp",
-    "pydantic>=2",
-    "starlette",
-    "uvicorn",
-    "pyyaml",
+    # Capped at the next major version: mcp 2.x already renamed its server class.
+    "mcp>=2.3,<3",
+    "pydantic>=2.14,<3",
+    "starlette>=1.8,<2",
+    "uvicorn>=0.54",
+    "pyyaml>=6,<7",
 ]
 
 [project.scripts]

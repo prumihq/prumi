@@ -496,7 +496,7 @@ The shell holds the filter state, re-fetches only the blocks that list a changed
 
 ### 14. MCP server (`prumi.mcp`)
 
-Built with the official Python SDK (`FastMCP`), Streamable HTTP transport, stateless mode, mounted at `/mcp`. Server name `prumi`. Tool inputs and outputs are pydantic models, so the SDK publishes their JSON schemas to the agent.
+Built with the official Python SDK (`MCPServer`, called `FastMCP` before `mcp` 2.x), Streamable HTTP transport, stateless mode, mounted at `/mcp`. The SDK's DNS-rebinding check stays on, configured with Prumi's allowed hosts. Server name `prumi`. Tool inputs and outputs are pydantic models, so the SDK publishes their JSON schemas to the agent.
 
 | Tool | Input | Output |
 |---|---|---|
@@ -504,12 +504,12 @@ Built with the official Python SDK (`FastMCP`), Streamable HTTP transport, state
 | `describe_metric` | `name: str` | Everything in the catalog for the metric, its valid dimensions (name, label, description), time grains, the metric's own filter, and `caveats` (generated: "non-additive: never sum or average its rows", "no format declared"). Unknown name: error with suggestions. |
 | `query` | A block-shaped query: `metrics`, `dimensions`, `time_grain`, `window` (**required**), `where: [{dimension, op, values}]`, `sort`, `top_n`, `others`, `total`, `compare` | The block result through `for_agent` (≤ 200 rows), or validation issues. |
 | `validate_spec` | `spec`, `html: str \| None` | `{ok, errors, warnings}` |
-| `publish_dashboard` | `spec`, `html` | `{id, version, url, status: "draft", warnings}`, or the errors that blocked publishing. `url` is `http://<host>:<port>/d/<id>`. |
+| `publish_dashboard` | `spec`, `html` | `{id, version, url, status, warnings}`; `status` is computed (`draft`, or `certified` when the content is identical to a certified version), or the errors that blocked publishing. `url` is `http://<host>:<port>/d/<id>`. |
 | `request_metric` | `description: str`, `reason: str`, `dashboard_id: str \| None` | `{id, message}`. The id can go in the spec's `metric_requests`. |
 
 - **`find_metrics` ranking:** lowercase, split on non-alphanumerics and `_`, drop a short English stopword list. Score = 2 × matches in name/label + 1 × matches in description. Ties broken by name. No synonyms and no embeddings. A catalog smaller than `limit` is returned whole.
 - `query` uses the same validation rules as a block (R2–R7, R10), and `where` uses the adapter filter ops.
-- Errors are returned as tool errors whose content is the issue list.
+- Errors are returned as tool error results whose only content is the issue list (not raised, which would add the SDK's own error prefix).
 
 **Server instructions** (sent to the agent at initialization):
 
@@ -561,7 +561,7 @@ The last three exist because MetricFlow builds ratio and derived metrics only fr
 
 ### 16. Logging
 
-Standard `logging`. Each executed query logs: origin (`block <dashboard>/<v>/<block>` or `agent query`), viewer id, duration, row count. Compiled SQL only at DEBUG. **Never row values or filter values**, at any level.
+Standard `logging`. Each executed query logs: origin (`block <dashboard>/<v>/<block>`, `agent query`, `dry run <dashboard>`, `filter values <dashboard>/<v>/<filter>`), step, viewer id, duration, row count. **Never row values or filter values**, at any level. Compiled SQL is logged only at DEBUG and with every literal replaced by `?`, because the SQL inlines filter values and window dates. MetricFlow's own loggers are kept at WARNING, since its DEBUG output includes filter values.
 
 ### 17. Docs
 
