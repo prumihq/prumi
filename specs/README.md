@@ -52,4 +52,4 @@ An ordered checklist. Each task is small enough for one commit or PR, says when 
 
 ## Milestones
 
-- [`mvp`](mvp/spec.md): prove the core loop on one machine. Release 0.1.0. Status: draft. [Tasks](mvp/tasks.md).
+- [`mvp`](mvp/spec.md): prove the core loop on one machine. Release 0.1.0. Status: accepted. [Tasks](mvp/tasks.md).

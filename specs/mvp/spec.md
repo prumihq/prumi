@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Release: 0.1.0 · Status: draft
+Release: 0.1.0 · Status: accepted
 
 ## Goal
 
