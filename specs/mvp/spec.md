@@ -139,7 +139,8 @@ LOCAL_VIEWER = Viewer(id="local", security_context={})
 - **Dimension values query:** `metrics=()` with exactly one dimension and no `time_grain` returns that dimension's distinct values (used for filter pickers). It runs as the viewer like any other query.
 - Filter semantics, defined here so every adapter behaves the same:
   - `eq` / `in` with `None` among the values also match NULL. `ne` / `not_in` **keep** NULL rows unless `None` is among the values. (Needed for "Others" in R6: a NULL region must land in Others, not disappear.)
-  - `in` / `not_in` need at least one value; the others need exactly one.
+  - `in` / `not_in` need at least one value; the others need exactly one. `lt`, `le`, `gt` and `ge` reject `None`.
+  - `execute` rejects dimension names that the catalog doesn't show for the query's metrics (e.g. a longer join route MetricFlow would accept), so the adapter and the validator's R2 check agree.
 - Adapters are discovered through the `prumi.adapters` entry point group; core selects one by `source.adapter`. The entry point is a factory `(config: Mapping[str, Any], config_dir: Path) -> Adapter`, called with the adapter's own table (`[source.<name>]`) and the folder that relative paths resolve against.
 
 ### 4. dbt adapter
@@ -148,7 +149,7 @@ LOCAL_VIEWER = Viewer(id="local", security_context={})
 - **Loading:** `parse_manifest_from_dbt_generated_manifest(text)` → `SemanticManifestLookup` → `MetricFlowEngine(lookup, CompileOnlySqlClient(dialect))`, as in the spike. The compile-only client provides `sql_engine_type` and `sql_plan_renderer` for the connection's dialect, and raises on `query`, `execute` and `dry_run`.
 - **Compiling:** `engine.explain(MetricFlowQueryRequest.create(...)).sql_statement`. The adapter refuses SQL with bind parameters (the spike saw none). It never calls `engine.query(...)`.
 - **Executing:** `prumi_adapter_dbt/connections/duckdb.py` opens `duckdb.connect(path, read_only=True)` for each `execute` call and closes it afterwards. Results are read **by column name** (MetricFlow reorders columns; spike caveat 5) and renamed to the semantic names (`metric_time__month` → `metric_time`).
-- **Startup checks** (each fails startup with a message naming the file or relation and what to do):
+- **Startup checks** (each raises `prumi.adapters.AdapterStartupError`, which the server and CLI print as a plain message naming the file or relation and what to do):
   1. The manifest file exists and MetricFlow can parse it.
   2. The configured connection type has a MetricFlow dialect.
   3. Every semantic model's relation (database.schema.table, as dbt resolved it) exists on the connection (`SELECT 1 FROM <relation> LIMIT 0`). This is the "names are baked into the SQL" caveat from ADR 0002: for DuckDB, the database name is the file name without extension, so a renamed file fails here instead of at the first query.
@@ -158,10 +159,12 @@ LOCAL_VIEWER = Viewer(id="local", security_context={})
   - `filters` → where clauses on `{{ Dimension('<name>') }}`, rendered by the adapter:
     - strings in single quotes, with `'` doubled;
     - **a string containing `{` or `}` is rejected** (`ValueError`), because MetricFlow renders where clauses as Jinja and the value would be a template;
-    - ints and finite floats via `repr`; booleans as `TRUE` / `FALSE`; `None` as described in the filter semantics above (`IS NULL` / `IS NOT NULL` combined with `OR` / `AND`).
+    - ints and finite floats via `repr`; booleans as `TRUE` / `FALSE`; `None` as described in the filter semantics above (`IS NULL` / `IS NOT NULL` combined with `OR` / `AND`);
+    - dimension names must be plain identifiers, because they're inserted into the template too.
   - `order_by` / `limit` → MetricFlow's `order_by_names` (with `-` for descending) and `limit`.
   - dimension-values query → MetricFlow's dimension-values path (`explain_get_dimension_values` or a group-by-only request, whichever the contract test shows compiles without running anything).
 - **Catalog extraction** (from `list_metrics`, `list_dimensions`, `list_group_bys`):
+  - **Aggregation as declared:** MetricFlow rewrites some aggregations while parsing (`count` becomes a sum of 1s, `median` a percentile). The catalog reports the aggregation written in the dbt project, read from the manifest before that rewrite, and the additivity rule uses it.
   - **Additivity:** a metric is `additive` only if it's `simple`, its aggregation is `sum`, `count` or `sum_boolean`, and its measure has no `non_additive_dimension`. Everything else is non-additive: ratio, derived (even `a - b`), cumulative, conversion, `count_distinct`, `average`, `min`, `max`, `median`, `percentile`, and semi-additive measures. Being wrong about "additive" gives wrong totals; being wrong about "non-additive" only costs an extra query.
   - **Format (R10):** read from `config.meta.prumi`:
     ```yaml
