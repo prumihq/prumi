@@ -76,5 +76,5 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 52. Unmarked ticks only inside `<svg>` (AC 56)
 - [x] 53. The viewer bar and `needs_attention` for flagged published versions (AC 57)
 - [x] 55. Hover pass in the server check, with the unbound-tooltip fixture (AC 58). Do it after task 50
-- [ ] 54. Guide and `docs/bi-rules.md`: bindings for every number, tooltips inside bound elements, no images, iframes or closed shadow roots, the new codes
+- [x] 54. Guide and `docs/bi-rules.md`: bindings for every number, tooltips inside bound elements, no images, iframes or closed shadow roots, the new codes
 

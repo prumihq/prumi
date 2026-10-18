@@ -106,30 +106,39 @@ A dashboard can only use metrics that exist in the source. If the right one is m
 
 ## R8. Every number shown is a value Prumi delivered
 
-**Catches:** a dashboard that looks live but shows numbers the source never computed: a frozen copy of the data pasted into the page, a value copied from an earlier result, a total summed or an average computed in JavaScript.
+**Catches:** a dashboard that looks live but shows numbers the source never computed: a frozen copy of the data pasted into the page, a value copied from an earlier result (even one that's right today), a total summed or an average computed in JavaScript.
 
 The HTML is stored without data; every number arrives through the runtime. It doesn't matter how a wrong number got onto the page: if Prumi didn't deliver it, it's flagged.
 
-**What counts as delivered:** every metric value in the block results (rows, `total`, `others`, `_previous`, `_delta`, `_delta_pct`). A number on screen matches when a delivered value, rounded to the precision shown and scaled for `%` or `K`/`M`/`B`, gives the same number; currency symbols, separators and signs are ignored, and both `1,234.5` and `1.234,5` are read. `$2.7M` matches `2742409.17`; `$228,534` doesn't match anything if only `2742409.17` was delivered.
+**Every number belongs to a bound block.** Each element that shows numbers must be matched by a `presentation.bindings` selector (or sit inside one), and its numbers must be values of **that binding's blocks**; the nearest bound ancestor wins. A binding names one block or a list (`"#table": ["regions", "regions_total"]`). Matching against every value on the page isn't enough: a page shows hundreds of values, and a number computed in JavaScript often equals one of them at the precision shown (a weekly average shown as `$229K` equals some week's revenue).
 
-**Also allowed:** dates and years in common formats, counts of periods ("Last 4 weeks"), numbers written in the spec or in result metadata (window lengths, `top_n`, row counts, numbers in dimension values), and axis ticks: round numbers with at most two significant digits (`0`, `50K`, `2.5M`, `20%`) inside an element marked `data-prumi-role="axis"`, or three or more evenly spaced ones in the same chart.
+**What counts as delivered:** every metric value in the bound blocks' results (rows, `total`, `others`, `_previous`, `_delta`, `_delta_pct`). A number on screen matches when such a value, rounded to the precision shown and scaled for `%` or `K`/`M`/`B`, gives the same number; currency symbols, separators and signs are ignored, and both `1,234.5` and `1.234,5` are read. `$2.7M` matches `2742409.17`; `$228,534` doesn't match anything if only `2742409.17` was delivered.
 
-**What's read:** visible text, i.e. text outside `<script>` and `<style>`, SVG `<text>`, `title` attributes and open shadow roots, including text that appears later, such as tooltips. Text drawn into a `<canvas>` can't be read, so a canvas is an error.
+**Allowed anywhere, bound or not:** dates and years in common formats, counts of periods ("Last 4 weeks"), numbers written in the spec or in result metadata (window lengths, `top_n`, row counts, numbers in dimension values), and axis ticks: round numbers with at most two significant digits (`0`, `50K`, `2.5M`, `20%`) inside an element marked `data-prumi-role="axis"`, or three or more evenly spaced ones within one `<svg>` chart (in HTML, ticks need the marker).
+
+**Not in the source:** a delivered value written into the HTML source (3+ significant digits in text, 4+ in a script) was copied there, so it's right only until the data changes. Attributes such as SVG coordinates aren't read, and round layout constants (`1200`) have too few digits.
+
+**What's read:** visible text, i.e. text outside `<script>` and `<style>`, SVG `<text>`, `title` attributes and open shadow roots, including text that appears later, such as tooltips. What the check can't read isn't allowed: `<canvas>`, `<iframe>`, closed shadow roots and images (`<img>`, SVG `<image>`, CSS background images); the frame's CSP blocks images too (`img-src 'none'`).
 
 The number check runs in two places:
 
-- **On the server, at validation (the guarantee).** When the static checks and the dry run pass, Prumi renders the page in headless Chromium with the dry run's results, waits until it settles (no DOM changes for 300 ms, at most 10 s) and reads every number from an isolated world: page code shares the DOM with the check but none of its JavaScript, so it can't switch the check off or feed it values. Errors block publishing, and `prumi certify` runs the check again. Only the filters' default values are checked.
-- **In viewers' browsers, every time the page is viewed.** The runtime runs the same check after each render and reports what it found for that filter state; the registry keeps the latest report per version and filter state. Viewers see nothing of it. Page code could interfere with this check, so it's informational, but `get_dashboard` shows the reports and `prumi certify` refuses a version with a flagged report.
+- **On the server, at validation (the guarantee).** When the static checks and the dry run pass, Prumi renders the page in headless Chromium with the dry run's results, waits until it settles (no DOM changes for 300 ms, at most 10 s) and reads every number from an isolated world: page code shares the DOM with the check but none of its JavaScript, so it can't switch the check off or feed it values. It also scans the stored source for copied values, then hovers up to 20 chart marks (elements with hover listeners under bound elements, and SVG shapes in them) and reads the tooltips they open; that adds about a second. Errors block publishing, and `prumi certify` runs the check again. Only the filters' default values are checked, with that day's data.
+- **In viewers' browsers, every time the page is viewed.** The runtime runs the same check after each render and reports what it found for that filter state; the registry keeps the latest report per version and filter state. When a report flags numbers, that viewer sees a bar, "This page shows numbers Prumi didn't deliver.", with the list on click, and the current version is marked `needs_attention` (status API, `list_dashboards`, `get_dashboard`) until a new version is published or a later report for that filter state is clean. Publishing can't catch what only appears after it: new data, or a filter state the server didn't render. Page code could interfere with this check, so it's not a guarantee, but `get_dashboard` shows the reports and `prumi certify` refuses a version with a flagged report.
 
 The static checks still run first, and the frame can't make network calls, so page code can't fetch data from elsewhere or send it out.
 
 | Code | Severity | When |
 |---|---|---|
-| `R8.unverified_number` | error | The rendered page shows a number Prumi didn't deliver. The issue gives the text and the element's path; at most 20 are listed |
+| `R8.unbound_number` | error | The rendered page shows a number outside every bound element, or a tooltip does on hover. The issue gives the text and the element's path |
+| `R8.unverified_number` | error | A number in a bound element isn't a value its binding's blocks delivered. The issue names the blocks; at most 20 numbers are listed in all |
+| `R8.copied_number` | error | The HTML source holds a delivered value (in text with 3+ significant digits, in a script with 4+), with its line |
 | `R8.embedded_numbers` | error | An inline script holds an array or object literal that looks like a dataset |
 | `R8.numbers_in_text` | warning | Visible text with several data-like numbers (`1,234`, `12.5%`, `$3.4M`) |
 | `R8.numbers_in_table` | warning | A table with several numeric cells |
 | `html.canvas` | error | The page uses `<canvas>`, whose text can't be checked |
+| `html.iframe` | error | The page has an `<iframe>` (or `<frame>`), which the check can't read inside |
+| `html.closed_shadow_root` | error | The page makes a closed shadow root (`attachShadow({mode: "closed"})`, `<template shadowrootmode="closed">`) |
+| `html.image` | error | The page has an image: `<img>`, SVG `<image>`, `<picture>`, `<input type="image">` or a CSS background image |
 | `html.runtime_error` | error | The page, or a `prumi.on` callback, threw an error while rendering |
 | `html.render_timeout` | error | The page didn't settle within 10 s, so its numbers couldn't be checked |
 | `html.network_call` | warning | A script calls `fetch(`, `XMLHttpRequest`, `WebSocket`, `EventSource` or `sendBeacon`, which the frame blocks |

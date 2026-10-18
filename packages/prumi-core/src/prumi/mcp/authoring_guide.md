@@ -43,7 +43,7 @@ To change a dashboard later, see "Changing a dashboard" at the end.
   - A block returns at most 5,000 rows (`truncated: true` beyond that). The 200-row cap is only for `query`.
   - A `time_grain` must divide the window's periods: the same grain, `day`, `month` in a quarter or year, `quarter` in a year. Weeks only fit week windows.
 - **Interactions**: `{"from": "regions", "on": "click", "sets_filter": "region"}`. A click on a row of `regions` sets the dimension filter `region` to that row's value; clicking it again clears it. The block must have the filter's dimension.
-- **Bindings** (`presentation.bindings`): `"#element-id": "block-id"`, documenting which element shows which block. Every block should be bound or drawn with `prumi.on`.
+- **Bindings** (`presentation.bindings`): `"#element-id": "block-id"`, or a list of blocks when the element shows several (`"#table": ["regions", "regions_total"]`). **Every element that shows numbers must be bound** (or sit inside a bound element) to the blocks whose values it shows: a number is checked against the blocks of its nearest bound ancestor. The element must be in the HTML (an id in the page, not one a script creates).
 
 ## The page
 
@@ -51,12 +51,20 @@ Your HTML runs in a sandboxed frame. It **can't** call any server (no `fetch`, `
 
 ### Every number comes from Prumi
 
-**Every number the page shows must be a value Prumi delivered**: a metric value from a block result (rows, `total`, `others`, `_previous`, `_delta`, `_delta_pct`), as `prumi.format` shows it. Validation renders the page with the data and reads every number it shows (text, SVG text, `title` tooltips); viewers' browsers do the same for other filter states. Any other number is an error (`R8.unverified_number`) and blocks publishing: a value typed into the HTML or kept in a script, a number copied from a `query` result, a sum, average or share computed in JavaScript. Ask for `total`, `others` or `compare` in the spec instead.
+**Every number the page shows must be a value Prumi delivered to the block bound there**: a metric value from that block's result (rows, `total`, `others`, `_previous`, `_delta`, `_delta_pct`), as `prumi.format` shows it. Validation renders the page with the data, reads every number it shows (text, SVG text, `title` tooltips), then hovers chart marks and reads the tooltips they open; viewers' browsers do the same for other filter states. Errors block publishing:
 
-- A shown number matches a delivered value at the precision shown, also scaled (`$2.7M`, `31%`). Dates, years, counts of periods ("Last 12 weeks"), numbers from the spec and row counts are fine.
+- `R8.unbound_number`: a number outside every bound element. Bind the element to the block it shows.
+- `R8.unverified_number`: a number its binding's blocks didn't deliver: a sum, average or share computed in JavaScript, a value from another block (bind a list of blocks), a number copied from a `query` result. Ask for `total`, `others` or `compare` in the spec instead.
+- `R8.copied_number`: a delivered value written into the HTML source or a script, even if it's right today. It goes stale; show it from `prumi.on`.
+
+The rules:
+
+- A shown number matches a delivered value at the precision shown, also scaled (`$2.7M`, `31%`). Dates, years, counts of periods ("Last 12 weeks"), numbers from the spec and row counts are fine anywhere.
+- **Tooltips** are checked too, on hover. Render them inside the bound chart element, or give them an element in the HTML (`<div id="tip" hidden></div>`) and bind it to the blocks they show (`"#tip": ["trend", "weekly_regions"]`).
 - **Layout math is fine**: scales, widths, positions, color ranges. Compute anything you need to *draw*; *show* only delivered values.
-- **Axis ticks** aren't data: put them in an element marked `data-prumi-role="axis"` (an SVG `<g>`, a `<div>`). There, round numbers with at most two significant digits (`0`, `50K`, `2.5M`, `20%`) are allowed.
-- **No `<canvas>`**: its text can't be read (`html.canvas`). Draw charts with SVG or HTML elements; chart libraries that render to SVG are fine.
+- **Axis ticks** aren't data: put them in an element marked `data-prumi-role="axis"` (an SVG `<g>`, a `<div>`). There, round numbers with at most two significant digits (`0`, `50K`, `2.5M`, `20%`) are allowed. Inside an `<svg>`, three or more evenly spaced ones pass without the marker; in HTML they always need it.
+- **Nothing the check can't read**: no `<canvas>` (`html.canvas`), no `<iframe>` (`html.iframe`), no closed shadow roots (`html.closed_shadow_root`) and no images (`html.image`: `<img>`, SVG `<image>`, CSS background images; the frame blocks them too). Draw charts with SVG or HTML elements (chart libraries that render to SVG are fine), and icons as inline SVG.
+- If a viewer's browser later finds a number Prumi didn't deliver (new data, another filter state), the viewer sees "This page shows numbers Prumi didn't deliver." and the dashboard is marked `needs_attention` in `list_dashboards` and `get_dashboard` until it's fixed.
 - A page that throws while rendering (`html.runtime_error`) or never stops changing (`html.render_timeout`, after 10 s) fails validation too. In the browser, a callback that throws, or a block that fails without a `prumi.onError` handler, shows "This part of the dashboard couldn't load." in the block's bound elements.
 
 ### Theme
@@ -203,7 +211,7 @@ Replace `revenue` and `customer__region` with metrics and dimensions from `find_
 
 ## Changing a dashboard
 
-1. `list_dashboards` lists the published dashboards; `get_dashboard(id)` gives the current version's spec and HTML (and `checks`: numbers viewers' browsers flagged).
+1. `list_dashboards` lists the published dashboards (`needs_attention`: viewers' browsers found numbers Prumi didn't deliver); `get_dashboard(id)` gives the current version's spec and HTML, and its `checks`: what viewers' browsers flagged, per filter state.
 2. `validate_spec(base=..., html_edits=[...], spec=...)` validates a change without resending the page. `base` is a `candidate_id` or `{"dashboard_id": "...", "version": 3}`; `html_edits` are `{"old": "...", "new": "..."}` replacements applied in order, and each `old` must occur exactly once in the HTML at that point (`edit.no_match`, `edit.ambiguous`); `spec` is a full new spec (default: the base's). The result is validated like any content and has its own `candidate_id`.
 3. `publish_dashboard` with that `candidate_id` makes a new version, a draft again.
 

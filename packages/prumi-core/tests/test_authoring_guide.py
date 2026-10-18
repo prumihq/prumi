@@ -52,9 +52,14 @@ def test_the_guide_describes_the_result_object():
 def test_the_guide_covers_numbers_theme_and_editing():
     for text in (
         "5,000 rows", "200-row cap is only for `query`", "one grand total for the whole window",
-        "Layout math is fine", 'data-prumi-role="axis"', "No `<canvas>`", "--prumi-series-1",
+        "Layout math is fine", 'data-prumi-role="axis"', "no `<canvas>`", "--prumi-series-1",
         "--prumi-radius", "{compact: true}", "html_edits", "base", "edit.no_match",
         "take one screenshot of the draft at desktop width; don't read the page's text",
         "Send the HTML straight to `validate_spec`",
+        # Every number belongs to a bound block; what can't be read isn't allowed.
+        "Every element that shows numbers must be bound", '"#table": ["regions", "regions_total"]',
+        "R8.unbound_number", "R8.unverified_number", "R8.copied_number", "Tooltips",
+        '<div id="tip" hidden></div>', "html.iframe", "html.closed_shadow_root", "html.image",
+        "in HTML they always need it", "needs_attention",
     ):  # fmt: skip
         assert text in GUIDE, text
