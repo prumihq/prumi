@@ -35,6 +35,17 @@ def server(services, live_server):
         yield live
 
 
+def expected_instructions() -> str:
+    """Section 14's instructions, with steps 3 and 5 as section 18 rewrote them."""
+    spec = SPEC_MD.read_text()
+    quote = re.search(r"\*\*Server instructions\*\*.*?\n\n((?:> .*\n)+)", spec)
+    lines = [line[2:] for line in quote.group(1).splitlines()]
+    section_18 = spec.split("### 18.", 1)[1].split("\n## ", 1)[0]
+    for line in re.findall(r"^> (\d\. .*)$", section_18, re.M):
+        lines = [line if old.startswith(line[:3]) else old for old in lines]
+    return "\n".join(lines)
+
+
 def session(server, work):
     """Run `work(client)` in an MCP session over Streamable HTTP."""
 
@@ -72,9 +83,7 @@ def test_exactly_seven_tools_and_the_instructions(server):
     assert {t.name for t in tools} == TOOLS
     assert info.name == "prumi"
     # The instructions are section 14's text, verbatim.
-    quote = re.search(r"\*\*Server instructions\*\*.*?\n\n((?:> .*\n)+)", SPEC_MD.read_text())
-    expected = "\n".join(line[2:] for line in quote.group(1).splitlines())
-    assert instructions == expected
+    assert instructions == expected_instructions()
     query = next(t for t in tools if t.name == "query")
     assert set(query.input_schema["required"]) == {"metrics", "window"}
 
@@ -276,6 +285,7 @@ def test_validate_publish_and_request_metric(server, services, demo_dashboard):
         "url": f"http://127.0.0.1:{port}/d/sales",
         "status": "draft",
         "warnings": [],
+        "note": "This link only works on this machine.",
     }
     assert ok(call(server, "publish_dashboard", spec=spec, html=html))["version"] == 1
     assert services.registry.metric_requests()[0].description == "Net revenue after returns"
@@ -400,3 +410,11 @@ def test_authoring_guide_returns_the_guide(server):
     result = call(server, "authoring_guide")
     assert not result.is_error
     assert result.content[0].text == AUTHORING_GUIDE.read_text(encoding="utf-8")
+
+
+def test_the_instructions_follow_section_18():
+    from prumi.mcp import INSTRUCTIONS
+
+    assert "3. Call `authoring_guide` once before writing anything" in INSTRUCTIONS
+    assert "with the `candidate_id` from the last successful validation" in INSTRUCTIONS
+    assert INSTRUCTIONS == expected_instructions()

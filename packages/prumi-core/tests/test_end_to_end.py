@@ -162,6 +162,7 @@ def test_agent_to_certified_dashboard(server, services, browser, demo_project, c
         "url": f"http://127.0.0.1:{port}/d/regional-sales",
         "status": "draft",
         "warnings": [],
+        "note": "This link only works on this machine.",
     }
 
     page = browser.new_context(locale="en-US").new_page()

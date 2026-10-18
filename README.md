@@ -26,7 +26,7 @@ uv run --project examples/demo-dbt-project python examples/demo-dbt-project/buil
 uv run prumi serve --config examples/demo-dbt-project/prumi.toml
 ```
 
-Then [connect your agent](#connect-your-agent) and ask it for a dashboard, e.g. "Build a dashboard of weekly revenue by region, with average order value." The agent finds the metrics, checks the numbers with `query`, validates the spec and HTML, publishes, and gives you a link such as `http://127.0.0.1:8484/d/sales-weekly`. [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard.
+Then [connect your agent](#connect-your-agent) and ask it for a dashboard, e.g. "Build a dashboard of weekly revenue by region, with average order value." The agent reads Prumi's authoring guide, finds the metrics, checks the numbers with `query`, validates the spec and HTML, publishes what it validated, and gives you a link such as `http://127.0.0.1:8484/d/sales-weekly` (it only works on your machine). [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard.
 
 A new dashboard is an uncertified **draft**. After reviewing it, the data team certifies it from the CLI, and the badge says who certified it and when. Any later change makes it a draft again.
 
@@ -49,7 +49,16 @@ claude mcp add --transport http prumi http://127.0.0.1:8484/mcp
 
 Any MCP client that runs on your machine and supports Streamable HTTP can connect the same way. Clients that connect from their vendor's cloud (connectors configured in a web app, for example) can't reach a server on your machine.
 
-The server tells the agent how to work with it: use only catalog metrics and ask for missing ones with `request_metric`, never write numbers into the page, declare totals and comparisons in the spec, and validate before publishing.
+The server tells the agent how to work with it: use only catalog metrics and ask for missing ones with `request_metric`, never write numbers into the page, declare totals and comparisons in the spec, and validate before publishing. Its tools:
+
+| Tool | For |
+|---|---|
+| `authoring_guide` | The spec format, the page API (`prumi.*`), the result object and a working example. Agents read it once before writing. |
+| `find_metrics`, `describe_metric` | Finding the official metrics and the dimensions each one can be split by. |
+| `query` | Looking at the data while designing (at most 200 rows). |
+| `validate_spec` | Checking a spec and its HTML. A clean result has a `candidate_id`. |
+| `publish_dashboard` | Publishing that `candidate_id` (or a spec and HTML) as a new draft version. |
+| `request_metric` | Asking the data team for a metric that doesn't exist yet. |
 
 ## Where your data goes
 

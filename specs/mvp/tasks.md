@@ -47,6 +47,6 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 29. `prumi.format` accepts a format object, and warns once in the console for unknown arguments (AC 35)
 - [x] 30. Candidates: `candidate_id` in `validate_spec`, the in-memory store, `publish_dashboard(candidate_id)` with re-validation and `publish.unknown_candidate` (AC 33)
 - [x] 31. `authoring_guide` tool and its Markdown file, with the three tests (AC 32)
-- [ ] 32. Local-only note on publish; new instructions text; README updated for the new tool (AC 36)
+- [x] 32. Local-only note on publish; new instructions text; README updated for the new tool (AC 36)
 - [ ] 33. Rerun the README's example prompt in a fresh agent session and write down what happened (AC 37). The maintainer does this one.
 
