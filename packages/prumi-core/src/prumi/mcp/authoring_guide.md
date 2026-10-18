@@ -137,7 +137,7 @@ Replace `revenue` and `customer__region` with metrics and dimensions from `find_
     {"id": "trend", "metrics": ["revenue"], "time_grain": "week", "filters": ["period", "region"]}
   ],
   "interactions": [{"from": "regions", "on": "click", "sets_filter": "region"}],
-  "presentation": {"bindings": {"#kpi": "kpi", "#regions": "regions", "#trend": "trend"}}
+  "presentation": {"bindings": {"#kpi": "kpi", "#regions": "regions", "#others": "regions", "#trend": "trend"}}
 }
 ```
 
@@ -498,7 +498,18 @@ Replace `revenue` and `customer__region` with metrics and dimensions from `find_
       "properties": {
         "bindings": {
           "additionalProperties": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            ]
           },
           "default": {},
           "title": "Bindings",

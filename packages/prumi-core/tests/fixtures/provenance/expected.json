@@ -1,15 +1,16 @@
 {
   "first_run": [],
-  "second_run": [],
   "guide_example": [],
   "axis_ticks": [],
   "dates_and_periods": [],
   "probe": [
     ["R8.copied_number", "$2,742,409"],
-    ["R8.unverified_number", "$228,534.11"],
-    ["R8.unverified_number", "$25,951.3"],
-    ["R8.unverified_number", "$30,521.91"],
-    ["R8.unverified_number", "$25,677.39"]
+    ["R8.unbound_number", "$2,742,409"],
+    ["R8.unbound_number", "$228,534.11"],
+    ["R8.unbound_number", "284.57"],
+    ["R8.unbound_number", "$25,951.3"],
+    ["R8.unbound_number", "$30,521.91"],
+    ["R8.unbound_number", "$25,677.39"]
   ],
   "js_total": [["R8.unverified_number", "6,983"]],
   "average_of_averages": [["R8.unverified_number", "$283.68"]],

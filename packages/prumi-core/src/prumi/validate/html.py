@@ -268,7 +268,7 @@ def _block_references(spec: DashboardSpec, scripts: list[_Script]) -> Iterator[I
                     f"(the blocks are: {', '.join(blocks)}).",
                     "Use the id of a block in the spec's data.",
                 )
-    bound = set(spec.presentation.bindings.values())
+    bound = spec.presentation.bound_blocks()
     for i, block in enumerate(spec.data):
         if block.id not in bound and block.id not in subscribed:
             yield warning(

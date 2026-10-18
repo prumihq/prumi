@@ -125,7 +125,7 @@ def shell_config(version: Version, source: Source) -> dict[str, Any]:
         "interactions": [i.model_dump(mode="json", by_alias=True) for i in spec.interactions],
         "labels": labels,
         "formats": formats,
-        "bindings": dict(spec.presentation.bindings),
+        "bindings": {s: list(b) for s, b in spec.presentation.blocks_of().items()},
         "spec": spec.model_dump(mode="json", by_alias=True),
     }
 

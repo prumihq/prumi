@@ -4,9 +4,10 @@
 // it renders at validation (so page code can't reach it), and the runtime runs it after each
 // render in the viewer's browser. It only reads the DOM and the values it's given.
 //
-// A shown number passes when it's a delivered value rounded to the precision shown (scaled for
-// "%" and K/M/B, ignoring currency symbols, separators and signs), a date or a year, a count
-// of periods ("4 weeks"), a number from the spec or from result metadata, or an axis tick.
+// A shown number passes when it's a date or a year, a count of periods ("4 weeks"), a number
+// from the spec or from result metadata, an axis tick, or, inside an element bound to blocks,
+// a value those blocks delivered, rounded to the precision shown (scaled for "%" and K/M/B,
+// ignoring currency symbols, separators and signs).
 (function (root) {
   "use strict";
 
@@ -155,19 +156,41 @@
     return significant(reading.digits) <= 2;
   }
 
-  // Why a number is allowed, or null.
-  function verdict(number, context, sorted) {
+  // Why a number that isn't data is allowed anywhere, or null: numbers from the spec and
+  // result metadata, years, counts of periods.
+  function nonData(number, context) {
+    if (number.scale !== 1) return null;
     var rs = readings(number.raw);
-    if (!rs.length) return null;
-    var plain = number.scale === 1;
     for (var i = 0; i < rs.length; i++) {
       var r = rs[i];
-      if (delivered(r, number.scale, sorted)) return "delivered";
-      if (plain && r.decimals === 0) {
-        if (context.allowed.has(r.value)) return "metadata";
-        if (r.value >= 1900 && r.value <= 2199 && r.digits === number.raw) return "year";
-        if (PERIODS.test(number.after) && !CURRENCY_BEFORE.test(number.before)) return "periods";
-      }
+      if (r.decimals !== 0) continue;
+      if (context.allowed.has(r.value)) return "metadata";
+      if (r.value >= 1900 && r.value <= 2199 && r.digits === number.raw) return "year";
+      if (PERIODS.test(number.after) && !CURRENCY_BEFORE.test(number.before)) return "periods";
+    }
+    return null;
+  }
+
+  function deliveredBy(number, sorted) {
+    return readings(number.raw).some(function (r) {
+      return delivered(r, number.scale, sorted);
+    });
+  }
+
+  // The blocks of the nearest element a binding selector matches, or null when none does.
+  function boundBlocks(element, bindings) {
+    var selectors = Object.keys(bindings || {});
+    for (var el = element; el; el = el.parentElement || hostOf(el)) {
+      if (!el.matches) continue;
+      var blocks = [];
+      selectors.forEach(function (selector) {
+        try {
+          if (el.matches(selector)) blocks = blocks.concat(bindings[selector]);
+        } catch (error) {
+          // not a selector this browser knows: it binds nothing
+        }
+      });
+      if (blocks.length) return blocks;
     }
     return null;
   }
@@ -269,13 +292,22 @@
     return ok;
   }
 
-  // context: {values: [delivered numbers], allowed: [numbers from the spec and metadata]}
-  // Returns {flagged: [{text, path}], checked: count of numbers read, canvas: bool}, with at
-  // most `limit` flagged numbers.
+  var UNBOUND = "R8.unbound_number";
+  var UNVERIFIED = "R8.unverified_number";
+
+  // context: {blocks: {blockId: [delivered values]}, bindings: {selector: [blockIds]},
+  // allowed: [numbers from the spec and metadata]}. A number that's data must sit in a bound
+  // element and be a value of that binding's blocks: matching against every value on the page
+  // lets a computed number through whenever it equals some other value at the precision shown.
+  // Returns {flagged: [{text, path, code}], checked: count of numbers read, canvas: bool},
+  // with at most `limit` flagged numbers.
   function scan(doc, context, limit) {
     limit = limit || 20;
-    var sorted = sortedValues(context.values);
     var ctx = { allowed: new Set((context.allowed || []).filter(isFinite).map(Number)) };
+    var sorted = {};
+    Object.keys(context.blocks || {}).forEach(function (id) {
+      sorted[id] = sortedValues(context.blocks[id]);
+    });
     var unverified = [];
     var checked = 0;
     var ticks = []; // every tick-like number, verified or not: a series is judged whole
@@ -288,8 +320,21 @@
           item.reading = tick;
           ticks.push(item);
         }
-        if (verdict(number, ctx, sorted)) return;
+        if (nonData(number, ctx)) return;
         if (tick && isAxis(t.element)) return;
+        var blocks = boundBlocks(t.element, context.bindings);
+        if (!blocks) {
+          item.code = UNBOUND;
+        } else if (
+          !blocks.some(function (id) {
+            return sorted[id] && deliveredBy(number, sorted[id]);
+          })
+        ) {
+          item.code = UNVERIFIED;
+          item.blocks = blocks;
+        } else {
+          return;
+        }
         unverified.push(item);
       });
     });
@@ -302,7 +347,9 @@
       var entry = {
         text: (symbol ? symbol[0].trim() : "") + item.number.text.trim(),
         path: path(item.element),
+        code: item.code,
       };
+      if (item.blocks) entry.blocks = item.blocks;
       var key = entry.text + "\u0000" + entry.path;
       if (seen[key] || flagged.length >= limit) return;
       seen[key] = true;
@@ -314,12 +361,15 @@
   // The numbers a block result delivers: every metric value in rows, total, others and the
   // comparison fields. And what else a page may show: row counts and numbers in dimension
   // values (a "Store 12" category).
+  // Returns {values: all of them, blocks: {blockId: values}, allowed}.
   function fromResults(results) {
-    var values = [];
+    var all = [];
+    var blocks = {};
     var allowed = [];
     Object.keys(results || {}).forEach(function (id) {
       var result = results[id];
       if (!result) return;
+      var values = (blocks[id] = blocks[id] || []);
       var metrics = (result.columns || [])
         .filter(function (c) {
           return c.kind === "metric";
@@ -348,8 +398,9 @@
       take(result.total);
       take(result.others);
       allowed.push((result.rows || []).length);
+      Array.prototype.push.apply(all, values);
     });
-    return { values: values, allowed: allowed };
+    return { values: all, blocks: blocks, allowed: allowed };
   }
 
   // Every number written in the spec (a window's length, top_n) or in labels.

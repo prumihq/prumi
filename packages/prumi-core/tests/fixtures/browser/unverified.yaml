@@ -9,3 +9,5 @@ data:
     metrics: [revenue]
     window: {last: 12, grain: week}
     filters: [region]
+presentation:
+  bindings: {"#revenue": kpi, "#extra": kpi}

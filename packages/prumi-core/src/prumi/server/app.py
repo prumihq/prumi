@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from html import escape
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.applications import Starlette
@@ -223,6 +223,8 @@ class _Flagged(BaseModel):
 
     text: str = Field(max_length=200)
     path: str = Field(max_length=500)
+    code: Literal["R8.unverified_number", "R8.unbound_number"] = "R8.unverified_number"
+    blocks: list[Annotated[str, Field(max_length=100)]] = Field(default=[], max_length=50)
 
 
 class CheckReport(BaseModel):

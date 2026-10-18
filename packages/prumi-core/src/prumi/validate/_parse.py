@@ -32,6 +32,8 @@ _TAGGED = {
 }
 # Members of a plain union (a filter value) that pydantic names in the location.
 _SCALARS = {"str", "int", "float", "bool", "none"}
+# The members of a binding's union (a block id or a list), as pydantic names them.
+_BINDING = {"str", "tuple[str, ...]"}
 
 # "<field> must be a list of <noun>", by the list's field name.
 _LIST_NOUNS = {
@@ -71,6 +73,12 @@ def plain_issues(exc: ValidationError, data: Any, root: type[BaseModel]) -> list
     issues = []
     for e in exc.errors():
         loc = tuple(e["loc"])
+        if loc[:2] == ("presentation", "bindings") and len(loc) >= 4 and loc[3] in _BINDING:
+            # A binding is a block id or a list of them: one message for both union members.
+            path = spec_path(data, loc[:3])
+            message = f"{_name(path)} must be a block id or a list of block ids"
+            issues.append(error("spec.invalid", path, message + ".", SCHEMA_HINT))
+            continue
         scalar_union = any(part in _SCALARS for part in loc)
         if scalar_union:
             loc = loc[: next(i for i, part in enumerate(loc) if part in _SCALARS)]

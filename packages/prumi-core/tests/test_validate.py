@@ -181,3 +181,19 @@ def test_spec_invalid_messages_use_the_specs_words(fake_source, as_of):
     for path in fixtures:
         for issue in run(path, fake_source, as_of).issues:
             assert not [w for w in PYDANTIC_WORDS if w in issue.message.lower()], issue.message
+
+
+@pytest.mark.parametrize("binding", [5, [], ["kpi", 3], {"block": "kpi"}])
+def test_a_binding_is_a_block_id_or_a_list_of_them(binding):
+    from prumi.validate import parse_spec
+
+    spec = load_spec_file(FIXTURES / "_base.yaml")
+    spec["presentation"] = {"bindings": {"#kpi": binding}}
+    _, issues = parse_spec(spec)
+    assert [(i.code, i.path, i.message) for i in issues] == [
+        (
+            "spec.invalid",
+            "presentation.bindings['#kpi']",
+            "`presentation.bindings['#kpi']` must be a block id or a list of block ids.",
+        )
+    ]

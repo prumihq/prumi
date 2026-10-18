@@ -92,11 +92,12 @@ def _references(spec: DashboardSpec) -> Iterator[Issue]:
                 interaction.sets_filter,
                 filters,
             )
-    for selector, block_id in spec.presentation.bindings.items():
-        if block_id not in blocks:
-            yield _unknown(
-                "spec.unknown_block", f"presentation.bindings[{selector!r}]", block_id, blocks
-            )
+    for selector, bound in spec.presentation.bindings.items():
+        path = f"presentation.bindings[{selector!r}]"
+        for j, block_id in enumerate((bound,) if isinstance(bound, str) else bound):
+            if block_id not in blocks:
+                where = path if isinstance(bound, str) else f"{path}[{j}]"
+                yield _unknown("spec.unknown_block", where, block_id, blocks)
 
 
 def _unknown(code: str, path: str, name: str, known: Collection[str]) -> Issue:

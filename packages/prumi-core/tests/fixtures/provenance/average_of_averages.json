@@ -23,5 +23,11 @@
       },
       "filters": []
     }
-  ]
+  ],
+  "presentation": {
+    "bindings": {
+      "#all": "regions",
+      "#regions": "regions"
+    }
+  }
 }

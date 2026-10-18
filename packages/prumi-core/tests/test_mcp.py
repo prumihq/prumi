@@ -434,6 +434,7 @@ def readback_spec(dashboard_id):
         "dashboard": {"id": dashboard_id, "title": "Read back"},
         "data": [{"id": "kpi", "metrics": ["revenue"], "window": {"last": 4, "grain": "week"},
                   "filters": []}],
+        "presentation": {"bindings": {"#kpi": "kpi"}},
     }  # fmt: skip
 
 

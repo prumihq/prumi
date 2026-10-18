@@ -21,20 +21,17 @@ pytestmark = pytest.mark.browser
 FIXTURES = Path(__file__).parent / "fixtures" / "provenance"
 RUNTIME = Path(__file__).parents[2] / "prumi-runtime" / "src"
 EXPECTED = json.loads((FIXTURES / "expected.json").read_text())
-SHOWN = re.compile(r"The page shows (.+) \(in (.+)\), which isn't a value Prumi delivered\.")
+SHOWN = re.compile(r"The page shows (.+) \(in (.+)\), which isn't a value Prumi delivered.*")
 # The number an R8 issue is about, whatever the code.
 NUMBER = re.compile(r"(?:The page shows|The page's source has) (.+?) \((?:in|on) ")
 FLAGGED = {"html.image", "html.iframe", "html.closed_shadow_root", "html.canvas"}
-# Must-fail pages for checks that don't exist yet.
-NOT_CHECKED_YET = {
-    "coincident_average": "numbers aren't matched against their binding's blocks yet",
-}
 
 KPI_SPEC = {
     "spec_version": 0,
     "dashboard": {"id": "kpi", "title": "Revenue"},
     "data": [{"id": "kpi", "metrics": ["revenue"], "window": {"last": 12, "grain": "week"},
               "filters": []}],
+    "presentation": {"bindings": {"#page": "kpi"}},
 }  # fmt: skip
 
 SHOW_REVENUE = """prumi.on("kpi", (b) => {
@@ -56,7 +53,11 @@ def fixture(name: str) -> tuple[dict, str]:
 
 
 def kpi_page(script: str, body: str = '<p id="revenue"></p>') -> str:
-    return f"<!doctype html><html><body>{body}<script>{script}</script></body></html>"
+    """A page whose body is bound to the kpi block."""
+    return (
+        f'<!doctype html><html><body><div id="page">{body}</div><script>{script}</script>'
+        "</body></html>"
+    )
 
 
 def codes(report) -> list[str]:
@@ -83,15 +84,7 @@ def flagged(report) -> list[tuple[str, str | None]]:
     return sorted(found, key=str)
 
 
-@pytest.mark.parametrize(
-    "name",
-    [
-        pytest.param(n, marks=pytest.mark.xfail(reason=NOT_CHECKED_YET[n], strict=True))
-        if n in NOT_CHECKED_YET
-        else n
-        for n in sorted(EXPECTED)
-    ],
-)
+@pytest.mark.parametrize("name", sorted(EXPECTED))
 def test_provenance_fixtures(name, demo_services):
     report = demo_services.validate(*fixture(name))
     expected = sorted(((code, text) for code, text in EXPECTED[name]), key=str)
@@ -104,7 +97,7 @@ def test_an_unverified_number_names_its_element(demo_services):
     page = kpi_page(SHOW_REVENUE, '<p id="revenue"></p><div class="note"><b>$1,234.56</b></div>')
     [issue] = demo_services.validate(KPI_SPEC, page).errors
     assert (issue.code, issue.severity, issue.path) == ("R8.unverified_number", "error", "html")
-    assert SHOWN.fullmatch(issue.message).groups() == ("$1,234.56", "div.note > b")
+    assert SHOWN.fullmatch(issue.message).groups() == ("$1,234.56", "div#page > div.note > b")
 
 
 def test_at_most_twenty_numbers_are_listed(demo_services):
@@ -170,7 +163,7 @@ def test_the_server_check_runs_no_extra_queries(demo_services, monkeypatch):
     monkeypatch.setattr(
         demo_services.engine, "run_block", lambda *a, **k: runs.append(a[1]) or original(*a, **k)
     )
-    spec, html = fixture("second_run")
+    spec, html = fixture("first_run")
     assert demo_services.validate(spec, html).ok
     assert sorted(runs) == sorted(b["id"] for b in spec["data"])
 
@@ -276,7 +269,7 @@ def test_the_server_check_finds_what_it_cant_read(demo_services, script, code):
 
 def test_open_shadow_roots_are_read(demo_services):
     script = """
-      const root = document.body.attachShadow({ mode: "open" });
+      const root = document.getElementById("page").attachShadow({ mode: "open" });
       root.innerHTML = "<p>$9,999,999.99</p><slot></slot>";"""
     report = demo_services.validate(KPI_SPEC, kpi_page(SHOW_REVENUE + script))
     assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == ["$9,999,999.99"]
@@ -301,3 +294,64 @@ TICKS = "".join(f"<{{tag}}>${n}K</{{tag}}>" for n in (100, 200, 300, 400))
 def test_unmarked_ticks_only_inside_svg(demo_services, body, flagged):
     report = demo_services.validate(KPI_SPEC, kpi_page(SHOW_REVENUE, '<p id="revenue"></p>' + body))
     assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == flagged
+
+
+# Bindings decide what a number may match
+
+TWO_BLOCKS = {
+    "spec_version": 0,
+    "dashboard": {"id": "two-blocks", "title": "Revenue"},
+    "data": [
+        {"id": "kpi", "metrics": ["revenue"], "window": {"last": 12, "grain": "week"},
+         "filters": []},
+        {"id": "weekly", "metrics": ["revenue"], "time_grain": "week",
+         "window": {"last": 12, "grain": "week"}, "filters": []},
+    ],
+}  # fmt: skip
+TWO_BLOCKS_PAGE = """<!doctype html><html><body>
+<table id="weeks"><tbody id="rows"></tbody><tfoot><tr><td id="total"></td></tr></tfoot></table>
+<p id="note"></p>
+<script>
+  prumi.on("weekly", (b) => {
+    document.getElementById("rows").innerHTML = b.rows.map(
+      (r) => `<tr><td>${prumi.format(r.revenue, "revenue")}</td></tr>`).join("");
+  });
+  prumi.on("kpi", (b) => {
+    document.getElementById("total").textContent = prumi.format(b.rows[0].revenue, "revenue");
+  });
+</script></body></html>"""
+
+
+def two_blocks(bindings):
+    return {**TWO_BLOCKS, "presentation": {"bindings": bindings}}
+
+
+def test_a_number_outside_every_bound_element_is_unbound(demo_services):
+    report = demo_services.validate(two_blocks({"#rows": "weekly"}), TWO_BLOCKS_PAGE)
+    [issue] = report.errors
+    assert issue.code == "R8.unbound_number"
+    assert NUMBER.match(issue.message)[1] == "$2,742,409.35"
+    assert "(in td#total)" in issue.message
+    assert issue.hint.startswith("Bind this element to the block it shows")
+
+
+def test_a_binding_with_a_list_of_blocks_accepts_numbers_from_each(demo_services):
+    one_block = demo_services.validate(two_blocks({"#weeks": "weekly"}), TWO_BLOCKS_PAGE)
+    [issue] = one_block.errors
+    assert issue.code == "R8.unverified_number" and "(weekly)" in issue.message
+    both = demo_services.validate(two_blocks({"#weeks": ["weekly", "kpi"]}), TWO_BLOCKS_PAGE)
+    assert both.ok, both.issues
+
+
+def test_the_nearest_bound_ancestor_wins(demo_services):
+    # The table is bound to both blocks, but its total cell only to weekly.
+    report = demo_services.validate(
+        two_blocks({"#weeks": ["weekly", "kpi"], "#total": "weekly"}), TWO_BLOCKS_PAGE
+    )
+    assert [i.code for i in report.errors] == ["R8.unverified_number"]
+
+
+def test_a_binding_must_name_known_blocks(demo_services):
+    report = demo_services.validate(two_blocks({"#weeks": ["weekly", "nope"]}), TWO_BLOCKS_PAGE)
+    [issue] = report.errors
+    assert (issue.code, issue.path) == ("spec.unknown_block", "presentation.bindings['#weeks'][1]")

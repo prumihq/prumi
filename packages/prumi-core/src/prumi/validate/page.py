@@ -30,6 +30,10 @@ SETTLE_MS = 300
 TIMEOUT_S = 10.0
 MAX_LISTED = 20
 
+UNBOUND_HINT = (
+    "Bind this element to the block it shows (presentation.bindings), or move the number into "
+    "a bound element. A binding can list several blocks."
+)
 R8_HINT = (
     "Show only values from prumi.on results, formatted with prumi.format, and compute "
     'nothing you show. Mark axis ticks with data-prumi-role="axis".'
@@ -83,7 +87,9 @@ _SCAN = """(() => {
   const setup = %s;
   const delivered = p.fromResults(setup.results);
   const allowed = p.fromData([setup.spec, setup.labels], delivered.allowed);
-  const found = p.scan(document, { values: delivered.values, allowed }, %d);
+  const found = p.scan(
+    document, { blocks: delivered.blocks, bindings: setup.bindings, allowed }, %d
+  );
   found.copied = p.copied(%s, delivered.values, %d);
   found.unreadable = p.unreadable(document);
   return found;
@@ -188,7 +194,7 @@ class PageChecker:
             "values": {f.id: f.model_dump(mode="json")["default"] for f in spec.filters},
             "labels": dict(labels),
             "formats": dict(formats),
-            "bindings": dict(spec.presentation.bindings),
+            "bindings": {s: list(b) for s, b in spec.presentation.blocks_of().items()},
             "results": dict(results),
             "spec": spec.model_dump(mode="json", by_alias=True),
         }
@@ -385,15 +391,27 @@ def _issues(
             )
         )
     for item in scan.get("flagged", []):
-        issues.append(
-            error(
-                "R8.unverified_number",
-                "html",
-                f"The page shows {item['text']} (in {item['path']}), which isn't a value "
-                "Prumi delivered.",
-                R8_HINT,
+        if item.get("code") == "R8.unbound_number":
+            issues.append(
+                error(
+                    "R8.unbound_number",
+                    "html",
+                    f"The page shows {item['text']} (in {item['path']}), outside every bound "
+                    "element, so it can't be checked against the block it comes from.",
+                    UNBOUND_HINT,
+                )
             )
-        )
+        else:
+            blocks = ", ".join(item.get("blocks", []))
+            issues.append(
+                error(
+                    "R8.unverified_number",
+                    "html",
+                    f"The page shows {item['text']} (in {item['path']}), which isn't a value "
+                    f"Prumi delivered for the blocks bound there ({blocks}).",
+                    R8_HINT,
+                )
+            )
     for url in blocked:
         issues.append(
             warning(

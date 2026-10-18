@@ -75,7 +75,20 @@ class Interaction(SpecModel):
 
 
 class Presentation(SpecModel):
-    bindings: dict[str, str] = {}  # "#element-id" -> block id
+    # "#element-id" -> the block it shows, or a list of blocks when it shows several (a table
+    # with a total from another block). Every number shown must sit in a bound element and be
+    # a value of its binding's blocks (R8).
+    bindings: dict[str, str | Annotated[tuple[str, ...], Field(min_length=1)]] = {}
+
+    def blocks_of(self) -> dict[str, tuple[str, ...]]:
+        """Each binding's blocks, as a tuple even when the spec names one."""
+        return {
+            selector: (blocks,) if isinstance(blocks, str) else tuple(blocks)
+            for selector, blocks in self.bindings.items()
+        }
+
+    def bound_blocks(self) -> set[str]:
+        return {block for blocks in self.blocks_of().values() for block in blocks}
 
 
 class DashboardSpec(SpecModel):

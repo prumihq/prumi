@@ -21,3 +21,5 @@ data:
     filters: [period]
 interactions:
   - {from: by_region, on: click, sets_filter: region}
+presentation:
+  bindings: {"#kpi": kpi}

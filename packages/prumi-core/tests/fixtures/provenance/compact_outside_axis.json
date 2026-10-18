@@ -16,5 +16,10 @@
       },
       "filters": []
     }
-  ]
+  ],
+  "presentation": {
+    "bindings": {
+      "#kpi": "kpi"
+    }
+  }
 }

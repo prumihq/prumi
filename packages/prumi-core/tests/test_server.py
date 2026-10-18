@@ -181,11 +181,9 @@ REPORT = {
 def test_a_check_report_is_stored(client, published):
     assert post(client, f"{BASE}/check", REPORT).status_code == 204
     [check] = published.registry.checks("sales", 1)
-    assert (check.filters, check.flagged, check.canvas) == (
-        REPORT["filters"],
-        REPORT["flagged"],
-        False,
-    )
+    # A report without codes (an older runtime) counts its numbers as unverified.
+    flagged = [{**f, "code": "R8.unverified_number", "blocks": []} for f in REPORT["flagged"]]
+    assert (check.filters, check.flagged, check.canvas) == (REPORT["filters"], flagged, False)
 
 
 @pytest.mark.parametrize(

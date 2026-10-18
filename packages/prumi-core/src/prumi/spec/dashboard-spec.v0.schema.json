@@ -285,7 +285,18 @@
       "properties": {
         "bindings": {
           "additionalProperties": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            ]
           },
           "default": {},
           "title": "Bindings",

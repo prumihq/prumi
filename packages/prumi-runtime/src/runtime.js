@@ -22,7 +22,7 @@
   var filters = {};
   var labels = {};
   var formats = {};
-  var bindings = {}; // "#element-id" -> block id
+  var bindings = {}; // "#element-id" -> [block ids]
   var pending = {};
   var nextRequest = 1;
   // The number matcher, loaded just before this file, taken before page scripts run.
@@ -64,7 +64,7 @@
 
   function showFailed(block) {
     Object.keys(bindings).forEach(function (selector) {
-      if (bindings[selector] !== block) return;
+      if ((bindings[selector] || []).indexOf(block) < 0) return;
       var element;
       try {
         element = document.querySelector(selector);
@@ -84,7 +84,7 @@
   // server's own check is the guarantee, this one covers filter states it didn't render.
   var CHECK_DEBOUNCE_MS = 300;
   var check = {
-    values: [],
+    values: {}, // block id -> every value it delivered since the page loaded
     allowed: [],
     spec: null,
     state: null,
@@ -135,7 +135,8 @@
     var found;
     try {
       found = provenance.scan(document, {
-        values: check.values,
+        blocks: check.values,
+        bindings: bindings,
         allowed: check.allowed.concat(provenance.fromData([check.spec, labels])),
       });
     } catch (error) {
@@ -161,10 +162,13 @@
     }
   }
 
-  function delivered(result) {
-    var found = provenance ? provenance.fromResults({ block: result }) : null;
+  function delivered(block, result) {
+    var results = {};
+    results[block] = result;
+    var found = provenance ? provenance.fromResults(results) : null;
     if (!found) return;
-    Array.prototype.push.apply(check.values, found.values);
+    var values = (check.values[block] = check.values[block] || []);
+    Array.prototype.push.apply(values, found.blocks[block] || []);
     Array.prototype.push.apply(check.allowed, found.allowed);
   }
 
@@ -217,7 +221,7 @@
         scheduleCheck();
         break;
       case "data":
-        delivered(message.result);
+        delivered(message.block, message.result);
         call(onData[message.block], message.result, message.block);
         scheduleCheck();
         break;

@@ -376,7 +376,9 @@ def test_the_browser_reports_numbers_prumi_didnt_deliver(page, server, services,
     frame.locator("#extra").filter(has_text="1,234.56").wait_for()
     checks = wait_for_checks(services, "unverified", 2)
     [chosen] = [c for c in checks if c.filters == {"region": ["North America"]}]
-    assert chosen.flagged == [{"text": "$1,234.56", "path": "p#extra"}]
+    assert chosen.flagged == [
+        {"text": "$1,234.56", "path": "p#extra", "code": "R8.unverified_number", "blocks": ["kpi"]}
+    ]
     # Viewers see nothing of it, and the version can't be certified.
     assert page.locator("#prumi-bar").text_content().count("1,234.56") == 0
     config = str(services.config.path)

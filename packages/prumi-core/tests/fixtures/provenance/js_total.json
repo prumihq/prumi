@@ -17,5 +17,11 @@
       },
       "filters": []
     }
-  ]
+  ],
+  "presentation": {
+    "bindings": {
+      "#total": "weekly",
+      "#weeks": "weekly"
+    }
+  }
 }
