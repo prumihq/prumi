@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17, section 18 accepted 2026-10-18; section 19 awaits acceptance)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18 and 19 on 2026-10-18)
 
 ## Goal
 
@@ -601,7 +601,7 @@ Tests: the guide's spec and HTML pass `validate_spec`; the guide names every fun
 > 3. Call `authoring_guide` once before writing anything: it has the spec format, the page API and a working example. Then write a spec and the HTML. Every number on the page must come from `prumi.on(...)` in the HTML. Never write numbers, totals or datasets into the HTML, and never compute totals, averages or ratios in JavaScript; declare `total`, `others` or `compare` in the spec instead. Format values with `prumi.format`.
 > 5. Call `validate_spec` with the spec and the HTML and fix every error. Then call `publish_dashboard` with the `candidate_id` from the last successful validation (don't resend the spec and HTML), and give the user the URL. The dashboard starts as an uncertified draft; only the data team can certify it.
 
-### 19. Trusted numbers, editing and the second-run fixes (added 2026-10-18; status: draft)
+### 19. Trusted numbers, editing and the second-run fixes (added and accepted 2026-10-18)
 
 The second agent run (2026-10-18) published without guessing, but two things stood out. First, the "numbers only come from Prumi" rule was only partly enforced: a page with a hard-coded `$2,742,409`, a JavaScript-computed average and a `fetch()` call passed validation. Second, a user can't continue work on a dashboard in a later session. This section closes both, plus the smaller gaps both runs found. It changes section 18 item 4: `prumi.format` no longer accepts a format object.
 

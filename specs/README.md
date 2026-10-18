@@ -71,4 +71,4 @@ An ordered checklist. Each task is small enough for one commit or PR, says when 
 
 | Spec | Milestone | Release | Status |
 |---|---|---|---|
-| [`mvp`](mvp/spec.md): prove the core loop on one machine ([tasks](mvp/tasks.md)) | MVP | 0.1.0 (planned) | draft: section 19 awaits acceptance |
+| [`mvp`](mvp/spec.md): prove the core loop on one machine ([tasks](mvp/tasks.md)) | MVP | 0.1.0 (planned) | accepted |
