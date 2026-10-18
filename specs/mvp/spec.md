@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; 18 and 19.1–19.14 accepted 2026-10-18; 19.15 awaits acceptance)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18 and 19 on 2026-10-18)
 
 ## Goal
 
@@ -803,19 +803,6 @@ The third agent run (2026-10-18) followed the rules from the guide and never tri
 
 **Fixture:** the third-run dashboard (`~/test3/region-revenue-aov-weekly.html` and `.spec.json`) is added as the real must-pass fixture decided in question 3.
 
-#### 19.15 Screenshots from validation (added 2026-10-18; status: draft)
-
-None of the three agent runs saw the page it built: number checks don't catch overlapping labels, unreadable axes or a broken phone layout. Since 19.1 the server already renders every page during validation, so a picture of that render costs almost nothing.
-
-- `validate_spec` accepts `screenshot: {device: "desktop" | "phone", full_page: false}` (default: no screenshot).
-  - Desktop is 1280×800 and phone 390×844, in light mode.
-  - `full_page: true` captures the whole page, scaled to at most 1000 px wide and cut at 2400 px tall.
-  - These limits keep an image under about 3,200 input tokens; a desktop viewport is about 1,400.
-- The screenshot is taken after rendering settles, with the default filter state, before the hover pass. It's taken whenever the page rendered, **even if validation failed**, so the agent can see a broken page.
-- It's returned as MCP image content (PNG) next to the JSON result. Prumi doesn't store or log it.
-- **Data flow:** a screenshot shows dashboard data (default filter state) to the agent, and so to its LLM provider. The README's "Where your data goes" says so: dashboard data reaches the agent only through `query` results and screenshots it asks for.
-- Guide: take one desktop screenshot after a validation that passes, look for layout problems, fix them with `html_edits`. Take a phone one only if the page is meant for phones. Don't take screenshots repeatedly.
-
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -942,7 +929,3 @@ Each criterion has at least one automated test unless it says otherwise.
 62. `check_states` renders and checks each state; an issue that appears only in one state names it; publishing re-checks the stored states.
 63. The guide contains the 19.14 additions.
 64. The third-run dashboard passes as a must-pass fixture.
-65. `validate_spec` with `screenshot` returns a PNG image content at the stated size, for desktop, phone and `full_page`; without it, no image is returned.
-66. A page that fails validation after rendering still returns its screenshot; a spec that fails before rendering returns none.
-67. Screenshots aren't stored or logged (a test checks the registry and captured logs).
-68. The README's "Where your data goes" and the guide contain the 19.15 text.
