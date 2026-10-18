@@ -8,7 +8,7 @@ from typing import Any
 
 from prumi.adapters import LOCAL_VIEWER, Viewer
 from prumi.engine import BlockRequestError, Engine
-from prumi.issues import Issue, Report, error
+from prumi.issues import Issue, Report, error, warning
 from prumi.source import Source
 from prumi.spec import DashboardSpec
 from prumi.validate._parse import parse_spec
@@ -34,7 +34,9 @@ def validate(
     """Validate a spec (data or a DashboardSpec) and, when given, its HTML.
 
     With an engine, a spec without errors is dry-run: every block runs once with the filters'
-    default values, as `viewer`, and failures are reported as query.failed.
+    default values, as `viewer`. Failures are reported as query.failed, and the warnings in
+    the block results (R3.window_snapped, R3.empty_window, R3.stale_data, result.truncated)
+    at the block, so the agent sees them before publishing.
     """
     parsed, issues = parse_spec(spec)
     if parsed is None:
@@ -50,7 +52,7 @@ def validate(
 def _dry_run(spec: DashboardSpec, engine: Engine, viewer: Viewer) -> Iterator[Issue]:
     for i, block in enumerate(spec.data):
         try:
-            engine.run_block(spec, block.id, {}, viewer)
+            result = engine.run_block(spec, block.id, {}, viewer)
         except Exception as exc:  # any failure of the source counts; report it, don't crash
             if isinstance(exc, BlockRequestError):
                 reason = " ".join(issue.message for issue in exc.issues)
@@ -65,3 +67,7 @@ def _dry_run(spec: DashboardSpec, engine: Engine, viewer: Viewer) -> Iterator[Is
                 "Check the block's metrics, dimensions and filter defaults with "
                 "describe_metric and query, then validate again.",
             )
+            continue
+        # What the viewer will see in the block's details: window and freshness warnings.
+        for w in result.warnings:
+            yield warning(w.code, f"data[{i}]", f"Block {block.id!r}: {w.message}", w.hint)

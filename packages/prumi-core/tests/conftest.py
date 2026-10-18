@@ -60,7 +60,12 @@ METRICS = {
     "discount_rate": (_metric("discount_rate", "ratio"), SALES | {"product__category"}),
     # Valid in the catalog, but the warehouse fails every query for it.
     "broken_metric": (_metric("broken_metric", fmt=Format("integer")), SALES),
+    # More rows than the engine's cap for any grouped query.
+    "big_metric": (_metric("big_metric", fmt=Format("integer")), SALES),
+    # Its data stops early, so recent windows are stale.
+    "late_metric": (_metric("late_metric", fmt=Format("integer")), SALES),
 }
+DATA_THROUGH = {"late_metric": dt.date(2026, 10, 10)}  # the others: 2026-10-14
 
 
 class FakeAdapter:
@@ -99,11 +104,17 @@ class FakeAdapter:
             *(Column(d, "dimension") for d in query.dimensions),
             *(Column(m, "metric") for m in query.metrics),
         )
-        start = query.window.start if query.window else dt.date(2026, 1, 1)
+        if query.window is not None:
+            start = query.window.start
+        else:  # the engine's freshness query
+            start = min(DATA_THROUGH.get(m, dt.date(2026, 10, 14)) for m in query.metrics)
         row = tuple(
             start if c.kind == "time" else "x" if c.kind == "dimension" else 1.0 for c in columns
         )
-        return Result(columns=columns, rows=(row,), row_count=1)
+        grouped = query.dimensions or query.time_grain
+        rows = (row,) * (5001 if "big_metric" in query.metrics and grouped else 1)
+        rows = rows[: query.limit] if query.limit else rows
+        return Result(columns=columns, rows=rows, row_count=len(rows))
 
 
 @pytest.fixture

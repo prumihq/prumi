@@ -33,6 +33,11 @@ from prumi.time import (
 
 MAX_ROWS = 5000
 
+_WINDOW_HINTS = {
+    "R3.window_snapped": "Use dates on period boundaries, or a form like {last: 6, grain: month}.",
+    "R3.empty_window": "Today is the first day of the period; the period to date has no days yet.",
+}
+
 WindowForm = LastWindow | ToDateWindow | RangeWindow
 _WINDOW = TypeAdapter(Window)
 _DIMENSION_VALUES = TypeAdapter(tuple[FilterScalar, ...])
@@ -156,7 +161,10 @@ class Engine:
 
     def run(self, block: Block, inputs: BlockInputs, viewer: Viewer) -> BlockResult:
         resolved, previous = self._windows(block, inputs.window)
-        warnings = [warning(w.code, "window", w.message) for w in resolved.warnings]
+        warnings = [
+            warning(w.code, "window", w.message, _WINDOW_HINTS.get(w.code, ""))
+            for w in resolved.warnings
+        ]
         freshness = {m: self.data_through(m, viewer) for m in block.metrics}
         warnings += self._stale(block, resolved, freshness)
         result = BlockResult(
@@ -277,6 +285,8 @@ class Engine:
                         f"metrics[{j}]",
                         f"{metric}: data through {shown}; the window ends {resolved.end}, so the "
                         "last period may be incomplete.",
+                        "The source hasn't loaded data up to the window's end yet. Tell the "
+                        "viewer, or use a window that ends earlier.",
                     )
                 )
         return stale

@@ -1,0 +1,32 @@
+# code: result.truncated
+# path: data[3]
+# severity: warning
+# More rows than the 5,000-row cap.
+spec_version: 0
+dashboard: {id: sales, title: Sales}
+filters:
+  - {id: period, type: time, default: {last: 12, grain: week}}
+  - {id: region, type: dimension, dimension: customer__region, default: []}
+data:
+  - id: kpi
+    metrics: [revenue, average_order_value]
+    filters: [period, region]
+    compare: previous_year
+  - id: by_region
+    metrics: [revenue]
+    dimensions: [customer__region]
+    filters: [period]
+    sort: {by: revenue, descending: true}
+    top_n: 5
+    others: true
+    total: true
+  - id: trend
+    metrics: [revenue]
+    time_grain: week
+    filters: [period, region]
+  - id: daily
+    metrics: [big_metric]
+    time_grain: day
+    filters: [period]
+interactions:
+  - {from: by_region, on: click, sets_filter: region}

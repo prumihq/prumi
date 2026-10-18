@@ -22,6 +22,7 @@ def check_spec(
 ) -> Iterator[Issue]:
     yield from _ids(spec)
     yield from _calendars(spec)
+    yield from _filter_defaults(spec)
     yield from _references(spec)
     yield from _metric_requests(spec, metric_request_ids)
     for index, block in enumerate(spec.data):
@@ -43,6 +44,21 @@ def _ids(spec: DashboardSpec) -> Iterator[Issue]:
             )
         else:
             seen[item_id] = path
+
+
+def _filter_defaults(spec: DashboardSpec) -> Iterator[Issue]:
+    for i, f in enumerate(spec.filters):
+        if not isinstance(f, DimensionFilter):
+            continue
+        for j, value in enumerate(f.default):
+            if isinstance(value, str) and ("{" in value or "}" in value):
+                yield error(
+                    "filter.invalid_value",
+                    f"filters[{i}].default[{j}]",
+                    f"The default value {value!r} contains '{{' or '}}', which filter values "
+                    "can't contain.",
+                    "Use another default; the source can't be filtered on such values.",
+                )
 
 
 def _calendars(spec: DashboardSpec) -> Iterator[Issue]:

@@ -1,5 +1,6 @@
 """The validator: one fixture per code, each producing that code and only it (AC 12, 14)."""
 
+import datetime as dt
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,12 @@ CODES = {
     "html.script_host",
     "html.unpinned_script",
     "query.failed",
+    "filter.invalid_value",
+    # Warnings in the dry-run block results.
+    "R3.window_snapped",
+    "R3.empty_window",
+    "R3.stale_data",
+    "result.truncated",
 }
 
 
@@ -60,6 +67,8 @@ FIXTURE_FILES = sorted(p for p in FIXTURES.glob("*.yaml") if not p.name.startswi
 
 
 def run(path: Path, source, as_of):
+    pinned = fixture_header(path).get("as_of")
+    as_of = dt.date.fromisoformat(pinned) if pinned else as_of
     html_path = path.with_suffix(".html")
     html = html_path.read_text() if html_path.exists() else None
     engine = Engine(source, as_of)  # static checks, then the dry run
