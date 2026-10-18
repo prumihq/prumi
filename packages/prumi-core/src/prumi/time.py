@@ -124,7 +124,7 @@ class RangeWindow(_WindowModel):
         return self
 
 
-def _window_form(value: Any) -> str | None:
+def window_form(value: Any) -> str | None:
     if isinstance(value, dict):
         keys = value.keys()
     elif isinstance(value, _WindowModel):
@@ -145,7 +145,7 @@ Window = Annotated[
     | Annotated[ToDateWindow, Tag("to_date")]
     | Annotated[RangeWindow, Tag("range")],
     Discriminator(
-        _window_form,
+        window_form,
         custom_error_type="window_form",
         custom_error_message=(
             "A window is {last: N, grain: G}, {to_date: G} or {start: D1, end: D2}"

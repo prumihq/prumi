@@ -1,0 +1,31 @@
+# code: R2.invalid_dimension
+# path: data[3].dimensions[0]
+# Inventory isn't joinable to customers.
+spec_version: 0
+dashboard: {id: sales, title: Sales}
+filters:
+  - {id: period, type: time, default: {last: 12, grain: week}}
+  - {id: region, type: dimension, dimension: customer__region, default: []}
+data:
+  - id: kpi
+    metrics: [revenue, average_order_value]
+    filters: [period, region]
+    compare: previous_year
+  - id: by_region
+    metrics: [revenue]
+    dimensions: [customer__region]
+    filters: [period]
+    sort: {by: revenue, descending: true}
+    top_n: 5
+    others: true
+    total: true
+  - id: trend
+    metrics: [revenue]
+    time_grain: week
+    filters: [period, region]
+  - id: stock
+    metrics: [units_on_hand]
+    dimensions: [customer__region]
+    filters: [period]
+interactions:
+  - {from: by_region, on: click, sets_filter: region}

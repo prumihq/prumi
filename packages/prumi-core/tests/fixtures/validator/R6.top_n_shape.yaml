@@ -1,0 +1,26 @@
+# code: R6.top_n_shape
+# path: data[1].top_n
+# top_n without sort.
+spec_version: 0
+dashboard: {id: sales, title: Sales}
+filters:
+  - {id: period, type: time, default: {last: 12, grain: week}}
+  - {id: region, type: dimension, dimension: customer__region, default: []}
+data:
+  - id: kpi
+    metrics: [revenue, average_order_value]
+    filters: [period, region]
+    compare: previous_year
+  - id: by_region
+    metrics: [revenue]
+    dimensions: [customer__region]
+    filters: [period]
+    top_n: 5
+    others: true
+    total: true
+  - id: trend
+    metrics: [revenue]
+    time_grain: week
+    filters: [period, region]
+interactions:
+  - {from: by_region, on: click, sets_filter: region}
