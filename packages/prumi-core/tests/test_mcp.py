@@ -5,7 +5,6 @@ import json
 import re
 from pathlib import Path
 
-import duckdb
 import pytest
 from mcp import Client
 from prumi.mcp import INSTRUCTIONS, rank, tokens
@@ -130,7 +129,7 @@ def test_describe_metric(server):
 # The query tool
 
 
-def test_query_revenue_by_day_over_two_years(server, demo_project):
+def test_query_returns_a_profile_without_values(server):
     result = ok(
         call(
             server,
@@ -140,16 +139,15 @@ def test_query_revenue_by_day_over_two_years(server, demo_project):
             window={"last": 2, "grain": "year"},
         )
     )
-    assert len(result["rows"]) == 200 and result["truncated"]
-    assert result["row_count"] == 731
-    with duckdb.connect(str(demo_project.db_path), read_only=True) as conn:
-        [(expected,)] = conn.execute(
-            "SELECT sum(revenue)::double FROM main.order_items"
-            " WHERE order_date BETWEEN '2024-01-01' AND '2025-12-31'"
-        ).fetchall()
-    assert result["total"]["revenue"] == pytest.approx(expected)
-    assert result["rows"][0]["metric_time"] == "2024-01-01"
-    assert "result.truncated" in [w["code"] for w in result["warnings"]]
+    assert result["row_count"] == 731  # 2024-01-01 to 2025-12-31, no cap
+    assert "rows" not in result and "total" not in result and "truncated" not in result
+    assert result["window"] == {
+        "start": "2024-01-01", "end": "2025-12-31", "grain": "year", "partial": False
+    }  # fmt: skip
+    time, revenue = result["columns"]
+    assert (time["name"], time["distinct"]) == ("metric_time", 731)
+    assert revenue["name"] == "revenue" and revenue["sign"] == "positive"
+    assert revenue["magnitude"]["min"] >= 3 and revenue["decimals"] == 2
 
 
 def test_query_with_where_top_n_and_compare(server):
@@ -168,10 +166,13 @@ def test_query_with_where_top_n_and_compare(server):
             compare="previous_year",
         )
     )
-    assert len(result["rows"]) == 3 and result["others"] and result["total"]
-    assert result["row_count"] == 3 and not result["truncated"]
-    assert set(result["rows"][0]["_previous"]) == {"revenue", "customers"}
-    assert result["comparison_window"]["start"] == "2025-07-01"
+    assert result["row_count"] == 3
+    assert (result["has_total"], result["has_others"], result["has_comparison"]) == (
+        True,
+        True,
+        True,
+    )
+    assert [c["name"] for c in result["columns"]] == ["customer__region", "revenue", "customers"]
 
 
 @pytest.mark.parametrize(

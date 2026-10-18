@@ -119,7 +119,9 @@ def agent_session(server):
                 window={"last": 12, "grain": "week"},
                 total=True,
             )
-            assert len(explored["rows"]) == 8 and explored["total"]["revenue"] > 0
+            # The shape of the data, no values: 8 rows, one of them without a region.
+            assert explored["row_count"] == 8 and explored["has_total"]
+            assert explored["columns"][0]["nulls"] == 1
 
             draft = json.loads(json.dumps(SPEC))
             draft["data"][0]["metrics"] = ["revenue", "avg_order_value"]

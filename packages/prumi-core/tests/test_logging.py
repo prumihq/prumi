@@ -77,7 +77,7 @@ def test_no_values_in_logs(logs, published, client, demo_dashboard):
                     "window": {"last": 2, "grain": "year"},
                 },
             )
-            assert big.structured_content["truncated"]
+            assert big.structured_content["row_count"] == 731
             assert not (
                 await mcp.call_tool("validate_spec", {"spec": with_default, "html": html})
             ).is_error
@@ -102,7 +102,6 @@ def test_no_values_in_logs(logs, published, client, demo_dashboard):
     )
     assert any(m.startswith("block sales/1/by_region others: viewer=local rows=") for m in messages)
     assert any(m.startswith("agent query main: viewer=local rows=") for m in messages)
-    assert any(m.startswith("agent query total: viewer=local rows=1") for m in messages)
     assert any(m.startswith("dry run sales/trend freshness: viewer=local") for m in messages)
     assert any(
         m.startswith("filter values sales/1/region values: viewer=local rows=8") for m in messages

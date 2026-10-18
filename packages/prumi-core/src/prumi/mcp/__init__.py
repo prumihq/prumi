@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field, ValidationError
 from starlette.applications import Starlette
 
 from prumi.adapters import LOCAL_VIEWER, Filter, FilterOp, FilterValue, Metric
-from prumi.agent_output import AgentResult, for_agent
+from prumi.agent_output import QueryProfile, for_agent
 from prumi.config import is_loopback
 from prumi.engine import BlockInputs, BlockRequestError
 from prumi.issues import Issue, error
@@ -315,10 +315,12 @@ def create_mcp(services: Services) -> MCPServer:
         others: bool = False,
         total: bool = False,
         compare: Compare | None = None,
-    ) -> AgentResult:
-        """Look at the data while designing: a block-shaped query with a required window,
-        e.g. {last: 12, grain: week}. Results are capped at 200 rows; they're for exploring,
-        never for copying into the page."""
+    ) -> QueryProfile:
+        """Learn the shape of the data while designing: a block-shaped query with a required
+        window, e.g. {last: 12, grain: week}. It returns a profile, never values: how many
+        rows, empties, distinct values, label lengths, the sign and magnitude (integer digits)
+        of each metric, and the decimals its format shows. The numbers appear only in the
+        dashboard."""
         try:
             block = Block(
                 id="query",
@@ -351,10 +353,7 @@ def create_mcp(services: Services) -> MCPServer:
             return _fail(
                 [error("query.failed", "query", f"The source couldn't run the query: {exc}")]
             )
-        agent = for_agent(
-            result,
-            fetch_total=lambda: engine.total_for(block, inputs, LOCAL_VIEWER, "agent query"),
-        )
+        agent = for_agent(result)
         agent.warnings[:0] = issues  # the validator's warnings first
         return agent
 
