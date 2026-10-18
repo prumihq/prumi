@@ -59,7 +59,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 38. `prumi.format(value, metric, options)` (AC 42)
 - [x] 39. Visible errors in bound elements (AC 43)
 - [x] 40. `html.network_call` and `html.blocked_request` (AC 44)
-- [ ] 41. `list_dashboards`, `get_dashboard`, `can_read`/`can_edit` and `dashboard.forbidden` (AC 45)
+- [x] 41. `list_dashboards`, `get_dashboard`, `can_read`/`can_edit` and `dashboard.forbidden` (AC 45)
 - [ ] 42. Editing with `base` + `html_edits` (AC 46)
 - [ ] 43. Default theme: `/theme.css`, injection, CSP, contrast test (AC 47)
 - [ ] 44. Shutdown within 5 s (AC 48)

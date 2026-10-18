@@ -205,3 +205,13 @@ def test_bad_check_reports_are_refused(client, published, body, status):
 
 def test_a_check_report_for_an_unknown_version_is_404(client):
     assert post(client, "/api/dashboards/sales/versions/9/check", REPORT).status_code == 404
+
+
+def test_the_block_api_asks_can_read(client, monkeypatch):
+    from prumi.registry import Registry
+
+    asked = []
+    monkeypatch.setattr(Registry, "can_read", lambda self, viewer, d: asked.append(d.id) or False)
+    assert post(client, f"{BASE}/blocks/kpi", {"filters": {}}).status_code == 404
+    assert client.get(f"{BASE}/filters/region/values").status_code == 404
+    assert asked == ["sales", "sales"]

@@ -86,5 +86,7 @@ class Services:
             frozenset(hosts.script) | frozenset(hosts.style) | frozenset(hosts.font),
         )
 
-    def publish(self, spec: Any, html: str) -> tuple[Report, Published | None]:
-        return publish(self.registry, spec, html, self.validate)
+    def publish(
+        self, spec: Any, html: str, viewer: Viewer = LOCAL_VIEWER
+    ) -> tuple[Report, Published | None]:
+        return publish(self.registry, spec, html, lambda s, h: self.validate(s, h, viewer), viewer)

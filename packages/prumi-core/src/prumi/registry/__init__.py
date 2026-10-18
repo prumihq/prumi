@@ -19,7 +19,8 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal
 
-from prumi.issues import Report
+from prumi.adapters import LOCAL_VIEWER, Viewer
+from prumi.issues import Report, error
 from prumi.spec import DashboardSpec
 
 Status = Literal["draft", "certified"]
@@ -172,6 +173,16 @@ class Registry:
 
     def _timestamp(self) -> str:
         return self._now().astimezone(dt.UTC).isoformat(timespec="seconds")
+
+    # Permissions. Every read of a dashboard (tools, block API) asks can_read, and a new
+    # version of an existing dashboard asks can_edit. With one local user and no login,
+    # everyone may do both; owners, editors and viewers come with login.
+
+    def can_read(self, viewer: Viewer, dashboard: Dashboard) -> bool:
+        return True
+
+    def can_edit(self, viewer: Viewer, dashboard: Dashboard) -> bool:
+        return True
 
     # Dashboards and versions
 
@@ -404,8 +415,24 @@ def publish(
     spec: object,
     html: str,
     validate: Callable[[object, str], Report],
+    viewer: Viewer = LOCAL_VIEWER,
 ) -> tuple[Report, Published | None]:
     """Validate, then store. Errors block publishing; the report's warnings are returned."""
+    dashboard_id = spec.get("dashboard", {}).get("id") if isinstance(spec, dict) else None
+    if isinstance(spec, DashboardSpec):
+        dashboard_id = spec.dashboard.id
+    existing = registry.dashboard(dashboard_id) if isinstance(dashboard_id, str) else None
+    if existing is not None and not registry.can_edit(viewer, existing):
+        return Report.of(
+            [
+                error(
+                    "dashboard.forbidden",
+                    "dashboard.id",
+                    f"You may not change the dashboard {dashboard_id!r}.",
+                    "Publish it under a new dashboard id, or ask its owner.",
+                )
+            ]
+        ), None
     report = validate(spec, html)
     if not report.ok:
         return report, None

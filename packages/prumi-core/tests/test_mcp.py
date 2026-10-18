@@ -21,6 +21,8 @@ TOOLS = {
     "validate_spec",
     "publish_dashboard",
     "request_metric",
+    "list_dashboards",
+    "get_dashboard",
 }
 
 
@@ -74,7 +76,7 @@ def issues(result) -> list[dict]:
 # AC 26
 
 
-def test_exactly_seven_tools_and_the_instructions(server):
+def test_exactly_the_tools_and_the_instructions(server):
     async def work(client):
         listed = await client.list_tools()
         return listed.tools, client.instructions, client.server_info
@@ -418,3 +420,94 @@ def test_the_instructions_follow_section_18():
     assert "3. Call `authoring_guide` once before writing anything" in INSTRUCTIONS
     assert "with the `candidate_id` from the last successful validation" in INSTRUCTIONS
     assert INSTRUCTIONS == expected_instructions()
+
+
+# Reading dashboards back
+
+
+def readback_spec(dashboard_id):
+    return {
+        "spec_version": 0,
+        "dashboard": {"id": dashboard_id, "title": "Read back"},
+        "data": [{"id": "kpi", "metrics": ["revenue"], "window": {"last": 4, "grain": "week"},
+                  "filters": []}],
+    }  # fmt: skip
+
+
+READBACK_HTML = (
+    '<p id="kpi"></p><script>prumi.on("kpi", (b) => { document.getElementById("kpi")'
+    '.textContent = prumi.format(b.rows[0].revenue, "revenue"); });</script>'
+)
+
+
+def test_list_and_get_dashboards(server, services):
+    from prumi.registry import PageCheck
+
+    spec = readback_spec("read-back")
+    assert services.publish(spec, READBACK_HTML)[1].version == 1
+    assert services.publish(spec, READBACK_HTML + "<!-- 2 -->")[1].version == 2
+    flagged = [{"text": "$5", "path": "p#kpi"}]
+    services.registry.record_check("read-back", 2, PageCheck({}, flagged, False, []))
+    port = services.config.server.port
+
+    listed = ok(call(server, "list_dashboards"))["dashboards"]
+    [summary] = [d for d in listed if d["id"] == "read-back"]
+    created = services.registry.version("read-back", 2).created_at
+    assert summary == {
+        "id": "read-back",
+        "title": "Read back",
+        "current_version": 2,
+        "status": "draft",
+        "updated_at": created,
+        "url": f"http://127.0.0.1:{port}/d/read-back",
+    }
+
+    current = ok(call(server, "get_dashboard", id="read-back"))
+    assert current["version"] == 2 and current["status"] == "draft"
+    assert current["spec"] == DashboardSpec.model_validate(spec).model_dump(
+        mode="json", by_alias=True
+    )
+    assert current["html"] == READBACK_HTML + "<!-- 2 -->"
+    assert current["url"] == f"http://127.0.0.1:{port}/d/read-back"
+    [check] = current["checks"]
+    assert (check["filters"], check["flagged"]) == ({}, flagged)
+
+    first = ok(call(server, "get_dashboard", id="read-back", version=1, include_html=False))
+    assert (first["version"], first["html"], first["checks"]) == (1, None, [])
+    assert first["url"] == f"http://127.0.0.1:{port}/d/read-back/v/1"
+
+    for arguments in ({"id": "nope"}, {"id": "read-back", "version": 9}):
+        [issue] = issues(call(server, "get_dashboard", **arguments))
+        assert issue["code"] == "dashboard.not_found"
+
+
+def test_reads_and_edits_ask_the_registry(server, services, monkeypatch):
+    from prumi.registry import Registry
+
+    spec = readback_spec("guarded")
+    assert services.publish(spec, READBACK_HTML)[1] is not None
+    asked = []
+
+    def refuse(kind):
+        def check(self, viewer, dashboard):
+            asked.append((kind, viewer.id, dashboard.id))
+            return False
+
+        return check
+
+    monkeypatch.setattr(Registry, "can_read", refuse("read"))
+    monkeypatch.setattr(Registry, "can_edit", refuse("edit"))
+    listed = ok(call(server, "list_dashboards"))["dashboards"]
+    assert listed == [] and ("read", "local", "guarded") in asked
+    [issue] = issues(call(server, "get_dashboard", id="guarded"))
+    assert issue["code"] == "dashboard.not_found"
+
+    # A new version of an existing dashboard needs can_edit; a new dashboard doesn't.
+    [issue] = issues(
+        call(server, "publish_dashboard", spec=spec, html=READBACK_HTML + "<!-- 2 -->")
+    )
+    assert (issue["code"], issue["severity"]) == ("dashboard.forbidden", "error")
+    assert ("edit", "local", "guarded") in asked
+    assert services.registry.dashboard("guarded").current_version == 1
+    fresh = ok(call(server, "publish_dashboard", spec=readback_spec("fresh"), html=READBACK_HTML))
+    assert fresh["version"] == 1

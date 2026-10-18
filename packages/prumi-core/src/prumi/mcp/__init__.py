@@ -1,4 +1,4 @@
-"""The MCP server: six tools for agents, over stateless Streamable HTTP at /mcp (section 14).
+"""The MCP server: the tools agents use, over stateless Streamable HTTP at /mcp.
 
 Built with the official Python SDK (`MCPServer`, which the 1.x SDK called `FastMCP`).
 Results that go to agents pass through `for_agent`; errors are tool errors whose content
@@ -119,6 +119,32 @@ class PublishOut(BaseModel):
     note: str | None = None
 
 
+class DashboardSummary(BaseModel):
+    id: str
+    title: str
+    current_version: int
+    status: str
+    updated_at: str = Field(description="When the current version was published")
+    url: str
+
+
+class DashboardsOut(BaseModel):
+    dashboards: list[DashboardSummary]
+
+
+class DashboardOut(BaseModel):
+    id: str
+    version: int
+    spec: dict[str, Any]
+    html: str | None
+    status: str
+    url: str
+    checks: list[dict[str, Any]] = Field(
+        description="What viewers' browsers found, per filter state: numbers Prumi didn't "
+        "deliver, canvas, runtime errors"
+    )
+
+
 class MetricRequestOut(BaseModel):
     id: int
     message: str
@@ -165,10 +191,25 @@ def _fail(issues: Sequence[Issue]) -> CallToolResult:
     return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
 
 
-def _dashboard_url(services: Services, dashboard_id: str) -> str:
+def _dashboard_url(services: Services, dashboard_id: str, version: int | None = None) -> str:
     server = services.config.server
     host = f"[{server.host}]" if ":" in server.host else server.host
-    return f"http://{host}:{server.port}/d/{dashboard_id}"
+    url = f"http://{host}:{server.port}/d/{dashboard_id}"
+    return url if version is None else f"{url}/v/{version}"
+
+
+def _not_found(dashboard_id: str, version: int | None = None) -> CallToolResult:
+    what = f"version {version} of the dashboard" if version is not None else "dashboard"
+    return _fail(
+        [
+            error(
+                "dashboard.not_found",
+                "id",
+                f"There's no {what} {dashboard_id!r}.",
+                "List the dashboards with list_dashboards.",
+            )
+        ]
+    )
 
 
 def create_mcp(services: Services) -> MCPServer:
@@ -365,6 +406,52 @@ def create_mcp(services: Services) -> MCPServer:
             status=status.status,
             warnings=list(report.warnings),
             note=LOCAL_ONLY_NOTE if is_loopback(services.config.server.host) else None,
+        )
+
+    @mcp.tool()
+    def list_dashboards() -> DashboardsOut:
+        """The published dashboards you may read, with their current version and status.
+        To change one, get it with get_dashboard and edit it with validate_spec(base=...)."""
+        registry = services.registry
+        found = []
+        for d in registry.dashboards():
+            if not registry.can_read(LOCAL_VIEWER, d):
+                continue
+            current = registry.version(d.id, d.current_version)
+            found.append(
+                DashboardSummary(
+                    id=d.id,
+                    title=d.title,
+                    current_version=d.current_version,
+                    status=registry.status(d.id, d.current_version).status,
+                    updated_at=current.created_at,
+                    url=_dashboard_url(services, d.id),
+                )
+            )
+        return DashboardsOut(dashboards=found)
+
+    @mcp.tool()
+    def get_dashboard(
+        id: str, version: int | None = None, include_html: bool = True
+    ) -> DashboardOut:
+        """A published dashboard version (default: the current one): its spec, its HTML, its
+        status and what viewers' browsers found on it (checks)."""
+        registry = services.registry
+        dashboard = registry.dashboard(id)
+        if dashboard is None or not registry.can_read(LOCAL_VIEWER, dashboard):
+            return _not_found(id)
+        number = dashboard.current_version if version is None else version
+        stored = registry.version(id, number)
+        if stored is None:
+            return _not_found(id, number)
+        return DashboardOut(
+            id=id,
+            version=number,
+            spec=json.loads(stored.spec_json),
+            html=stored.html if include_html else None,
+            status=registry.status(id, number).status,
+            url=_dashboard_url(services, id, None if version is None else number),
+            checks=[c.to_json() for c in registry.checks(id, number)],
         )
 
     @mcp.tool()

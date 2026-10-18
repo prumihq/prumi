@@ -235,8 +235,11 @@ class CheckReport(BaseModel):
 
 
 def _version(services: Services, request: Request) -> Version:
-    stored = services.registry.version(request.path_params["id"], request.path_params["n"])
-    if stored is None:
+    """The version the request names, if the viewer may read it (else it's not found)."""
+    registry = services.registry
+    dashboard = registry.dashboard(request.path_params["id"])
+    stored = registry.version(request.path_params["id"], request.path_params["n"])
+    if stored is None or dashboard is None or not registry.can_read(LOCAL_VIEWER, dashboard):
         raise NotFound(
             f"There's no version {request.path_params['n']} of {request.path_params['id']!r}."
         )
