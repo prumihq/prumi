@@ -130,8 +130,9 @@ def agent_session(server):
             assert "average_order_value" in error["message"]
 
             fixed = await tool("validate_spec", spec=SPEC, html=HTML)
-            assert fixed == {"ok": True, "errors": [], "warnings": []}
-            return await tool("publish_dashboard", spec=SPEC, html=HTML)
+            assert fixed["ok"] and not fixed["errors"] and not fixed["warnings"]
+            # Publish what was validated, without sending the HTML again.
+            return await tool("publish_dashboard", candidate_id=fixed["candidate_id"])
 
     return in_thread(run)
 

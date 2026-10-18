@@ -7,10 +7,14 @@ is the issue list.
 
 from __future__ import annotations
 
+import copy
 import difflib
 import json
 import re
-from collections.abc import Iterable, Sequence
+import threading
+import time
+from collections import OrderedDict
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
@@ -23,6 +27,7 @@ from prumi.adapters import LOCAL_VIEWER, Filter, FilterOp, FilterValue, Metric
 from prumi.agent_output import AgentResult, for_agent
 from prumi.engine import BlockInputs, BlockRequestError
 from prumi.issues import Issue, error
+from prumi.registry import Content
 from prumi.services import Services
 from prumi.spec import Block, DashboardSpec, Sort
 from prumi.time import Compare, Grain, Window
@@ -93,6 +98,10 @@ class ValidationOut(BaseModel):
     ok: bool
     errors: list[Issue]
     warnings: list[Issue]
+    candidate_id: str | None = Field(
+        default=None,
+        description="Set when spec and HTML validated without errors: publish with it",
+    )
 
 
 class PublishOut(BaseModel):
@@ -277,19 +286,61 @@ def create_mcp(services: Services) -> MCPServer:
         agent.warnings[:0] = issues  # the validator's warnings first
         return agent
 
+    candidates = Candidates()
+
     @mcp.tool()
     def validate_spec(spec: dict[str, Any], html: str | None = None) -> ValidationOut:
         """Validate a dashboard spec and its HTML: static rules, HTML checks, then a dry run of
-        every block. Fix every error before publishing."""
+        every block. Fix every error before publishing. With spec and HTML and no errors, the
+        result has a candidate_id to publish with, so the content isn't sent twice."""
         report = services.validate(spec, html)
+        candidate_id = None
+        if report.ok and html is not None:
+            candidate_id = candidates.add(spec, html)
         return ValidationOut(
-            ok=report.ok, errors=list(report.errors), warnings=list(report.warnings)
+            ok=report.ok,
+            errors=list(report.errors),
+            warnings=list(report.warnings),
+            candidate_id=candidate_id,
         )
 
     @mcp.tool()
-    def publish_dashboard(spec: dict[str, Any], html: str) -> PublishOut:
-        """Validate and publish a dashboard. It starts as an uncertified draft; give the user
-        the URL. Publishing a change makes a new version."""
+    def publish_dashboard(
+        candidate_id: str | None = None,
+        spec: dict[str, Any] | None = None,
+        html: str | None = None,
+    ) -> PublishOut:
+        """Publish a dashboard: pass the candidate_id from the last successful validate_spec
+        (preferred), or the spec and HTML. It's validated again, starts as an uncertified
+        draft, and a change makes a new version. Give the user the URL."""
+        by_candidate = candidate_id is not None and spec is None and html is None
+        by_content = candidate_id is None and spec is not None and html is not None
+        if not (by_candidate or by_content):
+            return _fail(
+                [
+                    error(
+                        "publish.invalid_arguments",
+                        "publish_dashboard",
+                        "Pass either candidate_id, or both spec and html.",
+                        "Use the candidate_id from the last successful validate_spec.",
+                    )
+                ]
+            )
+        if candidate_id is not None:
+            found = candidates.get(candidate_id)
+            if found is None:
+                return _fail(
+                    [
+                        error(
+                            "publish.unknown_candidate",
+                            "candidate_id",
+                            f"There's no validated candidate {candidate_id!r}: it's unknown, "
+                            "expired (after an hour) or the server restarted.",
+                            "Call validate_spec again with the spec and HTML.",
+                        )
+                    ]
+                )
+            spec, html = found
         report, published = services.publish(spec, html)
         if published is None:
             return _fail(report.errors)
@@ -318,6 +369,41 @@ def create_mcp(services: Services) -> MCPServer:
         )
 
     return mcp
+
+
+class Candidates:
+    """Content that passed validate_spec, by fingerprint, so publishing needn't resend it.
+
+    In memory only: at most 50, each for an hour. Losing them on restart is fine; the agent
+    validates again.
+    """
+
+    def __init__(
+        self, size: int = 50, ttl: float = 3600, clock: Callable[[], float] = time.monotonic
+    ) -> None:
+        self._items: OrderedDict[str, tuple[float, dict[str, Any], str]] = OrderedDict()
+        self._size, self._ttl, self._clock = size, ttl, clock
+        self._lock = threading.Lock()
+
+    def add(self, spec: dict[str, Any], html: str) -> str:
+        candidate_id = Content.of(DashboardSpec.model_validate(spec), html).fingerprint
+        with self._lock:
+            self._items.pop(candidate_id, None)
+            self._items[candidate_id] = (self._clock(), copy.deepcopy(spec), html)
+            while len(self._items) > self._size:
+                self._items.popitem(last=False)
+        return candidate_id
+
+    def get(self, candidate_id: str) -> tuple[dict[str, Any], str] | None:
+        with self._lock:
+            item = self._items.get(candidate_id)
+            if item is None:
+                return None
+            added, spec, html = item
+            if self._clock() - added > self._ttl:
+                del self._items[candidate_id]
+                return None
+            return copy.deepcopy(spec), html
 
 
 def _unknown_metric(services: Services, name: str, path: str) -> Issue:

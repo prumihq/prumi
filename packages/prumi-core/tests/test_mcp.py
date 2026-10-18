@@ -9,6 +9,8 @@ import duckdb
 import pytest
 from mcp import Client
 from prumi.mcp import rank, tokens
+from prumi.registry import Content
+from prumi.spec import DashboardSpec
 
 SPEC_MD = Path(__file__).parents[3] / "specs" / "mvp" / "spec.md"
 TOOLS = {
@@ -257,11 +259,14 @@ def test_validate_publish_and_request_metric(server, services, demo_dashboard):
     )
     assert request["id"] == 1 and "metric_requests" in request["message"]
     spec = {**spec, "metric_requests": [request["id"]]}
-    assert ok(call(server, "validate_spec", spec=spec, html=html)) == {
+    validated = ok(call(server, "validate_spec", spec=spec, html=html))
+    assert validated == {
         "ok": True,
         "errors": [],
         "warnings": [],
+        "candidate_id": validated["candidate_id"],
     }
+    assert validated["candidate_id"].startswith("v0:")
     port = services.config.server.port
     published = ok(call(server, "publish_dashboard", spec=spec, html=html))
     assert published == {
@@ -286,3 +291,103 @@ def test_mcp_rejects_other_origins(server):
     assert response.status_code in (400, 403)
     other_host = httpx2.get(f"{server.url}/mcp", headers={"Host": "evil.example"})
     assert other_host.status_code == 403
+
+
+# Publishing by candidate (AC 33)
+
+
+def test_validate_returns_a_candidate_only_for_valid_spec_and_html(server, demo_dashboard):
+    spec, html = demo_dashboard
+    with_html = ok(call(server, "validate_spec", spec=spec, html=html))
+    assert (
+        with_html["candidate_id"]
+        == Content.of(DashboardSpec.model_validate(spec), html).fingerprint
+    )
+    assert ok(call(server, "validate_spec", spec=spec))["candidate_id"] is None
+    broken = {**spec, "data": [{**spec["data"][0], "metrics": ["revnue"]}, *spec["data"][1:]]}
+    assert ok(call(server, "validate_spec", spec=broken, html=html))["candidate_id"] is None
+
+
+def test_publishing_by_candidate_is_publishing_the_content(server, services, demo_dashboard):
+    spec, html = demo_dashboard
+    spec = {**spec, "dashboard": {"id": "by-candidate", "title": "By candidate"}}
+
+    async def work(client):
+        validated = await client.call_tool("validate_spec", {"spec": spec, "html": html})
+        candidate = validated.structured_content["candidate_id"]
+        by_id = await client.call_tool("publish_dashboard", {"candidate_id": candidate})
+        by_content = await client.call_tool("publish_dashboard", {"spec": spec, "html": html})
+        return ok(by_id), ok(by_content)
+
+    by_id, by_content = session(server, work)
+    assert (by_id["id"], by_id["version"]) == ("by-candidate", 1)
+    assert (by_content["id"], by_content["version"]) == ("by-candidate", 1)  # nothing new
+    assert services.registry.version("by-candidate", 2) is None
+
+
+def test_unknown_candidates_and_bad_arguments(server, demo_dashboard):
+    spec, html = demo_dashboard
+    [issue] = issues(call(server, "publish_dashboard", candidate_id="v0:nope"))
+    assert (issue["code"], issue["path"]) == ("publish.unknown_candidate", "candidate_id")
+    assert "validate_spec again with the spec and HTML" in issue["hint"]
+    for arguments in ({}, {"spec": spec}, {"candidate_id": "v0:x", "spec": spec, "html": html}):
+        [issue] = issues(call(server, "publish_dashboard", **arguments))
+        assert issue["code"] == "publish.invalid_arguments"
+
+
+def test_candidates_expire_and_are_bounded():
+    from prumi.mcp import Candidates
+
+    now = [0.0]
+    store = Candidates(size=2, ttl=3600, clock=lambda: now[0])
+
+    def spec(n):
+        return {
+            "spec_version": 0,
+            "dashboard": {"id": f"d{n}", "title": "D"},
+            "data": [
+                {"id": "kpi", "metrics": ["revenue"], "filters": [], "window": {"to_date": "year"}}
+            ],
+        }
+
+    first, second = store.add(spec(1), "<p>1</p>"), store.add(spec(2), "<p>2</p>")
+    assert store.get(first) == (spec(1), "<p>1</p>")
+    store.add(spec(3), "<p>3</p>")  # over the size: the oldest goes
+    assert store.get(first) is None and store.get(second) is not None
+    now[0] = 3601
+    assert store.get(second) is None  # expired after an hour
+
+
+def test_publish_revalidates_a_candidate(
+    tmp_path, demo_services, demo_dashboard, demo_project, make_demo_config
+):
+    """The catalog changes between validate and publish: the stored content is checked again."""
+    from prumi.config import load_config
+    from prumi.mcp import create_mcp
+    from prumi.services import Services
+
+    spec, html = demo_dashboard
+    spec = json.loads(json.dumps(spec))
+    spec["data"][0]["metrics"] = ["revenue", "discount_rate"]
+    mcp = create_mcp(demo_services)
+
+    async def work():
+        async with Client(mcp) as client:
+            validated = await client.call_tool("validate_spec", {"spec": spec, "html": html})
+            candidate = validated.structured_content["candidate_id"]
+            assert candidate
+            # The data team removes discount_rate from the manifest; the server restarts its
+            # source (the candidate store would not survive a real restart, so swap in place).
+            manifest = json.loads(demo_project.manifest_path.read_text())
+            manifest["metrics"] = [m for m in manifest["metrics"] if m["name"] != "discount_rate"]
+            changed = tmp_path / "semantic_manifest.json"
+            changed.write_text(json.dumps(manifest))
+            later = Services(load_config(make_demo_config(tmp_path / "later", changed)))
+            demo_services.source = later.source
+            demo_services.__dict__.pop("engine", None)
+            return await client.call_tool("publish_dashboard", {"candidate_id": candidate})
+
+    (tmp_path / "later").mkdir()
+    result = asyncio.run(work())
+    assert [i["code"] for i in issues(result)] == ["R7.unknown_metric"]
+    assert demo_services.registry.dashboards() == []
