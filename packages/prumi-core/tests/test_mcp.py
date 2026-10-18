@@ -417,8 +417,12 @@ def test_the_instructions_give_every_step():
         "use `list_dashboards` and `get_dashboard`, then edit it with `validate_spec(base=...)`",
         # 1: catalog metrics only
         "call `request_metric` and tell the user; never compute or approximate a metric",
-        # 2: query is for exploring
-        "they're for exploring, not for copying into the page",
+        # 2: query shows the shape of the data
+        "Use `query` to learn the shape of the data (how many rows, empties, label lengths, "
+        "magnitudes) while designing.",
+        # and no company data reaches the agent
+        "Prumi never sends company data to your agent: `query` shows the shape of the data, "
+        "and the numbers appear only in the dashboard.",
         # 3: the guide first; numbers only from prumi.on; the HTML straight to validation
         "Call `authoring_guide` once before writing anything",
         "Every number on the page must come from `prumi.on(...)`",

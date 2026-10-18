@@ -97,7 +97,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 64. `query` returns the profile; remove the 200-row cap from `for_agent` (AC 69)
 - [x] 65. Scrub agent-facing messages: `R8.*`, layout issues, browser reports in `get_dashboard`, source errors (AC 70)
 - [x] 66. The sentinel test across every MCP tool output (AC 68)
-- [ ] 67. README, guide and instructions wording (AC 71)
+- [x] 67. README, guide and instructions wording (AC 71)
 
 ## Home page (spec section 20; added 2026-10-18)
 

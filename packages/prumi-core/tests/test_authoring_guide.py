@@ -51,7 +51,7 @@ def test_the_guide_describes_the_result_object():
 
 def test_the_guide_covers_numbers_theme_and_editing():
     for text in (
-        "5,000 rows", "200-row cap is only for `query`", "one grand total for the whole window",
+        "5,000 rows", "one grand total for the whole window",
         "Layout math is fine", 'data-prumi-role="axis"', "no `<canvas>`", "--prumi-series-1",
         "--prumi-radius", "{compact: true}", "html_edits", "base", "edit.no_match",
         "take one screenshot of the draft at desktop width; don't read the page's text",
@@ -74,3 +74,18 @@ def test_the_guide_covers_numbers_theme_and_editing():
         "ask the user to look at the draft link",
     ):  # fmt: skip
         assert text in GUIDE, text
+
+
+WORDING = (
+    "Prumi never sends company data to your agent: `query` shows the shape of the data, and "
+    "the numbers appear only in the dashboard."
+)
+
+
+def test_the_guide_instructions_and_readme_say_no_company_data_reaches_the_agent():
+    from prumi.mcp import INSTRUCTIONS
+
+    readme = (Path(__file__).parents[3] / "README.md").read_text(encoding="utf-8")
+    for text in (GUIDE, INSTRUCTIONS, readme):
+        assert WORDING in text
+        assert "200 rows" not in text and "200-row" not in text

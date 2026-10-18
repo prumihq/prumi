@@ -60,7 +60,7 @@ The server tells the agent how to work with it: use only catalog metrics and ask
 |---|---|
 | `authoring_guide` | The spec format, the page API (`prumi.*`), the result object and a working example. Agents read it once before writing. |
 | `find_metrics`, `describe_metric` | Finding the official metrics and the dimensions each one can be split by. |
-| `query` | Looking at the data while designing (at most 200 rows). |
+| `query` | Learning the shape of the data while designing: rows, empties, label lengths, magnitudes. No values. |
 | `validate_spec` | Checking a spec and its HTML, or edits to validated or published content (`base` + `html_edits`). A clean result has a `candidate_id`. |
 | `publish_dashboard` | Publishing that `candidate_id` (or a spec and HTML) as a new draft version. |
 | `list_dashboards`, `get_dashboard` | Reading back published dashboards: versions, spec, HTML, status, and the numbers viewers' browsers flagged. |
@@ -71,7 +71,7 @@ The server tells the agent how to work with it: use only catalog metrics and ask
 ## Where your data goes
 
 - **Dashboard data:** warehouse → Prumi → browser. It never passes through the agent or its LLM.
-- **`query` results:** warehouse → Prumi → the agent → the agent's LLM provider. That's why `query` returns at most 200 rows.
+- **What the agent sees:** Prumi never sends company data to your agent: `query` shows the shape of the data, and the numbers appear only in the dashboard. Its LLM provider gets metric definitions, the shape of results (row counts, empties, label lengths, magnitudes), issue codes and element paths: never a value or a name from the data.
 - **What Prumi stores:** specs, HTML, certifications and metric requests, in `registry.sqlite3` under the config's `data_dir` (`.prumi` by default). No query results, and no row data or filter values in logs.
 
 Every number on a dashboard is computed by the source at the grain it's shown: Prumi never re-aggregates ratios, averages or distinct counts. The ten BI rules Prumi checks, and their issue codes, are explained in [docs/bi-rules.md](docs/bi-rules.md). The dashboard's HTML runs in a sandboxed frame that can't call any server, and the badge and data freshness come from Prumi, not from the HTML.

@@ -2,10 +2,12 @@
 
 A dashboard is two things you write side by side: a **spec** (JSON) that says which data each block shows, and an **HTML page** that draws it. Prumi runs every query; the page only receives results. Read this once, then write both.
 
+Prumi never sends company data to your agent: `query` shows the shape of the data, and the numbers appear only in the dashboard. What you see are metric definitions, the shape of results, issue codes and element paths.
+
 ## How to work
 
 1. `find_metrics`, then `describe_metric` for each metric you'll use. Use only catalog metrics and the dimensions `describe_metric` lists; if one is missing, call `request_metric`.
-2. `query` to look at the data (at most 200 rows, for exploring only).
+2. `query` to learn the shape of the data: how many rows, distinct values and empties per column, the shortest and longest label, and for each metric its sign, magnitude (integer digits: 4 to 5 means 1,000 to 99,999) and the decimals its format shows. Design axes, widths and label space from that; it returns no values.
 3. Write the spec and the HTML below.
 4. `validate_spec` with both, and fix every error. Send the HTML straight to `validate_spec`; don't write it to a local file first. Validation renders the page in a browser with the blocks' data and checks every number it shows (see "Every number comes from Prumi"). The result always has a `candidate_id`: publish it when `ok`; when it isn't, fix it with `validate_spec(base=candidate_id, html_edits=[...])` instead of sending the page again. A runtime error gives the line and column in your HTML and a short stack.
    - Pass `check_states` to check filter states viewers will pick, not just the defaults: up to 5, like `[{"filters": {"region": ["North America"]}}, {"filters": {"period": {"last": 52, "grain": "week"}}}]`. Each is rendered and checked the same way; its issues start with "With the filters …". The states stay with the candidate and are checked again when it's published.
@@ -42,7 +44,7 @@ To change a dashboard later, see "Changing a dashboard" at the end.
   - Optional: `title`, `dimensions` (0–3), `time_grain` (one series point per period), `sort: {"by": <metric, dimension or "metric_time">, "descending": true}`, `top_n` (1–100), `others`, `total`, `compare` (`previous_period` or `previous_year`).
   - `top_n` needs exactly one dimension, no `time_grain`, and `sort` by one of the block's metrics. `others` needs `top_n`. `total` needs dimensions or a `time_grain`. `compare` only works without `time_grain`.
   - `total` on a block with a `time_grain` is one grand total for the whole window, not one per period. For a total per period, add a block with the same `time_grain` and no dimensions.
-  - A block returns at most 5,000 rows (`truncated: true` beyond that). The 200-row cap is only for `query`.
+  - A block returns at most 5,000 rows (`truncated: true` beyond that).
   - A `time_grain` must divide the window's periods: the same grain, `day`, `month` in a quarter or year, `quarter` in a year. Weeks only fit week windows.
 - **Interactions**: `{"from": "regions", "on": "click", "sets_filter": "region"}`. A click on a row of `regions` sets the dimension filter `region` to that row's value; clicking it again clears it. The block must have the filter's dimension.
 - **Bindings** (`presentation.bindings`): `"#element-id": "block-id"`, or a list of blocks when the element shows several (`"#table": ["regions", "regions_total"]`). **Every element that shows numbers must be bound** (or sit inside a bound element) to the blocks whose values it shows: a number is checked against the blocks of its nearest bound ancestor. The element must be in the HTML (an id in the page, not one a script creates).
@@ -56,7 +58,7 @@ Your HTML runs in a sandboxed frame. It **can't** call any server (no `fetch`, `
 **Every number the page shows must be a value Prumi delivered to the block bound there**: a metric value from that block's result (rows, `total`, `others`, `_previous`, `_delta`, `_delta_pct`), as `prumi.format` shows it. Validation renders the page with the data, reads every number it shows (text, SVG text, `title` tooltips), then hovers chart marks and reads the tooltips they open; viewers' browsers do the same for other filter states. Errors block publishing:
 
 - `R8.unbound_number`: a number outside every bound element. Bind the element to the block it shows.
-- `R8.unverified_number`: a number its binding's blocks didn't deliver: a sum, average or share computed in JavaScript, a value from another block (bind a list of blocks), a number copied from a `query` result. Ask for `total`, `others` or `compare` in the spec instead.
+- `R8.unverified_number`: a number its binding's blocks didn't deliver: a sum, average or share computed in JavaScript, a value from another block (bind a list of blocks), a number typed in from anywhere else. Ask for `total`, `others` or `compare` in the spec instead.
 - `R8.copied_number`: a delivered value written into the HTML source or a script, even if it's right today. It goes stale; show it from `prumi.on`.
 
 The rules:
