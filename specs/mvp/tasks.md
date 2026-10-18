@@ -21,7 +21,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 12. Spec models (format v0), YAML/JSON loading, committed JSON Schema and its up-to-date test (AC 16)
 - [x] 13. Validator static rules: `spec.*`, R2, R3, R4, R5, R6, R7, R10, with the issue format and one fixture per code — done when each fixture produces exactly its code (AC 12, 13, 14)
 - [x] 14. HTML checks: R8 heuristic with the `fixtures/r8/` set, bindings, `prumi.on` references, allowed hosts, unpinned scripts, size limit (AC 12, 15)
-- [ ] 15. Engine block execution: query building from block + filter values, row cap, top N, Others (additive and `not_in`), totals, comparisons and deltas, freshness and `R3.stale_data`, `_partial`, block result JSON — done when the R1 and R6 tests match hand-written SQL (AC 9, 10, 11)
+- [x] 15. Engine block execution: query building from block + filter values, row cap, top N, Others (additive and `not_in`), totals, comparisons and deltas, freshness and `R3.stale_data`, `_partial`, block result JSON — done when the R1 and R6 tests match hand-written SQL (AC 9, 10, 11)
 - [ ] 16. Validator dry run (`query.failed`) and `for_agent` with the 200-row cap (AC 12, 28)
 
 ## Registry, CLI, server
