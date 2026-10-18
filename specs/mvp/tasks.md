@@ -66,3 +66,14 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 45. Guide, instructions, `docs/bi-rules.md` and README updates (AC 50)
 - [ ] 46. Benchmark run (AC 51). The maintainer does this one.
 - [x] 47. Remove every spec-section and AC reference from code, comments and test names (rewrite each as the *why*, or as a pointer to an ADR, a BI rule or an issue code), and make the tests that read `specs/` compare against the shipped text instead (see AGENTS.md, code style). Done when `git grep -nE "spec(\.md)? section|\bAC [0-9]|specs/" -- packages examples` finds nothing. Do it last, after tasks 34–45
+
+## Tightening after the proof (spec section 19.13; added 2026-10-18)
+
+- [ ] 48. Fixtures first: bindings in the first-run fixture's spec, and the four new must-fail pages (AC 52)
+- [ ] 49. `R8.copied_number`: the source scan at the server check (AC 53)
+- [ ] 50. Bindings decide what a number may match, lists of blocks per binding, `R8.unbound_number`, in both checks (AC 54)
+- [ ] 51. `html.iframe`, `html.closed_shadow_root`, `html.image` and `img-src 'none'` (AC 55)
+- [ ] 52. Unmarked ticks only inside `<svg>` (AC 56)
+- [ ] 53. The viewer bar and `needs_attention` for flagged published versions (AC 57)
+- [ ] 54. Guide and `docs/bi-rules.md`: bindings for every number, tooltips inside bound elements, no images, iframes or closed shadow roots, the new codes
+
