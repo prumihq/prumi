@@ -168,3 +168,18 @@ def test_no_sentinel_reaches_the_agent(services, warehouse):
         dumped = json.dumps(structured, ensure_ascii=False) + "\n".join(texts)
         for sentinel in SENTINELS:
             assert sentinel not in dumped, (tool, sentinel, dumped[:2000])
+
+
+def test_no_sentinel_on_the_home_page(services):
+    """The home page is for people, but it shows no metric values or dimension values either."""
+    from prumi.server.app import create_app
+    from starlette.testclient import TestClient
+
+    report, published = services.publish(SPEC, page())
+    assert report.ok and published, report.issues
+    services.registry.request_metric("Revenue net of returns", "returns matter")
+    port = services.config.server.port
+    home = TestClient(create_app(services), base_url=f"http://127.0.0.1:{port}").get("/").text
+    assert 'href="/d/regions"' in home and "Revenue net of returns" in home
+    for sentinel in SENTINELS:
+        assert sentinel not in home, (sentinel, home)

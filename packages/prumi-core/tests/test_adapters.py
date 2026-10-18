@@ -20,7 +20,7 @@ from prumi.adapters import (
 )
 
 FAKE_ADAPTER = """
-from prumi.adapters import Capabilities, Catalog, Result
+from prumi.adapters import Capabilities, Catalog, Result, SourceInfo
 
 
 class FakeAdapter:
@@ -32,6 +32,9 @@ class FakeAdapter:
 
     def capabilities(self):
         return Capabilities(identity_mode="shared_account")
+
+    def describe(self):
+        return SourceInfo(adapter="fake")
 
     def discover(self):
         return Catalog(metrics=(), dimensions=())

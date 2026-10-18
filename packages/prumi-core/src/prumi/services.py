@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import datetime as dt
+import logging
+import threading
+import time
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Any
 
@@ -12,15 +16,21 @@ from prumi.config import DEFAULT_SOURCE, Config
 from prumi.engine import Engine
 from prumi.issues import Issue, Report
 from prumi.registry import Published, Registry, publish
-from prumi.source import Source
+from prumi.source import Source, query_origin
 from prumi.spec import DashboardSpec
 from prumi.validate import AllowedHosts, validate
 from prumi.validate.page import PageChecker, shared_checker
+
+log = logging.getLogger("prumi.server")
+
+FRESHNESS_TTL_S = 600
 
 
 @dataclass
 class Services:
     config: Config
+    _freshness: tuple[float, dt.date | None] | None = field(default=None, init=False, repr=False)
+    _freshness_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     @cached_property
     def registry(self) -> Registry:
@@ -39,6 +49,28 @@ class Services:
     def checker(self) -> PageChecker:
         """Headless Chromium for the page check, shared by the whole process."""
         return shared_checker()
+
+    def data_through(self) -> dt.date | None:
+        """The latest day with data of any metric, for the home page. Queried at startup and
+        again when it's more than 10 minutes old, so the page stays cheap to load."""
+        with self._freshness_lock:
+            now = time.monotonic()
+            if self._freshness is None or now - self._freshness[0] >= FRESHNESS_TTL_S:
+                self._freshness = (now, self._latest_data())
+            return self._freshness[1]
+
+    def _latest_data(self) -> dt.date | None:
+        latest = None
+        for metric in self.source.metric_names:
+            try:
+                with query_origin("home page"):
+                    through = self.engine.data_through(metric, LOCAL_VIEWER)
+            except Exception as exc:  # one failing metric doesn't hide the others' date
+                log.warning("freshness of %s failed: %s", metric, type(exc).__name__)
+                continue
+            if through is not None and (latest is None or through > latest):
+                latest = through
+        return latest
 
     @property
     def hosts(self) -> AllowedHosts:

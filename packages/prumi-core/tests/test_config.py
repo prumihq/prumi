@@ -31,6 +31,7 @@ def test_the_demo_config():
     assert (name, source.name, source.adapter) == ("default", "default", "dbt")
     assert source.settings["connection"] == {"type": "duckdb", "path": "demo.duckdb"}
     assert source.config_dir == DEMO_CONFIG.parent
+    assert source.project == "prumi_demo"
 
 
 def test_defaults_and_relative_paths(tmp_path):
@@ -44,6 +45,7 @@ def test_defaults_and_relative_paths(tmp_path):
     )
     assert config.server.script_hosts == DEFAULT_SCRIPT_HOSTS
     assert dict(config.sources["default"].settings) == {}
+    assert config.sources["default"].project is None
 
 
 @pytest.mark.parametrize("as_of", ['"2026-10-15"', "2026-10-15"])
@@ -78,6 +80,7 @@ def test_a_non_loopback_host_fails_with_a_clear_message(tmp_path, host):
         ("[server]\n", "[source] needs `adapter`"),
         (MINIMAL + "[source.dbtt]\nx = 1\n", "unknown key(s) in [source]: dbtt"),
         (MINIMAL + "[sources]\n", "unknown section(s) sources"),
+        (MINIMAL + "project = 1\n", "`project` must be a string"),
         ("[server\n", "isn't valid TOML"),
     ],
 )
@@ -85,6 +88,12 @@ def test_invalid_configs(tmp_path, text, expected):
     with pytest.raises(ConfigError, match=None) as error:
         load_config(write(tmp_path, text))
     assert expected in str(error.value)
+
+
+def test_the_project_name_is_optional_and_stays_out_of_the_adapters_settings(tmp_path):
+    config = load_config(write(tmp_path, MINIMAL + 'project = "jaffle_shop"\n'))
+    source = config.sources["default"]
+    assert source.project == "jaffle_shop" and dict(source.settings) == {}
 
 
 def test_a_missing_config_file(tmp_path):

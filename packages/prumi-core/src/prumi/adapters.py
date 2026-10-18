@@ -39,6 +39,7 @@ __all__ = [
     "OrderBy",
     "Result",
     "SemanticQuery",
+    "SourceInfo",
     "Viewer",
     "adapter_names",
     "load_adapter_factory",
@@ -60,6 +61,14 @@ class Capabilities:
     identity_mode: IdentityMode
     time_grains: tuple[Grain, ...] = GRAINS
     calendars: tuple[str, ...] = ("standard",)
+
+
+@dataclass(frozen=True)
+class SourceInfo:
+    """What the home page says about the connected source; never used to run queries."""
+
+    adapter: str  # e.g. "dbt"
+    connection: str | None = None  # the warehouse type, e.g. "duckdb"
 
 
 # Catalog
@@ -204,6 +213,10 @@ class Adapter(Protocol):
     name: str
 
     def capabilities(self) -> Capabilities: ...
+
+    def describe(self) -> SourceInfo:
+        """The adapter and the kind of warehouse it's connected to, for people to read."""
+        ...
 
     def discover(self) -> Catalog:
         """The catalog, read once at startup."""

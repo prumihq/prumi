@@ -2,40 +2,177 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import re
+from dataclasses import dataclass
 from html import escape
 from typing import Any
 
-from prumi.adapters import METRIC_TIME
-from prumi.registry import Registry, Version, VersionStatus
+from prumi import __version__
+from prumi.adapters import LOCAL_VIEWER, METRIC_TIME, Viewer
+from prumi.registry import Dashboard, MetricRequest, Registry, Version, VersionStatus
 from prumi.source import Source
 from prumi.spec import DashboardSpec, DimensionFilter
 from prumi.validate import AllowedHosts
 
+# The home page: titles, statuses, labels and dates; never a metric value
 
-def index(registry: Registry) -> str:
-    """A plain list of dashboards with their status (for the demo)."""
-    rows = []
+HOME_CSP = "; ".join(
+    [
+        "default-src 'none'",
+        "script-src 'self'",
+        "style-src 'self'",
+        "img-src 'self' data:",
+        "connect-src 'none'",
+        "base-uri 'none'",
+        "form-action 'none'",
+        "frame-ancestors 'none'",
+    ]
+)
+DOCS_URL = "https://github.com/prumihq/prumi#readme"
+SHOWN_LABELS = 4
+SHOWN_REQUESTS = 10
+
+
+@dataclass(frozen=True)
+class Card:
+    dashboard: Dashboard
+    status: VersionStatus
+    updated_at: str
+    metrics: list[str]  # labels, in the order the spec first uses them
+
+
+def home_badge(status: VersionStatus) -> tuple[str, str]:
+    """(kind, text) of a card's status. A flagged version needs attention, certified or not."""
+    if status.needs_attention:
+        return "attention", "Needs attention"
+    if status.status == "certified":
+        return "certified", f"Certified by {status.certified_by}"
+    return "draft", "Draft"
+
+
+_UNITS = (("year", 365 * 86400), ("month", 30 * 86400), ("day", 86400), ("hour", 3600),
+          ("minute", 60))  # fmt: skip
+
+
+def relative_time(timestamp: str, now: dt.datetime) -> str:
+    """'3 hours ago', 'yesterday', 'just now': for people; the exact time goes in a title."""
+    seconds = max(0, (now - dt.datetime.fromisoformat(timestamp)).total_seconds())
+    for unit, size in _UNITS:
+        if seconds >= size:
+            n = int(seconds // size)
+            return "yesterday" if (unit, n) == ("day", 1) else f"{n} {unit}{'s' * (n > 1)} ago"
+    return "just now"
+
+
+def cards(registry: Registry, source: Source, viewer: Viewer) -> list[Card]:
+    """The dashboards `viewer` may read, newest update first."""
+    found = []
     for d in registry.dashboards():
+        if not registry.can_read(viewer, d):
+            continue
+        current = registry.version(d.id, d.current_version)
+        metrics = dict.fromkeys(m for block in current.spec.data for m in block.metrics)
+        labels = [(metric.label if (metric := source.metric(m)) else m) for m in metrics]
         status = registry.status(d.id, d.current_version)
-        rows.append(
-            f'<tr><td><a href="/d/{escape(d.id)}">{escape(d.title)}</a></td>'
-            f"<td>{escape(d.id)}</td><td>{d.current_version}</td><td>{status.status}</td></tr>"
-        )
-    body = (
-        "<table><tr><th>Dashboard</th><th>ID</th><th>Version</th><th>Status</th></tr>"
-        + "".join(rows)
-        + "</table>"
-        if rows
-        else "<p>No dashboards yet. Ask your agent to publish one.</p>"
+        found.append(Card(d, status, current.created_at, labels))
+    found.sort(key=lambda c: c.dashboard.id)
+    found.sort(key=lambda c: c.updated_at, reverse=True)
+    return found
+
+
+def _card(card: Card, now: dt.datetime) -> str:
+    d = card.dashboard
+    kind, text = home_badge(card.status)
+    updated = escape(card.updated_at)
+    ago = relative_time(card.updated_at, now)
+    shown, rest = card.metrics[:SHOWN_LABELS], card.metrics[SHOWN_LABELS:]
+    labels = "".join(f"<li>{escape(label)}</li>" for label in shown)
+    if rest:
+        labels += f'<li class="more" title="{escape(", ".join(rest))}">+{len(rest)}</li>'
+    return f"""<li class="card">
+  <div class="card-head">
+    <a class="card-title" href="/d/{escape(d.id)}">{escape(d.title)}</a>
+    <span class="badge" data-kind="{kind}">{escape(text)}</span>
+  </div>
+  <p class="card-meta"><code>{escape(d.id)}</code> · version {d.current_version} ·
+    <time datetime="{updated}" title="{updated}">updated {ago}</time></p>
+  {f'<ul class="labels">{labels}</ul>' if labels else ""}
+</li>"""
+
+
+def _requests(requests: list[MetricRequest]) -> str:
+    if not requests:
+        return ""
+    newest = sorted(requests, key=lambda r: (r.created_at, r.id), reverse=True)
+    items = "".join(
+        f'<li><span>{escape(r.description)}</span> <time datetime="{escape(r.created_at)}">'
+        f"{escape(r.created_at[:10])}</time></li>"
+        for r in newest[:SHOWN_REQUESTS]
     )
-    return (
-        '<!doctype html><html><head><meta charset="utf-8"><title>Prumi</title>'
-        "<style>body{font-family:system-ui,sans-serif;margin:24px}"
-        "td,th{padding:4px 12px;text-align:left}</style></head>"
-        f"<body><h1>Dashboards</h1>{body}</body></html>"
-    )
+    more = len(newest) - SHOWN_REQUESTS
+    rest = f"<p>and {more} more (<code>prumi requests</code>)</p>" if more > 0 else ""
+    return f"""<section class="requests" aria-labelledby="requests-heading">
+  <h2 id="requests-heading">Metric requests</h2>
+  <ul>{items}</ul>
+  {rest}
+</section>"""
+
+
+def home(
+    registry: Registry,
+    source: Source,
+    project: str | None,
+    data_through: dt.date | None,
+    mcp_url: str,
+    now: dt.datetime,
+    viewer: Viewer = LOCAL_VIEWER,
+) -> str:
+    info = source.adapter.describe()
+    facts = [info.adapter, project, info.connection]
+    if data_through is not None:
+        facts.append(f"data through {data_through.isoformat()}")
+    found = cards(registry, source, viewer)
+    if found:
+        dashboards = f"""<section aria-labelledby="dashboards-heading">
+  <div class="section-head">
+    <h1 id="dashboards-heading">Dashboards</h1>
+  </div>
+  <ul class="cards" id="cards">{"".join(_card(c, now) for c in found)}</ul>
+</section>"""
+    else:
+        command = f"claude mcp add --scope user --transport http prumi {mcp_url}"
+        dashboards = f"""<section class="empty" aria-labelledby="dashboards-heading">
+  <h1 id="dashboards-heading">No dashboards yet</h1>
+  <p>Ask your AI agent to build a dashboard; it appears here as a draft.</p>
+  <p>To connect Claude Code, run:</p>
+  <div class="command">
+    <code id="connect-command">{escape(command)}</code>
+  </div>
+</section>"""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prumi</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/home.css">
+</head>
+<body>
+<header class="top">
+  <span class="wordmark">Prumi</span>
+  <p class="source" id="source">{" · ".join(escape(f) for f in facts if f)}</p>
+</header>
+<main>
+{dashboards}
+{_requests(registry.metric_requests())}
+</main>
+<footer class="bottom">Prumi {escape(__version__)} · <a href="{DOCS_URL}">Docs</a></footer>
+</body>
+</html>
+"""
 
 
 # The frame: the stored HTML, sandboxed, with the runtime injected

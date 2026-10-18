@@ -5,7 +5,15 @@ import shutil
 
 import duckdb
 import pytest
-from prumi.adapters import LOCAL_VIEWER, Capabilities, Column, DateRange, OrderBy, SemanticQuery
+from prumi.adapters import (
+    LOCAL_VIEWER,
+    Capabilities,
+    Column,
+    DateRange,
+    OrderBy,
+    SemanticQuery,
+    SourceInfo,
+)
 from prumi_adapter_dbt.adapter import DbtAdapter
 
 Q3_2026 = DateRange(dt.date(2026, 7, 1), dt.date(2026, 9, 30))
@@ -18,6 +26,10 @@ def hand(demo_project, sql: str) -> list[tuple]:
 
 def test_capabilities(adapter):
     assert adapter.capabilities() == Capabilities(identity_mode="shared_account")
+
+
+def test_describe_names_the_adapter_and_the_connection_type(adapter):
+    assert adapter.describe() == SourceInfo(adapter="dbt", connection="duckdb")
 
 
 def test_time_series_uses_semantic_names_and_dates(adapter, demo_project):

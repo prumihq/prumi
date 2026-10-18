@@ -29,7 +29,7 @@ uv run --project examples/demo-dbt-project python examples/demo-dbt-project/buil
 uv run prumi serve --config examples/demo-dbt-project/prumi.toml
 ```
 
-Then [connect your agent](#connect-your-agent) and ask it for a dashboard, e.g. "Build a dashboard of weekly revenue by region, with average order value." The agent reads Prumi's authoring guide, finds the metrics, checks the numbers with `query`, validates the spec and HTML, publishes what it validated, and gives you a link such as `http://127.0.0.1:8484/d/sales-weekly` (it only works on your machine). [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard.
+Then [connect your agent](#connect-your-agent) and ask it for a dashboard, e.g. "Build a dashboard of weekly revenue by region, with average order value." The agent reads Prumi's authoring guide, finds the metrics, checks the numbers with `query`, validates the spec and HTML, publishes what it validated, and gives you a link such as `http://127.0.0.1:8484/d/sales-weekly` (it only works on your machine). [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard with its status, and the open metric requests.
 
 A new dashboard is an uncertified **draft**. After reviewing it, the data team certifies it from the CLI, and the badge says who certified it and when. Any later change makes it a draft again.
 

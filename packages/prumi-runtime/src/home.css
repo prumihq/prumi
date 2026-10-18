@@ -1,0 +1,161 @@
+/* Prumi's home page. Colors, fonts and radius come from theme.css, so the page follows the
+ * OS's light or dark mode like the shell does.
+ */
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html { background: var(--prumi-bg); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--prumi-font);
+  font-size: 15px;
+  line-height: 1.45;
+  background: var(--prumi-bg);
+  color: var(--prumi-text);
+}
+a { color: var(--prumi-accent); }
+code { font-family: var(--prumi-font-mono); font-size: 0.9em; }
+time { white-space: nowrap; }
+
+.top, main, .bottom { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding-top: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--prumi-border);
+}
+.wordmark { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.source { margin: 0; color: var(--prumi-text-muted); font-size: 14px; }
+
+main { flex: 1; padding-top: 24px; padding-bottom: 32px; }
+h1, h2 { margin: 0 0 12px; font-weight: 600; }
+h1 { font-size: 18px; }
+h2 { font-size: 16px; }
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+.section-head h1 { margin: 0; }
+#search {
+  flex: 0 1 280px;
+  min-width: 0;
+  padding: 6px 10px;
+  font: inherit;
+  color: var(--prumi-text);
+  background: var(--prumi-surface);
+  border: 1px solid var(--prumi-border);
+  border-radius: var(--prumi-radius);
+}
+#search::placeholder { color: var(--prumi-text-muted); }
+.no-match { color: var(--prumi-text-muted); }
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 12px;
+}
+.card {
+  min-width: 0;
+  padding: 14px 16px;
+  background: var(--prumi-surface);
+  border: 1px solid var(--prumi-border);
+  border-radius: var(--prumi-radius);
+}
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.card-title {
+  min-width: 0;
+  font-weight: 600;
+  font-size: 16px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.card-title:hover, .card-title:focus-visible { text-decoration: underline; }
+.badge {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.badge[data-kind="draft"] { color: var(--prumi-text-muted); }
+.badge[data-kind="certified"] { color: var(--prumi-positive); }
+.badge[data-kind="attention"] { color: var(--prumi-negative); font-weight: 600; }
+.card-meta { margin: 6px 0 0; color: var(--prumi-text-muted); font-size: 13px; }
+.card-meta code { overflow-wrap: anywhere; }
+.labels { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.labels li {
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: var(--prumi-bg);
+  border: 1px solid var(--prumi-border);
+  font-size: 12px;
+}
+.labels .more { color: var(--prumi-text-muted); }
+
+.empty {
+  max-width: 640px;
+  padding: 20px;
+  background: var(--prumi-surface);
+  border: 1px solid var(--prumi-border);
+  border-radius: var(--prumi-radius);
+}
+.empty p { margin: 0 0 8px; }
+.command {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--prumi-bg);
+  border: 1px solid var(--prumi-border);
+  border-radius: var(--prumi-radius);
+}
+.command code { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.copy {
+  flex: none;
+  padding: 2px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--prumi-accent);
+  background: var(--prumi-surface);
+  border: 1px solid var(--prumi-border);
+  border-radius: var(--prumi-radius);
+  cursor: pointer;
+}
+
+.requests { margin-top: 32px; }
+.requests ul { margin: 0; padding: 0; list-style: none; }
+.requests li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--prumi-border);
+}
+.requests li span { min-width: 0; overflow-wrap: anywhere; }
+.requests time, .requests p { color: var(--prumi-text-muted); font-size: 13px; }
+.requests p { margin: 8px 0 0; }
+
+.bottom {
+  padding-top: 12px;
+  padding-bottom: 20px;
+  border-top: 1px solid var(--prumi-border);
+  color: var(--prumi-text-muted);
+  font-size: 13px;
+}

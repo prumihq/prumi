@@ -46,6 +46,7 @@ class SourceConfig:
     adapter: str
     settings: Mapping[str, Any]  # the adapter's own table, `[source.<adapter>]`
     config_dir: Path  # relative paths in `settings` resolve against it
+    project: str | None = None  # a display name for people (home page); adapters never see it
 
 
 @dataclass(frozen=True)
@@ -125,7 +126,7 @@ def _source(path: Path, table: Any) -> SourceConfig:
     if not isinstance(table, dict) or not isinstance(table.get("adapter"), str):
         raise ConfigError(f'{path}: [source] needs `adapter`, the adapter to use (e.g. "dbt").')
     adapter = table["adapter"]
-    unknown = sorted(set(table) - {"adapter", adapter})
+    unknown = sorted(set(table) - {"adapter", "project", adapter})
     if unknown:
         raise ConfigError(
             f"{path}: unknown key(s) in [source]: {', '.join(unknown)}. The adapter's settings "
@@ -134,8 +135,15 @@ def _source(path: Path, table: Any) -> SourceConfig:
     settings = table.get(adapter, {})
     if not isinstance(settings, dict):
         raise ConfigError(f"{path}: [source.{adapter}] must be a table.")
+    project = table.get("project")
+    if project is not None and not isinstance(project, str):
+        raise ConfigError(f"{path}: [source] `project` must be a string (the project's name).")
     return SourceConfig(
-        name=DEFAULT_SOURCE, adapter=adapter, settings=settings, config_dir=path.parent
+        name=DEFAULT_SOURCE,
+        adapter=adapter,
+        settings=settings,
+        config_dir=path.parent,
+        project=project or None,
     )
 
 

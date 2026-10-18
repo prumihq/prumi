@@ -14,6 +14,7 @@ def serve(services: Services) -> None:
     from prumi.server.app import create_app
 
     services.source  # noqa: B018 - load the adapter now: startup checks fail before binding
+    services.data_through()  # the home page's "data through" date
     # Publishing renders every page to check its numbers; without Chromium it can't.
     services.checker.start()
     server = services.config.server

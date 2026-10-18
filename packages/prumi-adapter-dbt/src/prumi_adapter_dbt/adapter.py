@@ -14,6 +14,7 @@ from prumi.adapters import (
     Catalog,
     Result,
     SemanticQuery,
+    SourceInfo,
     Viewer,
 )
 
@@ -37,9 +38,12 @@ def redact(sql: str) -> str:
 class DbtAdapter:
     name = "dbt"
 
-    def __init__(self, compiler: MetricFlowCompiler, connection: Connection) -> None:
+    def __init__(
+        self, compiler: MetricFlowCompiler, connection: Connection, connection_type: str
+    ) -> None:
         self._compiler = compiler
         self._connection = connection
+        self._connection_type = connection_type
         self._catalog: SourceCatalog = build_catalog(compiler.metrics())  # read once
 
     @classmethod
@@ -81,10 +85,13 @@ class DbtAdapter:
                 "name is the file name without its extension. Point the connection at the "
                 "database dbt built, or run `dbt parse` against this one."
             )
-        return cls(compiler, connection)
+        return cls(compiler, connection, connection_type)
 
     def capabilities(self) -> Capabilities:
         return Capabilities(identity_mode=self._connection.identity_mode)
+
+    def describe(self) -> SourceInfo:
+        return SourceInfo(adapter=self.name, connection=self._connection_type)
 
     def discover(self) -> Catalog:
         return self._catalog.catalog

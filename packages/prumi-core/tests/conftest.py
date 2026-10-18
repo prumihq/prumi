@@ -17,6 +17,7 @@ from prumi.adapters import (
     Format,
     Metric,
     Result,
+    SourceInfo,
 )
 from prumi.source import Source
 
@@ -82,6 +83,9 @@ class FakeAdapter:
 
     def capabilities(self):
         return Capabilities(identity_mode="shared_account")
+
+    def describe(self):
+        return SourceInfo(adapter="fake", connection="memory")
 
     def discover(self):
         dims = sorted(set().union(*(d for _, d in METRICS.values())))

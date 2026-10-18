@@ -175,8 +175,12 @@ class Registry:
                 raise
             conn.execute("COMMIT")
 
+    def now(self) -> dt.datetime:
+        """The registry's clock, which stamps every version and request."""
+        return self._now()
+
     def _timestamp(self) -> str:
-        return self._now().astimezone(dt.UTC).isoformat(timespec="seconds")
+        return self.now().astimezone(dt.UTC).isoformat(timespec="seconds")
 
     # Permissions. Every read of a dashboard (tools, block API) asks can_read, and a new
     # version of an existing dashboard asks can_edit. With one local user and no login,

@@ -163,11 +163,6 @@ def test_filter_values(client):
     assert client.get(f"{BASE}/filters/nope/values").status_code == 404
 
 
-def test_index_lists_dashboards(client):
-    page = client.get("/").text
-    assert '<a href="/d/sales">Sales</a>' in page and "draft" in page
-
-
 # The in-browser number check's reports
 
 

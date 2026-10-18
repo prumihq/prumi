@@ -1,4 +1,4 @@
-"""The HTTP app: dashboard list, shell and frame pages, the runtime, and the block API."""
+"""The HTTP app: home page, shell and frame pages, the runtime, and the block API."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
 from prumi.adapters import LOCAL_VIEWER
+from prumi.config import DEFAULT_SOURCE
 from prumi.engine import BlockRequestError, UnknownBlockError
 from prumi.issues import Issue, error
 from prumi.mcp import mcp_routes
@@ -35,7 +36,18 @@ def create_app(services: Services) -> HostCheck:
     server = services.config.server
 
     async def index(request: Request) -> Response:
-        return HTMLResponse(pages.index(services.registry))
+        data_through = await run_in_threadpool(services.data_through)
+        host = f"[{server.host}]" if ":" in server.host else server.host
+        page = pages.home(
+            services.registry,
+            services.source,
+            services.config.sources[DEFAULT_SOURCE].project,
+            data_through,
+            f"http://{host}:{server.port}/mcp",
+            services.registry.now(),
+        )
+        headers = {"Content-Security-Policy": pages.HOME_CSP, "X-Content-Type-Options": "nosniff"}
+        return HTMLResponse(page, headers=headers)
 
     async def asset(request: Request) -> Response:
         name = request.url.path.lstrip("/")
@@ -201,6 +213,7 @@ def create_app(services: Services) -> HostCheck:
             Route("/shell.js", asset),
             Route("/provenance.js", asset),
             Route("/theme.css", asset),
+            Route("/home.css", asset),
             Route("/d/{id}", shell),
             Route("/d/{id}/v/{n:int}", shell),
             Route("/d/{id}/v/{n:int}/frame", frame),

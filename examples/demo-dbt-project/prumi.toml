@@ -12,6 +12,7 @@ font_hosts = ["fonts.gstatic.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "
 
 [source]
 adapter = "dbt"
+project = "prumi_demo"  # shown in the home page header
 
 [source.dbt]
 semantic_manifest = "target/semantic_manifest.json"
