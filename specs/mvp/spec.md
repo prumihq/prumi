@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; 18 and 19.1–19.13 accepted 2026-10-18; 19.14 awaits acceptance)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18 and 19 on 2026-10-18)
 
 ## Goal
 
@@ -772,7 +772,7 @@ This replaces 19.1b's "nothing is shown to viewers": publishing can't catch what
 - an image with numbers in it;
 - an evenly spaced fake series outside SVG.
 
-#### 19.14 Polish from the third run (added 2026-10-18; status: draft)
+#### 19.14 Polish from the third run (added and accepted 2026-10-18)
 
 The third agent run (2026-10-18) followed the rules from the guide and never triggered a number-check code. These five changes come from what it ran into.
 
