@@ -100,6 +100,16 @@ class MetricDescription(BaseModel):
     caveats: list[str]
 
 
+class DashboardRef(BaseModel):
+    dashboard_id: str
+    version: int
+
+
+class HtmlEdit(BaseModel):
+    old: str = Field(description="Text that occurs exactly once in the HTML")
+    new: str
+
+
 class ValidationOut(BaseModel):
     ok: bool
     errors: list[Issue]
@@ -342,11 +352,48 @@ def create_mcp(services: Services) -> MCPServer:
 
     candidates = Candidates()
 
+    def resolve_base(base: str | DashboardRef) -> tuple[dict[str, Any], str] | CallToolResult:
+        if isinstance(base, str):
+            found = candidates.get(base)
+            return found if found is not None else _unknown_candidate(base, "base")
+        registry = services.registry
+        dashboard = registry.dashboard(base.dashboard_id)
+        if dashboard is None or not registry.can_read(LOCAL_VIEWER, dashboard):
+            return _not_found(base.dashboard_id)
+        stored = registry.version(base.dashboard_id, base.version)
+        if stored is None:
+            return _not_found(base.dashboard_id, base.version)
+        return json.loads(stored.spec_json), stored.html
+
     @mcp.tool()
-    def validate_spec(spec: dict[str, Any], html: str | None = None) -> ValidationOut:
-        """Validate a dashboard spec and its HTML: static rules, HTML checks, then a dry run of
-        every block. Fix every error before publishing. With spec and HTML and no errors, the
-        result has a candidate_id to publish with, so the content isn't sent twice."""
+    def validate_spec(
+        spec: dict[str, Any] | None = None,
+        html: str | None = None,
+        base: str | DashboardRef | None = None,
+        html_edits: list[HtmlEdit] | None = None,
+    ) -> ValidationOut:
+        """Validate a dashboard spec and its HTML: static rules, HTML checks, a dry run of every
+        block, then the page rendered with that data and its numbers checked. Fix every error
+        before publishing. With spec and HTML and no errors, the result has a candidate_id to
+        publish with, so the content isn't sent twice.
+
+        To change existing content, pass `base` (a candidate_id, or {dashboard_id, version}
+        of a published version) with `html_edits` (applied in order; each `old` must occur
+        exactly once) and/or a full new `spec` (default: the base's), instead of resending
+        the HTML."""
+        if base is None and (spec is None or html_edits is not None):
+            return _invalid_validate_arguments()
+        if base is not None:
+            if html is not None:
+                return _invalid_validate_arguments()
+            resolved = resolve_base(base)
+            if isinstance(resolved, CallToolResult):
+                return resolved
+            base_spec, base_html = resolved
+            spec = base_spec if spec is None else spec
+            html, problems = apply_edits(base_html, html_edits or [])
+            if problems:
+                return ValidationOut(ok=False, errors=problems, warnings=[])
         report = services.validate(spec, html)
         candidate_id = None
         if report.ok and html is not None:
@@ -383,17 +430,7 @@ def create_mcp(services: Services) -> MCPServer:
         if candidate_id is not None:
             found = candidates.get(candidate_id)
             if found is None:
-                return _fail(
-                    [
-                        error(
-                            "publish.unknown_candidate",
-                            "candidate_id",
-                            f"There's no validated candidate {candidate_id!r}: it's unknown, "
-                            "expired (after an hour) or the server restarted.",
-                            "Call validate_spec again with the spec and HTML.",
-                        )
-                    ]
-                )
+                return _unknown_candidate(candidate_id, "candidate_id")
             spec, html = found
         report, published = services.publish(spec, html)
         if published is None:
@@ -470,6 +507,61 @@ def create_mcp(services: Services) -> MCPServer:
         )
 
     return mcp
+
+
+def _unknown_candidate(candidate_id: str, path: str) -> CallToolResult:
+    return _fail(
+        [
+            error(
+                "publish.unknown_candidate",
+                path,
+                f"There's no validated candidate {candidate_id!r}: it's unknown, expired (after "
+                "an hour) or the server restarted.",
+                "Call validate_spec again with the spec and HTML.",
+            )
+        ]
+    )
+
+
+def _invalid_validate_arguments() -> CallToolResult:
+    return _fail(
+        [
+            error(
+                "validate.invalid_arguments",
+                "validate_spec",
+                "Pass a spec (and the HTML), or a base with html_edits and/or a spec. html_edits "
+                "need a base, and a base replaces the html argument.",
+                "To change validated or published content, pass base and html_edits.",
+            )
+        ]
+    )
+
+
+def apply_edits(html: str, edits: Sequence[HtmlEdit]) -> tuple[str, list[Issue]]:
+    """The HTML with the edits applied in order, or the first edit that can't apply."""
+    for i, edit in enumerate(edits):
+        count = html.count(edit.old) if edit.old else 0
+        if count == 1:
+            html = html.replace(edit.old, edit.new, 1)
+            continue
+        if count == 0:
+            issue = error(
+                "edit.no_match",
+                f"html_edits[{i}]",
+                f"html_edits[{i}].old doesn't occur in the HTML"
+                + (" (after the edits before it)." if i else "."),
+                "Copy `old` exactly from the current HTML (get_dashboard has it), whitespace "
+                "included.",
+            )
+        else:
+            issue = error(
+                "edit.ambiguous",
+                f"html_edits[{i}]",
+                f"html_edits[{i}].old occurs {count} times in the HTML; it must occur once.",
+                "Make `old` longer, with text around the change, so it occurs only once.",
+            )
+        return html, [issue]
+    return html, []
 
 
 class Candidates:

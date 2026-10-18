@@ -511,3 +511,70 @@ def test_reads_and_edits_ask_the_registry(server, services, monkeypatch):
     assert services.registry.dashboard("guarded").current_version == 1
     fresh = ok(call(server, "publish_dashboard", spec=readback_spec("fresh"), html=READBACK_HTML))
     assert fresh["version"] == 1
+
+
+# Editing validated or published content
+
+
+def test_editing_a_candidate_gives_the_candidate_of_the_edited_content(server, services):
+    spec = readback_spec("edited")
+    first = ok(call(server, "validate_spec", spec=spec, html=READBACK_HTML))
+    edits = [{"old": '<p id="kpi">', "new": '<h1>Revenue</h1><p id="kpi">'}]
+    edited_html = READBACK_HTML.replace('<p id="kpi">', '<h1>Revenue</h1><p id="kpi">')
+    by_edit = ok(call(server, "validate_spec", base=first["candidate_id"], html_edits=edits))
+    by_content = ok(call(server, "validate_spec", spec=spec, html=edited_html))
+    assert by_edit["ok"] and by_edit["candidate_id"] == by_content["candidate_id"]
+    assert by_edit["candidate_id"] != first["candidate_id"]
+
+    # A new spec with the base's HTML.
+    retitled = {**spec, "dashboard": {"id": "edited", "title": "Edited"}}
+    by_spec = ok(call(server, "validate_spec", base=first["candidate_id"], spec=retitled))
+    assert (
+        by_spec["candidate_id"]
+        == ok(call(server, "validate_spec", spec=retitled, html=READBACK_HTML))["candidate_id"]
+    )
+
+
+def test_editing_a_published_version(server, services):
+    spec = readback_spec("published-edit")
+    services.publish(spec, READBACK_HTML)
+    edits = [{"old": "prumi.format(b.rows[0].revenue", "new": "prumi.format(b.rows[0]?.revenue"}]
+    base = {"dashboard_id": "published-edit", "version": 1}
+    by_edit = ok(call(server, "validate_spec", base=base, html_edits=edits))
+    edited_html = READBACK_HTML.replace("b.rows[0].revenue", "b.rows[0]?.revenue")
+    by_content = ok(call(server, "validate_spec", spec=spec, html=edited_html))
+    assert by_edit["candidate_id"] == by_content["candidate_id"]
+    published = ok(call(server, "publish_dashboard", candidate_id=by_edit["candidate_id"]))
+    assert published["version"] == 2
+
+
+def test_edits_that_dont_apply_name_their_index(server):
+    spec = readback_spec("bad-edits")
+    base = ok(call(server, "validate_spec", spec=spec, html=READBACK_HTML))["candidate_id"]
+    fine = {"old": "<p ", "new": "<p class='big' "}
+    for edits, code in (
+        ([fine, {"old": "<marquee>", "new": ""}], "edit.no_match"),
+        ([fine, {"old": "kpi", "new": "x"}], "edit.ambiguous"),
+        ([fine, {"old": "<p id", "new": ""}], "edit.no_match"),  # the first edit changed it
+    ):
+        report = ok(call(server, "validate_spec", base=base, html_edits=edits))
+        assert not report["ok"] and report["candidate_id"] is None
+        [issue] = report["errors"]
+        assert (issue["code"], issue["path"]) == (code, "html_edits[1]")
+        assert "html_edits[1]" in issue["message"]
+
+
+@pytest.mark.parametrize(
+    ("arguments", "code"),
+    [
+        ({}, "validate.invalid_arguments"),
+        ({"html": "<p></p>"}, "validate.invalid_arguments"),
+        ({"spec": {}, "html_edits": [{"old": "a", "new": "b"}]}, "validate.invalid_arguments"),
+        ({"base": "v0:nope", "html": "<p></p>"}, "validate.invalid_arguments"),
+        ({"base": "v0:nope"}, "publish.unknown_candidate"),
+        ({"base": {"dashboard_id": "nope", "version": 1}}, "dashboard.not_found"),
+    ],
+)
+def test_bad_bases_and_arguments(server, arguments, code):
+    [issue] = issues(call(server, "validate_spec", **arguments))
+    assert issue["code"] == code
