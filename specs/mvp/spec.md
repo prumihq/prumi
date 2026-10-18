@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; 18 and 19.1–19.12 accepted 2026-10-18; 19.13 awaits acceptance)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18 and 19 on 2026-10-18)
 
 ## Goal
 
@@ -730,7 +730,7 @@ Ctrl+C or SIGTERM stops the server within 5 s even while MCP clients or browsers
 - `docs/bi-rules.md`: R8 explains provenance (19.1), its two checks and what they can't see (visual encoding); `R8.unverified_number`, `html.canvas` and the other new codes are listed.
 - README: "Restart your agent sessions after upgrading Prumi". Open sessions keep the tool list and instructions they loaded at the start.
 
-#### 19.13 Tightening after the proof (added 2026-10-18; status: draft)
+#### 19.13 Tightening after the proof (added and accepted 2026-10-18)
 
 The provenance proof (task 34) worked, and showed four gaps:
 - a hard-coded number that's correct today passes at publish;
