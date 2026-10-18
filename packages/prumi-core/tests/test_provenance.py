@@ -159,7 +159,8 @@ def test_a_blocked_request_is_a_warning(demo_services):
     static, blocked = report.warnings
     assert static.code == "html.network_call"  # found in the source before the page ran
     assert blocked.code == "html.blocked_request"
-    assert "https://example.com/data.json" in blocked.message
+    # Where it went, not the path or query, which can carry data.
+    assert "https://example.com;" in blocked.message and "data.json" not in blocked.message
 
 
 def test_the_server_check_runs_no_extra_queries(demo_services, monkeypatch):

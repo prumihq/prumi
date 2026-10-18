@@ -236,14 +236,14 @@ class PageChecker:
         )
 
     @contextmanager
-    def _render(self, browser, route, viewport, errors, locate, on_console):
+    def _render(self, browser, route, viewport, errors, locate, on_console, scrub=str):
         """A fresh context with the page rendered at `viewport`: yields (page, cdp,
         evaluate-in-the-isolated-world, settled)."""
         context = browser.new_context(locale="en-US", timezone_id="UTC", viewport=viewport)
         try:
             context.route("**/*", route)
             page = context.new_page()
-            page.on("pageerror", lambda exc: errors.append(_describe_error(exc, locate)))
+            page.on("pageerror", lambda exc: errors.append(_describe_error(exc, locate, scrub)))
             if on_console is not None:
                 page.on("console", on_console)
             page.goto(f"{ORIGIN}/", wait_until="load", timeout=self.timeout_s * 1000)
@@ -300,6 +300,7 @@ class PageChecker:
         errors: list[str] = []
         blocked: list[str] = []
         locate = _locator(source_html, frame_html)
+        scrub = _scrubber(setup["results"])
 
         def route(r) -> None:
             url = r.request.url
@@ -326,13 +327,17 @@ class PageChecker:
         def on_console(message) -> None:
             if message.type == "error" and "Content Security Policy" in message.text:
                 found = _CSP_URL.search(message.text)
-                if found and found[1] not in blocked:
-                    blocked.append(found[1])
+                # Only where it went: a URL's path and query can carry data.
+                origin = found and "{0.scheme}://{0.netloc}".format(urlsplit(found[1]))
+                if origin and origin not in blocked:
+                    blocked.append(origin)
 
         layout_js = files("prumi.validate").joinpath("layout.js").read_text(encoding="utf-8")
         layout_call = f"prumiLayout(document, {json.dumps(setup['bindings'])}, {MAX_LISTED})"
         layouts: list[tuple[str, list[dict[str, Any]]]] = []
-        with self._render(browser, route, DEVICES["desktop"], errors, locate, on_console) as (
+        with self._render(
+            browser, route, DEVICES["desktop"], errors, locate, on_console, scrub
+        ) as (
             page,
             cdp,
             evaluate,
@@ -356,7 +361,7 @@ class PageChecker:
             if device == "desktop":
                 continue
             # Another render at the device's size, for the layout only.
-            with self._render(browser, route, DEVICES[device], [], locate, None) as (
+            with self._render(browser, route, DEVICES[device], [], locate, None, scrub) as (
                 _,
                 _,
                 evaluate,
@@ -497,7 +502,37 @@ def _locator(source: str, frame: str) -> Callable[[int, int], tuple[int, int]]:
     return locate
 
 
-def _describe_error(exc: Any, locate: Callable[[int, int], tuple[int, int]]) -> str:
+_LONG_NUMBER = re.compile(r"\d[\d,.]*\d")
+
+
+def _scrubber(results: Mapping[str, Mapping[str, Any]]) -> Callable[[str], str]:
+    """Removes data from text a page produced (an error message): the dimension values it
+    was given, and any number with 3+ digits."""
+    values: set[str] = set()
+    for result in results.values():
+        metrics = {c["name"] for c in result.get("columns", []) if c.get("kind") == "metric"}
+        for row in result.get("rows", []):
+            for key, value in row.items():
+                if key not in metrics and not key.startswith("_") and isinstance(value, str):
+                    if len(value) >= 2:
+                        values.add(value)
+    ordered = sorted(values, key=len, reverse=True)
+
+    def scrub(text: str) -> str:
+        for value in ordered:
+            text = text.replace(value, "…")
+        return _LONG_NUMBER.sub(
+            lambda m: "…" if sum(c.isdigit() for c in m[0]) >= 3 else m[0], text
+        )
+
+    return scrub
+
+
+def _describe_error(
+    exc: Any,
+    locate: Callable[[int, int], tuple[int, int]],
+    scrub: Callable[[str], str] = lambda text: text,
+) -> str:
     """ ", at line L, column C of the HTML: <message>", then up to 5 lines of the stack, with
     positions in the submitted HTML ("page") and Prumi's own files by name."""
     message = getattr(exc, "message", None) or str(exc) or type(exc).__name__
@@ -519,7 +554,7 @@ def _describe_error(exc: Any, locate: Callable[[int, int], tuple[int, int]]) -> 
             return f"{url.rsplit('/', 1)[-1]}:{row}:{column}"
 
         stack.append(_STACK_PLACE.sub(rewrite, line))
-    text = f"{place}: {message}"
+    text = f"{place}: {scrub(message)}"
     if stack:
         text += "\n" + "\n".join(f"  {s}" for s in stack[:MAX_STACK_LINES])
     return text
