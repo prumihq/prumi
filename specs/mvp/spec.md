@@ -758,7 +758,7 @@ The provenance proof (task 34) worked, and showed four gaps:
 
 This replaces 19.1b's "nothing is shown to viewers": publishing can't catch what only appears after publishing.
 
-**Fixtures:** the first-run dashboard fixture gets bindings in its spec, so it stays a must-pass page under rule 2. Add must-fail fixtures for:
+**Fixtures:** the first-run dashboard fixture gets bindings in its spec, so it stays a must-pass page under rule 2. **The second-run dashboard is removed from the fixtures** (decided 2026-10-18, question 3): it was written before these rules, and its table shows another block's values without declaring it. The real agent page from the benchmark run (task 46), written with the new guide, is added as a must-pass fixture; if it fails, that goes to `questions.md`. Add must-fail fixtures for:
 - a correct-today hard-coded number;
 - a JavaScript average that coincides with a bucket value at the precision shown;
 - an image with numbers in it;

@@ -58,3 +58,5 @@ A related point for the browser check and the viewer bar (rule 5): the second-ru
 - **C. Loosen rule 2**: a number may match any block whose values the page shows elsewhere too, or any block of the dashboard. That brings back most of the coincidence problem rule 2 is there to fix (a `$229K` average matching some week).
 
 I'd pick **A**: list bindings were added for tables like this one.
+
+**Decision (2026-10-18): none of A–C. Remove the second-run dashboard from the fixtures.** The earlier test dashboards were written before these rules and aren't kept as they are; the rule stays exact. The first-run fixture keeps the bindings task 48 gave it. The page from the benchmark run (task 46), written with the new guide, becomes the real must-pass fixture. Spec 19.13 updated.
