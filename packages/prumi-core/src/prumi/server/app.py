@@ -43,6 +43,33 @@ def create_app(services: Services) -> HostCheck:
             headers={"Cache-Control": "no-cache"},
         )
 
+    async def shell(request: Request) -> Response:
+        dashboard_id = request.path_params["id"]
+        version = request.path_params.get("n")
+        if version is None:
+            found = services.registry.dashboard(dashboard_id)
+            if found is None:
+                return _not_found_page(f"There's no dashboard {dashboard_id!r}.")
+            version = found.current_version
+        stored = services.registry.version(dashboard_id, version)
+        if stored is None:
+            return _not_found_page(f"There's no version {version} of {dashboard_id!r}.")
+        status = services.registry.status(dashboard_id, version)
+        return HTMLResponse(pages.shell(stored, status, services.source))
+
+    async def frame(request: Request) -> Response:
+        stored = services.registry.version(request.path_params["id"], request.path_params["n"])
+        if stored is None:
+            return _not_found_page("There's no such dashboard version.")
+        origin = f"http://{request.headers['host']}"
+        return HTMLResponse(
+            pages.frame_html(stored.html, origin),
+            headers={
+                "Content-Security-Policy": pages.frame_csp(origin, services.hosts),
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
     async def status(request: Request) -> Response:
         found = services.registry.status(request.path_params["id"], request.path_params["n"])
         if found is None:
@@ -132,6 +159,9 @@ def create_app(services: Services) -> HostCheck:
             Route("/", index),
             Route("/runtime.js", asset),
             Route("/shell.js", asset),
+            Route("/d/{id}", shell),
+            Route("/d/{id}/v/{n:int}", shell),
+            Route("/d/{id}/v/{n:int}/frame", frame),
             Route(f"{base}/status", status),
             Route(f"{base}/blocks/{{block}}", block, methods=["POST"]),
             Route(f"{base}/filters/{{filter}}/values", filter_values),

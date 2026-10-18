@@ -2,23 +2,9 @@
 
 import pytest
 from prumi.cli import main
-from prumi.server.app import create_app
 from prumi.server.guards import allowed_hosts
-from starlette.testclient import TestClient
 
 BASE = "/api/dashboards/sales/versions/1"
-
-
-@pytest.fixture
-def services(demo_services, demo_dashboard):
-    report, published = demo_services.publish(*demo_dashboard)
-    assert report.ok and published.version == 1
-    return demo_services
-
-
-@pytest.fixture
-def client(services):
-    return TestClient(create_app(services), base_url="http://127.0.0.1:8484")
 
 
 def post(client, path, body, **kwargs):
@@ -152,16 +138,16 @@ def test_a_value_with_a_quote_is_fine(client):
 # Status and filter values
 
 
-def test_status(client, services):
+def test_status(client, published):
     assert client.get(f"{BASE}/status").json() == {
         "status": "draft",
         "version": 1,
         "current_version": 1,
         "certified_by": None,
         "certified_at": None,
-        "fingerprint": services.registry.version("sales", 1).fingerprint,
+        "fingerprint": published.registry.version("sales", 1).fingerprint,
     }
-    services.registry.certify("sales", 1, by="ana")
+    published.registry.certify("sales", 1, by="ana")
     certified = client.get(f"{BASE}/status").json()  # read on every request
     assert (certified["status"], certified["certified_by"]) == ("certified", "ana")
     assert client.get("/api/dashboards/sales/versions/7/status").status_code == 404

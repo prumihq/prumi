@@ -197,3 +197,19 @@ def demo_dashboard():
     return load_spec_file(DEMO_DASHBOARD / "sales.yaml"), (
         DEMO_DASHBOARD / "sales.html"
     ).read_text()
+
+
+@pytest.fixture
+def published(demo_services, demo_dashboard):
+    """Demo services with the demo dashboard published as version 1."""
+    report, version = demo_services.publish(*demo_dashboard)
+    assert report.ok and version.version == 1, report.issues
+    return demo_services
+
+
+@pytest.fixture
+def client(published):
+    from prumi.server.app import create_app
+    from starlette.testclient import TestClient
+
+    return TestClient(create_app(published), base_url="http://127.0.0.1:8484")
