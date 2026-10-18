@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–20 on 2026-10-18)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–20 on 2026-10-18); section 21 draft
 
 ## Goal
 
@@ -70,6 +70,7 @@ host = "127.0.0.1"          # loopback only in this milestone
 port = 8484
 data_dir = ".prumi"         # registry lives here
 as_of = "2026-10-15"        # optional: pins "today" for windows and partial periods
+locale = "en-US"            # optional: how every page shows numbers (section 21)
 script_hosts = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
 style_hosts = ["fonts.googleapis.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
 font_hosts = ["fonts.gstatic.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
@@ -89,6 +90,7 @@ path = "examples/demo-dbt-project/demo.duckdb"
 - Relative paths resolve against the config file's folder.
 - **The server refuses to start if `host` isn't a loopback address** (`127.0.0.1`, `::1`, `localhost`). There's no login in this milestone, so binding elsewhere would expose the warehouse to the network.
 - `project` is an optional display name for the source, shown in the home page header (section 20). Core reads it; adapters never see it. Without it, the header leaves the name out.
+- `locale` is a BCP 47 tag (`en-US`, `pt-BR`, `de-DE`); default `en-US`. One locale for the whole server: every viewer sees numbers formatted the same way, whatever their browser's language (section 21). An unknown tag stops `prumi serve` at startup.
 - `as_of` is a date. Without it, "today" is the server's local date. The demo config pins it so tests and the demo are reproducible.
 - Exactly one source. Internally, sources are held in a mapping keyed by name (`"default"`), see [Design for later](#design-for-later).
 
@@ -477,7 +479,7 @@ prumi.label(name)                               // a metric's or dimension's cat
 ```
 
 - `click`: for each interaction `from: blockId`, it sets `sets_filter` to `[row[<filter's dimension>]]`. Clicking the same value again clears the filter. The validator checks that the block has that dimension.
-- `format`: `Intl.NumberFormat` with the browser's locale. `number`: up to `decimals ?? 2` fraction digits. `integer`: 0. `currency`: `style: "currency"` with `unit`. `percent`: `style: "percent"` with at most `decimals ?? 1` fraction digits (0.25 → "25%"). `currency` with `decimals` fixes both the minimum and maximum digits. `null` → `"–"`.
+- `format`: `Intl.NumberFormat` with the server's `locale` (section 21), not the browser's. `number`: up to `decimals ?? 2` fraction digits. `integer`: 0. `currency`: `style: "currency"` with `unit`. `percent`: `style: "percent"` with at most `decimals ?? 1` fraction digits (0.25 → "25%"). `currency` with `decimals` fixes both the minimum and maximum digits. `null` → `"–"`.
 - **No aggregation helpers.** The runtime never sums, averages or re-groups rows (R1). Cross-filtering re-queries the server; it never filters rows in the browser.
 - Outside a Prumi shell (no parent, or the parent doesn't answer the handshake within 2 s), the runtime shows a fixed notice "This dashboard only works inside Prumi" and calls no callbacks. A copied HTML file has no data and no badge.
 
@@ -909,6 +911,19 @@ None of the three agent runs saw the page it built, and number checks don't catc
 - `home.css` and `home.js` live in `packages/prumi-runtime/src` next to `shell.js` and ship in the wheel; the page also loads `/theme.css` for the variables.
 - Without the clipboard API, the copy button selects the command and says "Selected".
 
+### 21. One display locale (added 2026-10-18, draft)
+
+The fourth agent run's page passed validation and was flagged `needs_attention` by its first viewer. `prumi.format` formats with the browser's language, the server check renders in `en-US`, and the number reader (19.1) knows only English separators and `K`/`M`/`B`. In a `pt-BR` browser, `$47K` becomes `US$ 47 mil` and `$2,742,409.35` becomes `US$ 2.742.409,35`; the browser check can't match them, so every dashboard is flagged by its first non-English viewer, certified ones too. Pages that format with the browser's language themselves (`toLocaleString()`, `Intl.NumberFormat(undefined, …)`) fail the same way: the second- and third-run pages did.
+
+**Rules:**
+1. **One locale per server**, `[server] locale` (section 2), default `en-US`.
+2. **Runtime:** `prumi.format` uses that locale. The runtime also exposes it as `prumi.locale` (a string), so a page can pass it to its own `Intl` calls for dates and other text.
+3. **Number reader:** the server check and the browser check read numbers in that locale. Decimal and group separators come from `Intl.NumberFormat(locale).formatToParts`; the compact suffixes for thousand, million and billion come from formatting `1e3`, `1e6` and `1e9` with `notation: "compact"` (and with `style: "currency"`, which uses different words in some locales). Matching is otherwise unchanged (19.1, 19.13). With `en-US`, behavior is exactly as before.
+4. **Server check:** renders in the configured locale (instead of the fixed `en-US`). Then it renders the default state once more with a different browser language (`de-DE`, or `en-US` when the configured locale is `de-*`). If the text of any bound element differs between the two renders, validation fails with `R8.browser_locale` (error): "This page formats with the viewer's browser language, so viewers would see different numbers than the check. Use `prumi.format` for numbers and `prumi.locale` for other `Intl` calls." The message names element paths only (19.16).
+5. **Guide and server instructions:** numbers only through `prumi.format`; dates and other `Intl` text with `prumi.locale`; never `toLocaleString()` or `Intl.*(undefined, …)`.
+
+Not in this section: showing each viewer numbers in their own browser's language. One server shows numbers one way to everyone.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -1047,3 +1062,8 @@ Each criterion has at least one automated test unless it says otherwise.
 74. A dashboard title containing `<script>` and a metric request containing HTML are shown as text (escaping test); the page's CSP is as in section 20 and the page has no inline script or style.
 75. *(browser test)* The search box filters the cards; the copy button copies the connect command; at 390 px width the cards form one column with no horizontal scrolling; light and dark mode both apply the theme.
 76. The home page contains no metric values (the sentinel test of AC 68 covers `GET /`).
+77. *(browser test)* With `locale = "pt-BR"`, `prumi.format(47123, "revenue", {compact: true})` gives `US$ 47 mil` in a browser whose language is `en-US`; with `locale = "en-US"`, it gives `$47K` in a `pt-BR` browser. `prumi.locale` returns the configured tag.
+78. With `locale = "pt-BR"`, the server check accepts `US$ 47 mil` and `US$ 2.742.409,35` for delivered `47123` and `2742409.35`, and refuses `US$ 48 mil`. All existing `en-US` number-check tests pass unchanged.
+79. *(browser test)* The fourth-run page (copied into the fixtures), published under `en-US` and opened in a `pt-BR` browser, is not flagged.
+80. A page that formats a bound number with `toLocaleString()` fails validation with `R8.browser_locale`; the same page using `prumi.format` passes.
+81. An unknown `locale` stops `prumi serve` at startup with a message naming the setting.

@@ -104,3 +104,9 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 68. Home page: header with source and freshness, dashboard cards with status, empty state, metric requests, footer; `/home.css`, CSP, escaping (AC 72, 73, 74, 76)
 - [x] 69. `/home.js`: search and copy button; browser tests for search, copy, phone width and both themes (AC 75)
 
+## One display locale (spec section 21; added 2026-10-18)
+
+- [ ] 70. `[server] locale`: config and startup check; `prumi.format` and `prumi.locale` use it (AC 77, 81)
+- [ ] 71. Number reader in the configured locale for the server and browser checks; the server check renders in it; the fourth-run page as a fixture (AC 78, 79)
+- [ ] 72. Second-language render and `R8.browser_locale` (AC 80)
+- [ ] 73. Guide, server instructions and README: one locale per server, `prumi.format` and `prumi.locale`
