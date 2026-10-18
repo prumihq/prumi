@@ -22,6 +22,8 @@ uv run ruff format      # format
 
 ## Rules that shape the code
 
+The BI rules R1–R10 and their issue codes are explained in `docs/bi-rules.md`. Keep it in sync when a rule or code changes.
+
 - **Numbers only come from the source.** The engine never re-implements a metric definition and never re-aggregates non-additive metrics (ratios, averages, distinct counts). Dashboards get every number through the runtime.
 - **Access rules belong to the source.** Prumi passes the viewer's identity; it never decides who sees which rows.
 - **Adapters are separate packages** behind the adapter protocol in `prumi-core`. Core never imports an adapter directly.

@@ -13,6 +13,7 @@ Everything runs on one machine, for one local user, against a demo dbt project o
 - [ADR 0001](../../docs/adr/0001-repository-layout.md): repository layout (uv workspace, one package per adapter, plain-JS runtime).
 - [ADR 0002](../../docs/adr/0002-dbt-adapter-metricflow-compiles.md): MetricFlow compiles, Prumi executes; the engine owns time windows.
 - [Spike `metricflow-compile`](../../spikes/metricflow-compile/README.md): evidence for ADR 0002, the catalog metadata MetricFlow exposes, and its caveats. Its checks become the adapter's contract test.
+- [BI rules](../../docs/bi-rules.md): what R1–R10 mean, how each is enforced, and its issue codes.
 
 ### The system in one picture
 
@@ -567,6 +568,8 @@ Standard `logging`. Each executed query logs: origin (`block <dashboard>/<v>/<bl
 README: quick start (build the demo, `prumi serve`, connect an agent), "Connect your agent" (Claude Code: `claude mcp add --transport http prumi http://127.0.0.1:8484/mcp`; clients that connect from their vendor's cloud can't reach a local server), and "Where your data goes" (the data flow above).
 
 The dbt adapter's README has "Preparing your dbt project": what Prumi reads, and the recommended `config.meta.prumi` format convention with the reason for it. The main README's quick start links to it.
+
+The main README links to [`docs/bi-rules.md`](../../docs/bi-rules.md). When an issue code changes, that file changes with it.
 
 ## Out of scope
 
