@@ -758,6 +758,8 @@ The provenance proof (task 34) worked, and showed four gaps:
 
 This replaces 19.1b's "nothing is shown to viewers": publishing can't catch what only appears after publishing.
 
+**6. Hover pass (added 2026-10-18).** Tooltips often appear only on hover, often in an element appended to `<body>`. Without hovering, the server check never sees them, and an unbound tooltip would trigger the viewer bar (rule 5) on every hover of an honest page. So after the first scan, the server check hovers a sample of chart marks: up to 20 elements under bound elements that have hover listeners, or SVG shapes inside bound charts. After each hover it scans the newly visible text with the same rules. A number in a tooltip outside a bound element gives `R8.unbound_number`, with the hint "render the tooltip inside the bound element or bind it to the blocks it shows". This adds at most about 1 s to a check.
+
 **Fixtures:** the first-run dashboard fixture gets bindings in its spec, so it stays a must-pass page under rule 2. **The second-run dashboard is removed from the fixtures** (decided 2026-10-18, question 3): it was written before these rules, and its table shows another block's values without declaring it. The real agent page from the benchmark run (task 46), written with the new guide, is added as a must-pass fixture; if it fails, that goes to `questions.md`. Add must-fail fixtures for:
 - a correct-today hard-coded number;
 - a JavaScript average that coincides with a bucket value at the precision shown;
@@ -883,3 +885,4 @@ Each criterion has at least one automated test unless it says otherwise.
 55. `<iframe>`, a closed shadow root and each image form give their errors, and the frame's CSP has `img-src 'none'`.
 56. Evenly spaced round numbers count as ticks inside `<svg>` without the marker, and are flagged outside it.
 57. *(browser test)* A published version whose browser report flags a number shows the bar to that viewer and is marked `needs_attention` in `list_dashboards` and `get_dashboard`, until a clean report or a new version.
+58. A fixture page whose tooltip shows block values in an unbound element appended to `<body>` gives `R8.unbound_number` from the server check's hover pass; the same page with the tooltip bound passes; the hover pass adds at most about 1 s.
