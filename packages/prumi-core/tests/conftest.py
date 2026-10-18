@@ -174,11 +174,14 @@ path = "{demo_project.db_path.as_posix()}"
 
 
 @pytest.fixture
-def demo_services(tmp_path, demo_project):
+def demo_services(tmp_path, demo_project, demo_source):
+    """Services on the demo source with an empty registry of their own."""
     from prumi.config import load_config
     from prumi.services import Services
 
-    return Services(load_config(write_demo_config(tmp_path, demo_project)))
+    services = Services(load_config(write_demo_config(tmp_path, demo_project)))
+    services.source = demo_source  # reuse the session's loaded adapter
+    return services
 
 
 @pytest.fixture

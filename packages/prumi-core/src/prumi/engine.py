@@ -237,6 +237,12 @@ class Engine:
         [row] = _rows(self.source.execute(query, viewer)) or [{}]
         return {m: row.get(m) for m in block.metrics}
 
+    def dimension_values(self, dimension: str, viewer: Viewer) -> list[Any]:
+        """A dimension's distinct values, as `viewer` (filter pickers). NULL comes last."""
+        result = self.source.execute(SemanticQuery(metrics=(), dimensions=(dimension,)), viewer)
+        values = [v.isoformat() if isinstance(v, dt.date) else v for (v,) in result.rows]
+        return sorted(values, key=lambda v: (v is None, str(v)))
+
     def data_through(self, metric: str, viewer: Viewer) -> dt.date | None:
         """The latest metric_time day with data, with no filters."""
         query = SemanticQuery(

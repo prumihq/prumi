@@ -23,7 +23,7 @@ prumi-adapter-dbt = { workspace = true }
 dev = [
     "prumi-core",
     "prumi-adapter-dbt[duckdb]",
-    "httpx",
+    "httpx2",
     "playwright",
     "pytest>=8",
     "ruff>=0.6",
