@@ -760,6 +760,12 @@ This replaces 19.1b's "nothing is shown to viewers": publishing can't catch what
 
 **6. Hover pass (added 2026-10-18).** Tooltips often appear only on hover, often in an element appended to `<body>`. Without hovering, the server check never sees them, and an unbound tooltip would trigger the viewer bar (rule 5) on every hover of an honest page. So after the first scan, the server check hovers a sample of chart marks: up to 20 elements under bound elements that have hover listeners, or SVG shapes inside bound charts. After each hover it scans the newly visible text with the same rules. A number in a tooltip outside a bound element gives `R8.unbound_number`, with the hint "render the tooltip inside the bound element or bind it to the blocks it shows". This adds at most about 1 s to a check.
 
+**Details settled during implementation (2026-10-18):**
+- A bound tooltip needs a static element in the HTML (`<div id="tip" hidden></div>`), because bindings select existing ids.
+- The viewer bar and `needs_attention` count flagged numbers only; canvas and runtime errors still block certification.
+- Only the current version can need attention; older versions report false.
+- The hover pass skips marks that aren't rendered, waits one animation frame per hover, and moves the mouse away at the end.
+
 **Fixtures:** the first-run dashboard fixture gets bindings in its spec, so it stays a must-pass page under rule 2. **The second-run dashboard is removed from the fixtures** (decided 2026-10-18, question 3): it was written before these rules, and its table shows another block's values without declaring it. The real agent page from the benchmark run (task 46), written with the new guide, is added as a must-pass fixture; if it fails, that goes to `questions.md`. Add must-fail fixtures for:
 - a correct-today hard-coded number;
 - a JavaScript average that coincides with a bucket value at the precision shown;
