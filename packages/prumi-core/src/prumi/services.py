@@ -52,9 +52,11 @@ class Services:
         viewer: Viewer = LOCAL_VIEWER,
         metric_request_ids: Collection[int] | None = None,
         check_states: Sequence[Mapping[str, Any]] = (),
+        layout_devices: Sequence[str] = (),
     ) -> Report:
         """Static checks, HTML checks, the dry run and the page check, against the current
-        catalog; then the same for each of `check_states` (filter values)."""
+        catalog; then the same for each of `check_states` (filter values). The layout is
+        measured on desktop, and on `layout_devices` too."""
         if metric_request_ids is None:
             metric_request_ids = self.registry.metric_request_ids()
         return validate(
@@ -68,6 +70,7 @@ class Services:
             viewer=viewer,
             page_check=self.check_page,
             check_states=check_states,
+            layout_devices=layout_devices,
         )
 
     def check_page(
@@ -76,6 +79,7 @@ class Services:
         html: str,
         results: Mapping[str, dict[str, Any]],
         values: Mapping[str, Any] | None = None,
+        devices: Sequence[str] = ("desktop",),
     ) -> list[Issue]:
         """Render the page with these block results, as a viewer's browser would."""
         from prumi.server import pages  # the server package imports this module
@@ -91,6 +95,7 @@ class Services:
             lambda origin: (pages.frame_html(html, origin), pages.frame_csp(origin, hosts)),
             frozenset(hosts.script) | frozenset(hosts.style) | frozenset(hosts.font),
             values,
+            devices,
         )
 
     def publish(

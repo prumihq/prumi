@@ -38,6 +38,7 @@ def validate(
     viewer: Viewer = LOCAL_VIEWER,
     page_check: PageCheck | None = None,
     check_states: Sequence[Mapping[str, Any]] = (),
+    layout_devices: Sequence[str] = (),
 ) -> Report:
     """Validate a spec (data or a DashboardSpec) and, when given, its HTML.
 
@@ -49,8 +50,10 @@ def validate(
 
     `check_states` are more filter states ({filter id: value}, at most 5) to dry-run and
     render the same way. Their issues name the state; one the default state already has
-    isn't repeated.
+    isn't repeated. The page check measures the layout on a desktop render, and on
+    `layout_devices` too ("phone").
     """
+    devices = ("desktop", *(d for d in layout_devices if d != "desktop"))
     parsed, issues = parse_spec(spec)
     if parsed is None:
         return Report.of(issues)
@@ -61,10 +64,11 @@ def validate(
         ran, results = _dry_run(parsed, engine, viewer)
         issues += ran
         if html is not None and page_check is not None and not _has_errors(issues):
-            issues += page_check(parsed, html, results)
+            issues += page_check(parsed, html, results, devices=devices)
         seen = {(i.code, i.path, i.message) for i in issues}
         for n, state in enumerate(check_states[:MAX_CHECK_STATES]):
-            for issue in _check_state(parsed, html, engine, viewer, page_check, n, state):
+            checks = _check_state(parsed, html, engine, viewer, page_check, n, state, devices)
+            for issue in checks:
                 if (issue.code, issue.path, issue.message) in seen:
                     continue
                 label = json.dumps(state, ensure_ascii=False, sort_keys=True)
@@ -81,6 +85,7 @@ def _check_state(
     page_check: PageCheck | None,
     n: int,
     state: Mapping[str, Any],
+    devices: Sequence[str],
 ) -> list[Issue]:
     known = {f.id for f in spec.filters}
     unknown = [f for f in state if f not in known]
@@ -98,7 +103,7 @@ def _check_state(
     ran, results = _dry_run(spec, engine, viewer, state)
     if html is None or page_check is None or _has_errors(ran):
         return ran
-    return ran + page_check(spec, html, results, state)
+    return ran + page_check(spec, html, results, state, devices=devices)
 
 
 def _has_errors(issues: list[Issue]) -> bool:

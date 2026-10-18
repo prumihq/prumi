@@ -17,7 +17,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
@@ -410,6 +410,7 @@ def create_mcp(services: Services) -> MCPServer:
         ] = None,
         html_edits: list[HtmlEdit] | None = None,
         check_states: Annotated[list[CheckState] | None, Field(max_length=5)] = None,
+        layout_devices: list[Literal["desktop", "phone"]] | None = None,
     ) -> ValidationOut:
         """Validate a dashboard spec and its HTML: static rules, HTML checks, a dry run of every
         block, then the page rendered with that data and its numbers checked. Fix every error
@@ -424,7 +425,11 @@ def create_mcp(services: Services) -> MCPServer:
 
         `check_states`: up to 5 more filter states to render and check like the default one,
         before viewers find a problem in them. They're kept with the candidate (and with
-        candidates edited from it) and checked again when it's published."""
+        candidates edited from it) and checked again when it's published.
+
+        The layout is measured on a desktop render (1280×800); `layout_devices: ["phone"]`
+        adds a phone render (390×844). Layout problems are warnings (layout.*) with element
+        paths and boxes; they don't block publishing."""
         if base is None and (spec is None or html_edits is not None):
             return _invalid_validate_arguments()
         if base is not None:
@@ -442,7 +447,9 @@ def create_mcp(services: Services) -> MCPServer:
                 return ValidationOut(ok=False, errors=problems, warnings=[])
         if check_states is not None or base is None:
             states = [s.filters for s in check_states or []]
-        report = services.validate(spec, html, check_states=states)
+        report = services.validate(
+            spec, html, check_states=states, layout_devices=layout_devices or ()
+        )
         candidate_id = None
         if html is not None:
             candidate_id = candidates.add(spec, html, valid=report.ok, check_states=states)

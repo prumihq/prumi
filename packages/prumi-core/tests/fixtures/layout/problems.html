@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- One of each layout problem: overlapping labels, clipped text, a too-wide element, 8 px
+     text and a bound element with nothing in it. -->
+<html>
+<head><meta charset="utf-8"><title>Layout</title>
+<style>
+  body { margin: 0; font: 16px system-ui, sans-serif; }
+  .labels { position: relative; height: 40px; }
+  .labels span { position: absolute; top: 0; }
+  .narrow { width: 60px; overflow: hidden; white-space: nowrap; }
+  .wide { width: 2000px; height: 4px; background: #ccc; }
+  .tiny { font-size: 8px; }
+  #empty { width: 200px; height: 50px; }
+</style></head>
+<body>
+  <p id="kpi">Revenue <b id="revenue"></b></p>
+  <div class="labels"><span style="left: 10px">North America</span><span style="left: 30px">South America</span></div>
+  <div class="narrow"><span>Revenue by region and channel</span></div>
+  <div class="wide"></div>
+  <p><span class="tiny">Source: the sales team</span></p>
+  <div id="empty"></div>
+  <script>
+    prumi.on("kpi", function (b) {
+      document.getElementById("revenue").textContent = prumi.format(b.rows[0].revenue, "revenue");
+    });
+  </script>
+</body>
+</html>

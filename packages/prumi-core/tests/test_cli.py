@@ -192,6 +192,6 @@ def test_certify_runs_the_server_check_again(capsys, config, services, demo_dash
 
     services.publish(*demo_dashboard)
     shown = error("R8.unverified_number", "html", "The page shows $5 (in p), which isn't ...")
-    monkeypatch.setattr(Services, "check_page", lambda self, spec, html, results: [shown])
+    monkeypatch.setattr(Services, "check_page", lambda self, spec, html, results, **_: [shown])
     code, out = prumi(capsys, "certify", "sales", "1", "--config", str(config))
     assert code == 1 and "R8.unverified_number  html" in out

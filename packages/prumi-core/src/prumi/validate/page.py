@@ -16,8 +16,10 @@ import json
 import queue
 import re
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future
+from contextlib import contextmanager
+from importlib.resources import files
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -29,6 +31,8 @@ INSTALL = "uv run playwright install chromium"
 SETTLE_MS = 300
 TIMEOUT_S = 10.0
 MAX_LISTED = 20
+# The renders the layout report measures: the default one, and the phone on request.
+DEVICES = {"desktop": {"width": 1280, "height": 800}, "phone": {"width": 390, "height": 844}}
 
 UNBOUND_HINT = (
     "Bind this element to the block it shows (presentation.bindings), or move the number into "
@@ -40,10 +44,13 @@ R8_HINT = (
 )
 
 # The check's stand-in for the shell: answers the handshake with the dry run's results.
-_HOST = """<!doctype html><html><body>
+_HOST = """<!doctype html><html><head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>html, body { margin: 0; height: 100%%; overflow: hidden; }</style>
+</head><body>
 <script type="application/json" id="setup">%s</script>
 <iframe id="frame" src="/frame" sandbox="allow-scripts"
-        style="width:1280px;height:900px;border:0"></iframe>
+        style="display:block;width:100vw;height:100vh;border:0"></iframe>
 <script>
   var setup = JSON.parse(document.getElementById("setup").textContent);
   var frame = document.getElementById("frame");
@@ -205,10 +212,12 @@ class PageChecker:
         frame_page: Callable[[str], tuple[str, str]],
         allowed_hosts: frozenset[str] = frozenset(),
         values: Mapping[str, Any] | None = None,
+        devices: Sequence[str] = ("desktop",),
     ) -> list[Issue]:
         """Issues for what the rendered page shows. `frame_page(origin)` gives the frame's
         HTML and Content-Security-Policy, as the server would serve them. `values` are the
-        filter values the page starts with (default: the filters' defaults)."""
+        filter values the page starts with (default: the filters' defaults). The layout is
+        measured for each of `devices` (see DEVICES)."""
         frame_html, csp = frame_page(ORIGIN)
         setup = {
             "filters": [f.model_dump(mode="json") for f in spec.filters],
@@ -221,10 +230,65 @@ class PageChecker:
             "spec": spec.model_dump(mode="json", by_alias=True),
         }
         return self._submit(
-            lambda browser: self._check(browser, frame_html, csp, setup, allowed_hosts, html)
+            lambda browser: self._check(
+                browser, frame_html, csp, setup, allowed_hosts, html, devices
+            )
         )
 
-    def _check(self, browser, frame_html, csp, setup, allowed_hosts, source_html) -> list[Issue]:
+    @contextmanager
+    def _render(self, browser, route, viewport, errors, locate, on_console):
+        """A fresh context with the page rendered at `viewport`: yields (page, cdp,
+        evaluate-in-the-isolated-world, settled)."""
+        context = browser.new_context(locale="en-US", timezone_id="UTC", viewport=viewport)
+        try:
+            context.route("**/*", route)
+            page = context.new_page()
+            page.on("pageerror", lambda exc: errors.append(_describe_error(exc, locate)))
+            if on_console is not None:
+                page.on("console", on_console)
+            page.goto(f"{ORIGIN}/", wait_until="load", timeout=self.timeout_s * 1000)
+            frame = page.frame(url=f"{ORIGIN}/frame")
+            cdp = context.new_cdp_session(page)
+            world = cdp.send(
+                "Page.createIsolatedWorld",
+                {"frameId": _frame_id(cdp, f"{ORIGIN}/frame"), "worldName": "prumi-check"},
+            )["executionContextId"]
+
+            def evaluate(expression: str) -> Any:
+                answer = cdp.send(
+                    "Runtime.evaluate",
+                    {
+                        "expression": expression,
+                        "contextId": world,
+                        "returnByValue": True,
+                        "awaitPromise": True,
+                    },
+                )
+                if "exceptionDetails" in answer:
+                    raise RuntimeError(answer["exceptionDetails"].get("text", "scan failed"))
+                return answer["result"].get("value")
+
+            timeout_ms = int(self.timeout_s * 1000)
+            delivered = True
+            try:
+                page.wait_for_function("window.prumiDelivered === true", timeout=timeout_ms)
+            except Exception:
+                delivered = False
+            settled = (
+                delivered
+                and frame is not None
+                and (
+                    evaluate(_SETTLE % {"quiet": self.settle_ms, "timeout": timeout_ms})
+                    == "settled"
+                )
+            )
+            yield page, cdp, evaluate, settled
+        finally:
+            context.close()
+
+    def _check(
+        self, browser, frame_html, csp, setup, allowed_hosts, source_html, devices
+    ) -> list[Issue]:
         from prumi.server.assets import read_asset  # prumi.server imports the validator
 
         setup_json = json.dumps(setup, ensure_ascii=False).replace("<", "\\u003c")
@@ -265,54 +329,21 @@ class PageChecker:
                 if found and found[1] not in blocked:
                     blocked.append(found[1])
 
-        context = browser.new_context(
-            locale="en-US", timezone_id="UTC", viewport={"width": 1280, "height": 900}
-        )
-        try:
-            context.route("**/*", route)
-            page = context.new_page()
-            page.on("pageerror", lambda exc: errors.append(_describe_error(exc, locate)))
-            page.on("console", on_console)
-            page.goto(f"{ORIGIN}/", wait_until="load", timeout=self.timeout_s * 1000)
-            frame = page.frame(url=f"{ORIGIN}/frame")
-            cdp = context.new_cdp_session(page)
-            world = cdp.send(
-                "Page.createIsolatedWorld",
-                {"frameId": _frame_id(cdp, f"{ORIGIN}/frame"), "worldName": "prumi-check"},
-            )["executionContextId"]
-
-            def evaluate(expression: str) -> Any:
-                answer = cdp.send(
-                    "Runtime.evaluate",
-                    {
-                        "expression": expression,
-                        "contextId": world,
-                        "returnByValue": True,
-                        "awaitPromise": True,
-                    },
-                )
-                if "exceptionDetails" in answer:
-                    raise RuntimeError(answer["exceptionDetails"].get("text", "scan failed"))
-                return answer["result"].get("value")
-
-            timeout_ms = int(self.timeout_s * 1000)
-            delivered = True
-            try:
-                page.wait_for_function("window.prumiDelivered === true", timeout=timeout_ms)
-            except Exception:
-                delivered = False
-            settled = (
-                delivered
-                and frame is not None
-                and (
-                    evaluate(_SETTLE % {"quiet": self.settle_ms, "timeout": timeout_ms})
-                    == "settled"
-                )
-            )
+        layout_js = files("prumi.validate").joinpath("layout.js").read_text(encoding="utf-8")
+        layout_call = f"prumiLayout(document, {json.dumps(setup['bindings'])}, {MAX_LISTED})"
+        layouts: list[tuple[str, list[dict[str, Any]]]] = []
+        with self._render(browser, route, DEVICES["desktop"], errors, locate, on_console) as (
+            page,
+            cdp,
+            evaluate,
+            settled,
+        ):
             evaluate(provenance)
             source = json.dumps(source_html).replace("<", "\\u003c")
             scan = evaluate(_SCAN % (setup_json, MAX_LISTED, source, MAX_LISTED))
             scan["unreadable"]["closed_shadow_root"] = _has_closed_shadow_root(cdp)
+            if settled and "desktop" in devices:
+                layouts.append(("desktop", evaluate(layout_js + ";" + layout_call)))
             if settled and self.hover_samples:
                 found = {(f["text"], f["path"]) for f in scan["flagged"]}
                 for flagged in _hover_pass(page, cdp, evaluate, setup, self.hover_samples):
@@ -321,9 +352,62 @@ class PageChecker:
                             found.add((item["text"], item["path"]))
                             scan["flagged"].append({**item, "hover": True})
                 scan["flagged"] = scan["flagged"][:MAX_LISTED]
-        finally:
-            context.close()
-        return _issues(scan, errors, blocked, settled, self.timeout_s)
+        for device in devices:
+            if device == "desktop":
+                continue
+            # Another render at the device's size, for the layout only.
+            with self._render(browser, route, DEVICES[device], [], locate, None) as (
+                _,
+                _,
+                evaluate,
+                device_settled,
+            ):
+                if device_settled:
+                    layouts.append((device, evaluate(layout_js + ";" + layout_call)))
+        return _issues(scan, errors, blocked, settled, self.timeout_s) + _layout_issues(layouts)
+
+
+LAYOUT_HINT = {
+    "layout.text_overlap": "Give the labels room: fewer or shorter labels, more space, or wrap.",
+    "layout.text_clipped": "Let the text wrap, widen its box, or shorten it.",
+    "layout.too_wide": "Let content shrink to the screen: max-width: 100%, wrapping, or a "
+    "scroll container for wide tables.",
+    "layout.small_text": "Use at least 10 px; on charts, fewer ticks rather than smaller ones.",
+    "layout.empty_block": "Draw the block in prumi.on, or check its selector and size.",
+}
+
+
+def _where(element: Mapping[str, Any]) -> str:
+    b = element["box"]
+    return f"{element['path']} (x {b['x']}, y {b['y']}, {b['width']}×{b['height']})"
+
+
+def _layout_issues(layouts: Sequence[tuple[str, Sequence[Mapping[str, Any]]]]) -> list[Issue]:
+    """Layout warnings: element paths and boxes, never the page's text or numbers."""
+    issues = []
+    for device, found in layouts:
+        size = DEVICES[device]
+        prefix = "" if device == "desktop" else f"On a phone ({size['width']}×{size['height']}): "
+        for item in found:
+            code, elements = item["code"], item["elements"]
+            where = [_where(e) for e in elements]
+            if code == "layout.text_overlap":
+                text = f"Text in {where[0]} overlaps text in {where[1]}."
+            elif code == "layout.text_clipped":
+                cut = "is cut off" if elements[0] == elements[1] else f"is cut off by {where[1]}"
+                text = f"Text in {where[0]} {cut}."
+            elif code == "layout.too_wide":
+                text = f"The page is {item['width']} px wide on a {item['screen']} px screen" + (
+                    f"; {where[0]} sticks out." if where else "."
+                )
+            elif code == "layout.small_text":
+                text = f"Text in {where[0]} is {item['size']:g} px, smaller than 10 px."
+            else:
+                blocks = ", ".join(item.get("blocks", []))
+                state = "zero size" if item.get("zero") else "no visible content"
+                text = f"{where[0]}, bound to {blocks}, renders with {state}."
+            issues.append(warning(code, "html", prefix + text, LAYOUT_HINT[code]))
+    return issues
 
 
 def _hover_pass(page, cdp, evaluate, setup, samples: int):

@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- The same content laid out with room to spare. -->
+<html>
+<head><meta charset="utf-8"><title>Layout</title>
+<style>body { margin: 16px; font: 16px system-ui, sans-serif; } #empty { padding: 8px; }</style></head>
+<body>
+  <p id="kpi">Revenue <b id="revenue"></b></p>
+  <p>North America</p>
+  <p>South America</p>
+  <p>Revenue by region and channel</p>
+  <p><small>Source: the sales team</small></p>
+  <div id="empty">Drawn from the same block</div>
+  <script>
+    prumi.on("kpi", function (b) {
+      document.getElementById("revenue").textContent = prumi.format(b.rows[0].revenue, "revenue");
+    });
+  </script>
+</body>
+</html>

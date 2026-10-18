@@ -64,6 +64,7 @@ def test_the_core_wheel_carries_the_runtime(wheels):
         assert "prumi/registry/migrations/0001_initial.sql" in names
         assert "prumi/spec/dashboard-spec.v0.schema.json" in names
         assert "prumi/mcp/authoring_guide.md" in names
+        assert "prumi/validate/layout.js" in names
         entry_points = wheel.read("prumi_core-0.1.0.dist-info/entry_points.txt").decode()
         assert "prumi = prumi.cli:main" in entry_points
 

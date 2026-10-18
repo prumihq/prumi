@@ -1,0 +1,6 @@
+{
+  "spec_version": 0,
+  "dashboard": {"id": "layout", "title": "Layout"},
+  "data": [{"id": "kpi", "metrics": ["revenue"], "window": {"last": 12, "grain": "week"}, "filters": []}],
+  "presentation": {"bindings": {"#kpi": "kpi", "#empty": "kpi"}}
+}
