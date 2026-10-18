@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, section 18 on 2026-10-18)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17, section 18 accepted 2026-10-18; section 19 awaits acceptance)
 
 ## Goal
 
@@ -601,6 +601,135 @@ Tests: the guide's spec and HTML pass `validate_spec`; the guide names every fun
 > 3. Call `authoring_guide` once before writing anything: it has the spec format, the page API and a working example. Then write a spec and the HTML. Every number on the page must come from `prumi.on(...)` in the HTML. Never write numbers, totals or datasets into the HTML, and never compute totals, averages or ratios in JavaScript; declare `total`, `others` or `compare` in the spec instead. Format values with `prumi.format`.
 > 5. Call `validate_spec` with the spec and the HTML and fix every error. Then call `publish_dashboard` with the `candidate_id` from the last successful validation (don't resend the spec and HTML), and give the user the URL. The dashboard starts as an uncertified draft; only the data team can certify it.
 
+### 19. Trusted numbers, editing and the second-run fixes (added 2026-10-18; status: draft)
+
+The second agent run (2026-10-18) published without guessing, but two things stood out. First, the "numbers only come from Prumi" rule was only partly enforced: a page with a hard-coded `$2,742,409`, a JavaScript-computed average and a `fetch()` call passed validation. Second, a user can't continue work on a dashboard in a later session. This section closes both, plus the smaller gaps both runs found. It changes section 18 item 4: `prumi.format` no longer accepts a format object.
+
+#### 19.1 Number provenance
+
+**Every number shown on a dashboard must be a value Prumi delivered.** It doesn't matter how a wrong number got there (hard-coded, computed in JavaScript, copied from an old result): if Prumi didn't deliver it, it's flagged.
+
+- **Delivered values:** every metric value in the block results for the current filter state (rows, `total`, `others`, `_previous`, `_delta`, `_delta_pct`).
+- **Allowed non-data numbers:**
+  - dates and years in common formats;
+  - numbers taken from the spec or from result metadata (window length, `top_n`, row counts);
+  - tick-like values (at most 2 significant digits, e.g. `0`, `50K`, `2.5M`, `20%`), but only inside elements marked `data-prumi-role="axis"`.
+- **What's read:** visible text, i.e. text nodes outside `<script>`/`<style>`, SVG `<text>`/`<tspan>`, and text that appears later, such as tooltips.
+- **Matching:** a number on screen matches a delivered value when that value, rounded to the precision shown and scaled for `%` or `K`/`M`/`B`, gives the same number. Currency symbols, separators and signs are ignored. `$2.7M` matches `2742409.17`; `$228,534` doesn't match anything if only `2742409.17` was delivered.
+- **Canvas is not allowed.** Text drawn into a `<canvas>` can't be read, so any `<canvas>` element is an error (`html.canvas`). SVG and HTML charts are fine.
+- The heuristics may be tuned, as long as the fixtures in `packages/prumi-core/tests/fixtures/provenance/` keep their expected result:
+  - **Must fail:** the probe page from the second review (a hard-coded `$2,742,409`, a `var DATA = [...]` dataset, a `revenue / 12` shown as text); a page that shows a total summed in JavaScript; a page that shows an average of averages.
+  - **Must pass:** the first-run dashboard (`~/test/weekly-revenue-dashboard.html` with its spec, copied into the fixtures); the second-run dashboard (`~/test2/dashboard.html` and `spec.json`); the `authoring_guide` example; a chart with marked axis ticks; text with dates and "Last 12 weeks".
+
+The check runs in two places.
+
+**a. On the server, at validation: authoritative.** When `validate_spec` gets HTML and the static checks and dry run pass, Prumi loads the page in headless Chromium (Playwright). The frame is fed the dry-run results, so there are no extra queries. Prumi waits until rendering settles (no DOM changes for 300 ms, at most 10 s), then reports:
+
+| Code | Severity | When |
+|---|---|---|
+| `R8.unverified_number` | error | A shown number isn't a delivered value. The issue gives the text and the element's path; at most 20 are listed |
+| `html.canvas` | error | The page uses `<canvas>` |
+| `html.runtime_error` | error | The page threw an error, or a `prumi.on` callback did |
+| `html.render_timeout` | error | Rendering didn't settle within 10 s |
+| `html.blocked_request` | warning | The page tried a network call, which the frame's CSP blocks |
+
+- **The scan runs outside the page's JavaScript** (Playwright's isolated world), against the values the server itself computed. Page code can't switch it off or feed it fake values.
+- **Errors block publishing**, because `publish_dashboard` re-validates.
+- One Chromium is launched per server process and reused, with a new browser context per check. Checks run one at a time. Target: under 3 s for the demo dashboards.
+- Only the filters' default values are checked here.
+
+**b. In the browser, whenever the page is viewed: catches other filter states.** The runtime runs the same matching after each render settles (debounced 300 ms) and reports `{filters, flagged, canvas, errors}` to the shell. The shell posts it to `POST /api/dashboards/<id>/versions/<n>/check`, and the registry keeps the latest report per version and filter state. **Nothing is shown to viewers:** pages with flagged numbers can't be published (a), so a report here means a filter state the server didn't check. Reports appear in `get_dashboard` and block certification. Page code could interfere with this in-page check; it's informational. The server check (a) and certification (19.2) are the guarantees.
+
+#### 19.2 Certification requires clean numbers
+
+`prumi certify <id> <version>` refuses (exit 1) if:
+- the server check (19.1a), re-run at certification time, reports errors; or
+- any stored browser report for that version has flagged numbers, canvas or runtime errors. The message lists the filter state of each report.
+
+What a reviewer still has to judge is only **visual encoding**, e.g. whether a bar's height was computed from the right value. `docs/bi-rules.md` says this plainly.
+
+#### 19.3 `prumi.format(value, metric, options)`
+
+- `metric` must be a metric name. **Type and unit always come from the metric definition** (R10).
+- `options` may only adjust presentation: `{decimals}` and `{compact: true}` (`Intl.NumberFormat` compact notation: `$80K`, `2.7M`).
+- A format object, an unknown name or anything else formats as a plain number and logs one console warning per distinct argument (as in section 18).
+
+This replaces section 18 item 4, which let a page hard-code its own unit (`{type: "currency", unit: "USD"}`).
+
+#### 19.4 Visible errors
+
+The runtime wraps every `prumi.on` callback.
+- If a callback throws, or a block fails and has no `prumi.onError` handler, the runtime writes a short message ("This part of the dashboard couldn't load.") into the block's bound elements (`presentation.bindings`) instead of leaving them blank or on "Loading…".
+- Errors are also included in the browser report (19.1b).
+
+#### 19.5 Network-call warning
+
+`html.network_call` (warning, static): the page's scripts contain `fetch(`, `XMLHttpRequest`, `WebSocket`, `EventSource` or `sendBeacon`. The message says these calls are blocked and data only comes through `prumi.on`.
+
+#### 19.6 Reading back dashboards
+
+Two new MCP tools:
+
+| Tool | Input | Output |
+|---|---|---|
+| `list_dashboards` | none | `[{id, title, current_version, status, updated_at, url}]` for the dashboards the viewer may read |
+| `get_dashboard` | `id`, `version?` (default: current), `include_html: bool = true` | `{id, version, spec, html, status, url, checks}`. `checks` are the latest browser reports (19.1b) |
+
+- **Permissions go through two registry functions,** `can_read(viewer, dashboard)` and `can_edit(viewer, dashboard)`, used by these tools, by the block API and by `publish_dashboard` when it creates a new version of an existing dashboard. In this milestone both return true: there's one local user and no login. Owners, editors and viewers come with login.
+- The publish error for a dashboard the viewer may not edit is reserved: `dashboard.forbidden`.
+
+#### 19.7 Editing a candidate or a published version
+
+`validate_spec` also accepts `base` + edits instead of the full content:
+
+```
+validate_spec(base: candidate_id | {dashboard_id, version},
+              spec?: <full spec; default: the base's spec>,
+              html_edits?: [{old: "...", new: "..."}])
+```
+
+- Edits apply in order. Each `old` must occur exactly once in the HTML as it stands at that point; otherwise `edit.no_match` or `edit.ambiguous` (error, with the edit's index).
+- The result is validated like any content and returns a new `candidate_id`.
+- A published base needs `can_read`; publishing the result needs `can_edit`.
+
+#### 19.8 Default theme
+
+The frame gets `<link rel="stylesheet" href="<server origin>/theme.css">`, injected before the runtime (`style-src` adds the server origin). It defines CSS variables on `:root` for light mode, and for dark mode under `prefers-color-scheme: dark`:
+
+`--prumi-bg`, `--prumi-surface`, `--prumi-text`, `--prumi-text-muted`, `--prumi-border`, `--prumi-accent`, `--prumi-positive`, `--prumi-negative`, `--prumi-series-1` … `--prumi-series-8`, `--prumi-font`, `--prumi-font-mono`, `--prumi-radius`.
+
+- Text colors reach a contrast of at least 4.5:1 against `--prumi-bg` and `--prumi-surface` in both modes (tested).
+- The shell uses the same variables. The page follows the OS setting; it may ignore the theme.
+
+#### 19.9 Guide and instructions
+
+`authoring_guide` gains:
+- dashboard blocks allow 5,000 rows (the 200-row cap applies only to `query`);
+- `total` on a block with `time_grain` is one grand total for the window, not one per period (use a block without dimensions for per-period totals);
+- layout math (scales, widths, color ranges) is allowed; showing a number Prumi didn't deliver isn't, with the provenance rules of 19.1 and the `data-prumi-role="axis"` marker;
+- no `<canvas>`;
+- the theme variables;
+- `prumi.format` options;
+- editing with `base` + `html_edits`;
+- "if you can open a browser, take one screenshot of the draft at desktop width; don't read the page's text".
+
+The server instructions gain:
+- in step 3: "Send the HTML straight to `validate_spec`; don't write it to a local file first."
+- a step 0: "When the user wants a dashboard or chart about company metrics, use Prumi; don't copy its data into other tools. To change an existing dashboard, use `list_dashboards` and `get_dashboard`, then edit it with `validate_spec(base=...)`."
+
+#### 19.10 Server shutdown
+
+Ctrl+C or SIGTERM stops the server within 5 s even while MCP clients or browsers are connected: uvicorn `timeout_graceful_shutdown=5`, open MCP streams are closed, and Chromium is shut down.
+
+#### 19.11 Chromium is a server dependency
+
+`playwright` moves from the dev dependencies to `prumi-core`'s dependencies. `prumi serve` checks at startup that Chromium is installed; if it isn't, it fails with a message giving the install command (`uv run playwright install chromium`). The README's quick start includes that step. Without Chromium the server doesn't start, because publishing would no longer check numbers.
+
+#### 19.12 Docs
+
+- `docs/bi-rules.md`: R8 explains provenance (19.1), its two checks and what they can't see (visual encoding); `R8.unverified_number`, `html.canvas` and the other new codes are listed.
+- README: "Restart your agent sessions after upgrading Prumi". Open sessions keep the tool list and instructions they loaded at the start.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -619,6 +748,8 @@ Tests: the guide's spec and HTML pass `validate_spec`; the guide names every fun
 | Comparison series on time-grain blocks | Later |
 | Filters on metric values (HAVING) | Later |
 | A shared filter that targets an attribute (e.g. customer → region) and uses each block's own join path | Later |
+| Canvas charts (not allowed; their text can't be checked) | Later: a solution to find |
+| Owners, editors and viewers for dashboards | Installable (with login) |
 | A results cache | Later, when needed |
 | Reloading the manifest without a restart | Later |
 | Accepting presentation-only changes without re-certification; a review UI | Later |
@@ -696,3 +827,19 @@ Each criterion has at least one automated test unless it says otherwise.
 35. *(browser test)* `prumi.format(1234.5, "revenue")` and `prumi.format(1234.5, <revenue's format object>)` give the same currency string; `prumi.format(1, "nope")` gives a plain number and one console warning.
 36. On a loopback server, `publish_dashboard` returns the local-only note. The MCP instructions match section 18.
 37. *(review)* A fresh agent session given the README's example prompt calls `authoring_guide`, needs no rounds to discover the spec shape, sends the HTML once (to `validate_spec`) and publishes by `candidate_id`.
+
+**Trusted numbers, editing and the second-run fixes (section 19)**
+38. The provenance fixtures give their expected results through the server check: every "must fail" page gets `R8.unverified_number` (with the offending text), every "must pass" page passes.
+39. A page with `<canvas>`, a page that throws on load, and a page that never settles give `html.canvas`, `html.runtime_error` and `html.render_timeout`; `publish_dashboard` refuses all three.
+40. The server check reads the page from Playwright's isolated world: a fixture page that overrides `window.prumi` or tampers with the DOM API after rendering still gets its fake number flagged.
+41. *(browser test)* After a filter change that makes the page show a number Prumi didn't deliver, the shell posts a report, `get_dashboard` returns it, and `prumi certify` refuses that version and names the filter state.
+42. `prumi.format(v, "revenue", {compact: true})` gives a compact currency string; `prumi.format(v, {type: "currency", unit: "EUR"})` gives a plain number and one warning.
+43. *(browser test)* A callback that throws, and a failing block without `onError`, show the error message in their bound elements.
+44. `fetch(` in a script gives `html.network_call`; a blocked request during the server check gives `html.blocked_request`.
+45. `list_dashboards` and `get_dashboard` return the published dashboards, versions, spec, HTML and checks; `can_read`/`can_edit` are called by them, by the block API and by publish (tested with a stub that returns false, giving `dashboard.forbidden`).
+46. `validate_spec(base=..., html_edits=[...])` produces the same candidate as sending the edited content; `edit.no_match` and `edit.ambiguous` carry the edit's index.
+47. `/theme.css` defines every variable of 19.8 in both modes; the contrast test passes; the frame and shell load it.
+48. With an MCP client connected and a browser open, SIGINT and SIGTERM each stop the server within 5 s.
+49. `prumi serve` without Chromium fails at startup with the install command.
+50. The guide and the instructions contain the additions of 19.9; `docs/bi-rules.md` and the README contain those of 19.12.
+51. *(review)* Benchmark: a fresh agent session with the README's prompt. Record the time to publish and the output tokens, and compare with the two earlier runs (360 s / ~46k and 373 s / ~42k).

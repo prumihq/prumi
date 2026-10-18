@@ -48,5 +48,20 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 30. Candidates: `candidate_id` in `validate_spec`, the in-memory store, `publish_dashboard(candidate_id)` with re-validation and `publish.unknown_candidate` (AC 33)
 - [x] 31. `authoring_guide` tool and its Markdown file, with the three tests (AC 32)
 - [x] 32. Local-only note on publish; new instructions text; README updated for the new tool (AC 36)
-- [ ] 33. Rerun the README's example prompt in a fresh agent session and write down what happened (AC 37). The maintainer does this one.
+- [x] 33. Rerun the README's example prompt in a fresh agent session and write down what happened (AC 37). Done 2026-10-18: no spec guessing, HTML sent once, published by `candidate_id`; 373 s, ~42k output tokens.
 
+## Trusted numbers, editing and the second-run fixes (spec section 19; added 2026-10-18)
+
+- [ ] 34. **Provenance proof, first:** the number matcher and the fixtures of 19.1 (copy the two earlier dashboards from `~/test` and `~/test2`, write the probe page from the second review), run in a test browser. **If the must-pass pages can't pass without letting a must-fail page through, record it in `questions.md` and stop** (AC 38)
+- [ ] 35. Server check: Chromium lifecycle, rendering the candidate with dry-run results, isolated-world scan, the five codes, publish refusal; Chromium as a dependency with the startup check (AC 38, 39, 40, 49)
+- [ ] 36. Browser check: the runtime's matching after render, reports to the shell, the check endpoint and registry table (AC 41)
+- [ ] 37. Certification refuses on server-check errors and on flagged browser reports (AC 41)
+- [ ] 38. `prumi.format(value, metric, options)` (AC 42)
+- [ ] 39. Visible errors in bound elements (AC 43)
+- [ ] 40. `html.network_call` and `html.blocked_request` (AC 44)
+- [ ] 41. `list_dashboards`, `get_dashboard`, `can_read`/`can_edit` and `dashboard.forbidden` (AC 45)
+- [ ] 42. Editing with `base` + `html_edits` (AC 46)
+- [ ] 43. Default theme: `/theme.css`, injection, CSP, contrast test (AC 47)
+- [ ] 44. Shutdown within 5 s (AC 48)
+- [ ] 45. Guide, instructions, `docs/bi-rules.md` and README updates (AC 50)
+- [ ] 46. Benchmark run (AC 51). The maintainer does this one.
