@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; 18 and 19 accepted 2026-10-18; 20 awaits acceptance)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–20 on 2026-10-18)
 
 ## Goal
 
@@ -864,7 +864,7 @@ None of the three agent runs saw the page it built, and number checks don't catc
 
 **4. Wording.** The README's "Where your data goes", the guide and the server instructions say: *"Prumi never sends company data to your agent: `query` shows the shape of the data, and the numbers appear only in the dashboard."* Instruction step 2 becomes "Use `query` to learn the shape of the data (how many rows, empties, label lengths, magnitudes) while designing."
 
-### 20. Home page (added 2026-10-18; status: draft)
+### 20. Home page (added and accepted 2026-10-18)
 
 `GET /` is the first thing a user sees, and today it's a bare table of links. It should look like a small product, not a debug page. It doesn't need to be elaborate.
 
