@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 from prumi.adapters import AdapterStartupError
 from prumi.config import ConfigError, load_config
 from prumi.issues import Report
+from prumi.registry import PageCheck
 from prumi.services import Services
 from prumi.spec import SpecFileError, load_spec_file
 from prumi.validate.page import BrowserStartupError
@@ -91,10 +93,21 @@ def _certify(services: Services, args: argparse.Namespace) -> int:
     version = services.registry.version(args.id, args.version)
     if version is None:
         raise Refused(f"There's no version {args.version} of the dashboard {args.id!r}.")
+    # Validation renders the page again and reads its numbers (the server check).
     report = services.validate(version.spec, version.html)
     if not report.ok:
         print(f"Not certified: {args.id} version {args.version} has validation errors now.")
         _print_report(report)
+        return REFUSED
+    # Viewers' browsers checked filter states the server didn't render.
+    found = [c for c in services.registry.checks(args.id, args.version) if not c.clean]
+    if found:
+        print(
+            f"Not certified: viewers' browsers found problems in {args.id} version "
+            f"{args.version}, with these filters:"
+        )
+        for check in found:
+            _print_check(check)
         return REFUSED
     _print_report(report, quiet_if_ok=True)
     status = services.registry.certify(args.id, args.version, by=args.by or getpass.getuser())
@@ -171,6 +184,17 @@ def _print_report(report: Report, quiet_if_ok: bool = False) -> None:
         return
     summary = f"{errors} error{'s' * (errors != 1)}, {warnings} warning{'s' * (warnings != 1)}"
     print(("OK: " if report.ok else "") + summary)
+
+
+def _print_check(check: PageCheck) -> None:
+    state = json.dumps(check.filters, ensure_ascii=False, sort_keys=True)
+    print(f"  {state}  (reported {check.reported_at})")
+    for item in check.flagged:
+        print(f"    R8.unverified_number  {item['text']} in {item['path']}")
+    if check.canvas:
+        print("    html.canvas  the page uses <canvas>")
+    for message in check.errors:
+        print(f"    html.runtime_error  {message}")
 
 
 def _table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> None:

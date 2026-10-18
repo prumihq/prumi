@@ -359,7 +359,9 @@ def wait_for_checks(services, dashboard, count):
     raise AssertionError(f"expected {count} check reports, got {checks}")
 
 
-def test_the_browser_reports_numbers_prumi_didnt_deliver(page, server, services):
+def test_the_browser_reports_numbers_prumi_didnt_deliver(page, server, services, capsys):
+    from prumi.cli import main
+
     frame, _ = open_dashboard(page, server, "unverified")
     frame.locator("#revenue").filter(has_text="$").wait_for()
     [default] = wait_for_checks(services, "unverified", 1)
@@ -369,5 +371,9 @@ def test_the_browser_reports_numbers_prumi_didnt_deliver(page, server, services)
     checks = wait_for_checks(services, "unverified", 2)
     [chosen] = [c for c in checks if c.filters == {"region": ["North America"]}]
     assert chosen.flagged == [{"text": "$1,234.56", "path": "p#extra"}]
-    # Viewers see nothing of it.
+    # Viewers see nothing of it, and the version can't be certified.
     assert page.locator("#prumi-bar").text_content().count("1,234.56") == 0
+    config = str(services.config.path)
+    assert main(["certify", "unverified", "1", "--config", config]) == 1
+    out = capsys.readouterr().out
+    assert '{"region": ["North America"]}' in out and "$1,234.56 in p#extra" in out

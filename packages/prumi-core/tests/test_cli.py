@@ -165,3 +165,33 @@ def test_a_bad_config_exits_1(capsys, tmp_path):
 def test_no_dashboards_and_no_requests(capsys, config):
     assert prumi(capsys, "list", "--config", str(config)) == (0, "No dashboards.\n")
     assert prumi(capsys, "requests", "--config", str(config)) == (0, "No metric requests.\n")
+
+
+def test_certify_refuses_a_version_with_problems_found_in_browsers(
+    capsys, config, services, demo_dashboard
+):
+    from prumi.registry import PageCheck
+
+    services.publish(*demo_dashboard)
+    services.registry.record_check("sales", 1, PageCheck({"region": []}, [], False, []))
+    flagged = [{"text": "$1,234.56", "path": "p#extra"}]
+    services.registry.record_check("sales", 1, PageCheck({"region": ["North"]}, flagged, False, []))
+    services.registry.record_check("sales", 1, PageCheck({"region": ["West"]}, [], True, ["boom"]))
+
+    code, out = prumi(capsys, "certify", "sales", "1", "--config", str(config))
+    assert code == 1
+    assert "Not certified: viewers' browsers found problems in sales version 1" in out
+    assert '{"region": ["North"]}' in out and "R8.unverified_number  $1,234.56 in p#extra" in out
+    assert '{"region": ["West"]}' in out and "html.canvas" in out and "boom" in out
+    assert '{"region": []}' not in out
+    assert services.registry.status("sales", 1).status == "draft"
+
+
+def test_certify_runs_the_server_check_again(capsys, config, services, demo_dashboard, monkeypatch):
+    from prumi.issues import error
+
+    services.publish(*demo_dashboard)
+    shown = error("R8.unverified_number", "html", "The page shows $5 (in p), which isn't ...")
+    monkeypatch.setattr(Services, "check_page", lambda self, spec, html, results: [shown])
+    code, out = prumi(capsys, "certify", "sales", "1", "--config", str(config))
+    assert code == 1 and "R8.unverified_number  html" in out
