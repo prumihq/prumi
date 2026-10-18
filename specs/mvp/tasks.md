@@ -37,6 +37,6 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 - [x] 23. MCP server: FastMCP mounted at `/mcp` (stateless Streamable HTTP), the six tools, `find_metrics` ranking, instructions text — done when an MCP client test lists the tools and calls each one (AC 26, 27, 28)
 - [x] 24. Query logging without values, plus the sentinel test (AC 25)
-- [ ] 25. End-to-end test: scripted MCP session → browser shows numbers equal to SQL → certify → edit → draft (AC 29)
+- [x] 25. End-to-end test: scripted MCP session → browser shows numbers equal to SQL → certify → edit → draft (AC 29)
 - [ ] 26. README: quick start, "Connect your agent", "Where your data goes" (AC 30)
 - [ ] 27. Release prep: versions to 0.1.0, `uv build` wheels checked for `runtime.js`/`shell.js`, changelog entry. The maintainer tags and publishes (AC 31)
