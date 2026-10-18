@@ -1,0 +1,23 @@
+# The browser tests' dashboard: its HTML records callbacks and probes the sandbox.
+spec_version: 0
+dashboard: {id: probe, title: Probe}
+filters:
+  - {id: period, type: time, default: {last: 12, grain: week}}
+  - {id: region, type: dimension, dimension: customer__region, default: []}
+data:
+  - id: kpi
+    metrics: [revenue]
+    filters: [period, region]
+  - id: by_region
+    metrics: [revenue]
+    dimensions: [customer__region]
+    filters: [period]
+  - id: trend
+    metrics: [revenue]
+    time_grain: week
+    filters: [period, region]
+  - id: formats
+    metrics: [revenue, orders, gross_margin_pct, discount_rate]
+    filters: [period]
+interactions:
+  - {from: by_region, on: click, sets_filter: region}

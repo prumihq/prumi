@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Probe</title>
+  <!-- Loads the runtime a second time on purpose: it must ignore it. -->
+  <script src="/runtime.js"></script>
+</head>
+<body>
+  <pre id="kpi"></pre>
+  <pre id="probes"></pre>
+  <script>
+    window.__calls = {};
+    window.__results = {};
+    window.__errors = [];
+    window.__filters = [];
+    ["kpi", "by_region", "trend", "formats"].forEach((block) => {
+      prumi.on(block, (result) => {
+        window.__calls[block] = (window.__calls[block] || 0) + 1;
+        window.__results[block] = result;
+      });
+      prumi.onError(block, (issue) => window.__errors.push([block, issue.code]));
+    });
+    prumi.on("kpi", (result) => {
+      document.getElementById("kpi").textContent = prumi.format(result.rows[0].revenue, "revenue");
+    });
+    prumi.onFilters((filters) => window.__filters.push(filters));
+
+    // Sandbox probes: each records "blocked" or what got through.
+    window.__probes = {};
+    const record = (name, outcome) => {
+      window.__probes[name] = outcome;
+      document.getElementById("probes").textContent = JSON.stringify(window.__probes);
+    };
+    try {
+      record("read_parent", String(window.parent.document.title));
+    } catch (error) {
+      record("read_parent", "blocked");
+    }
+    try {
+      window.parent.document.getElementById("prumi-badge").textContent = "Certified by me";
+      record("write_parent", "changed");
+    } catch (error) {
+      record("write_parent", "blocked");
+    }
+    const runtime = new URL(document.querySelector('script[src$="/runtime.js"]').src);
+    fetch(runtime.origin + "/api/dashboards/probe/versions/1/status")
+      .then(() => record("fetch_prumi", "allowed"))
+      .catch(() => record("fetch_prumi", "blocked"));
+    fetch("https://example.com/collect")
+      .then(() => record("fetch_elsewhere", "allowed"))
+      .catch(() => record("fetch_elsewhere", "blocked"));
+    const image = new Image();
+    image.onload = () => record("image_elsewhere", "loaded");
+    image.onerror = () => record("image_elsewhere", "blocked");
+    image.src = "http://127.0.0.2:" + runtime.port + "/pixel.png?data=secret";
+  </script>
+</body>
+</html>
