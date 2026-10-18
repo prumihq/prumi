@@ -40,3 +40,21 @@ But because `order_items → order → customer` is also a valid join path, Metr
 - **C. Change the demo models so no two-hop path exists.** Not possible without losing a dimension: `orders` needs `customer_id` (for `customers` and `orders` by region), and `order_items` needs `order_id` (for `order__channel`).
 
 **Decision (2026-10-17): none of A–C as written: one name per attribute, the shortest path.** For each metric, group dimension names by final entity and dimension and keep the one with the fewest entity links (ties both stay). The demo shows exactly the five names in section 15, and on projects where an attribute is only reachable through two hops, the two-hop name is still shown. Spec section 4 updated. A filter that follows each block's own join path is recorded as Later.
+
+## 3. The second-run dashboard can't pass rule 2 of section 19.13 with its own spec
+
+**Blocks:** task 50 (bindings decide what a number may match) and everything after it, AC 52 ("every must-pass fixture still passes"). Task 48 is done: the first-run fixture has bindings, and the four new must-fail pages are in `packages/prumi-core/tests/fixtures/provenance/`.
+
+**Found:** 19.13 rule 2 says a number must match a value of the block its nearest bound ancestor is bound to. The second-run page (`second_run.html` with the `spec.json` its agent wrote) binds `#detail-all` to `weekly_all` and `#detail` to `weekly_regions`. But its week-by-week table ends with a "Period" column that shows the `regions` block's values in those same elements: `regions.total` (the 12-week revenue, $2,742,409) in `#detail-all`, and each region's 12-week revenue in `#detail`. The numbers are correct and Prumi delivered them, but from another block, so rule 2 flags 9 of them at the default filters (more with average order value selected). No tuning fixes this without dropping rule 2: the rule is exact about which block a number may come from.
+
+The section only says the first-run fixture gets bindings. With the new list form, the second-run fixture would pass with `"#detail": ["weekly_regions", "regions"]` and `"#detail-all": ["weekly_all", "regions"]`. No must-fail page gets through that way: the bindings only widen these two elements to a block they really show.
+
+A related point for the browser check and the viewer bar (rule 5): the second-run page's tooltip (`#tip`, appended to `<body>`, outside every bound element) shows `trend` and `weekly_regions` values on hover. The server check never hovers, so it passes. But as published, every viewer who hovers a chart would flag the page and get the "This page shows numbers Prumi didn't deliver." bar, unless `#tip` is also bound (to `["trend", "weekly_regions"]`). The first-run page has the same kind of tooltip; its fixture now binds `#tip` to `weekly`, the only block it shows.
+
+**Options:**
+
+- **A. Edit the second-run fixture's spec**, as 19.13 does for the first-run one: list bindings for `#detail` and `#detail-all`, and bind `#tip`. The fixture then shows that a real agent page passes once its bindings say what each element shows, and the guide (task 54) teaches agents to write them. The second-run page as its agent wrote it no longer passes.
+- **B. Move the second-run page to must-fail**, as written: rule 2 is meant to catch exactly this mixing, and an agent following the new guide would bind lists. The must-pass set then has one real agent page.
+- **C. Loosen rule 2**: a number may match any block whose values the page shows elsewhere too, or any block of the dashboard. That brings back most of the coincidence problem rule 2 is there to fix (a `$229K` average matching some week).
+
+I'd pick **A**: list bindings were added for tables like this one.
