@@ -565,6 +565,8 @@ Standard `logging`. Each executed query logs: origin (`block <dashboard>/<v>/<bl
 
 README: quick start (build the demo, `prumi serve`, connect an agent), "Connect your agent" (Claude Code: `claude mcp add --transport http prumi http://127.0.0.1:8484/mcp`; clients that connect from their vendor's cloud can't reach a local server), and "Where your data goes" (the data flow above).
 
+The dbt adapter's README has "Preparing your dbt project": what Prumi reads, and the recommended `config.meta.prumi` format convention with the reason for it. The main README's quick start links to it.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -650,5 +652,5 @@ Each criterion has at least one automated test unless it says otherwise.
 29. **End to end:** a scripted MCP session runs `find_metrics` → `query` → `validate_spec` (with an error, then fixed) → `publish_dashboard`; a browser opens the URL and the bound numbers equal hand-written SQL; `prumi certify` makes the badge certified; publishing an HTML edit makes it a draft again.
 
 **Docs and release**
-30. The README has the quick start, "Connect your agent" and "Where your data goes" sections. *(review)*
+30. The README has the quick start (linking to the dbt adapter's "Preparing your dbt project"), "Connect your agent" and "Where your data goes" sections. *(review)*
 31. `prumi-core`, `prumi-adapter-dbt` and the runtime are versioned `0.1.0`; `uv build` produces wheels, and the `prumi-core` wheel contains `runtime.js` and `shell.js`.
