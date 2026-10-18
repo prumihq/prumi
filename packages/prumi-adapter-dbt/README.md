@@ -44,7 +44,7 @@ metrics:
 |---|---|---|
 | `format` | `number`, `integer`, `percent`, `currency` | `percent` means the value is a fraction: 0.25 shows as 25% |
 | `unit` | ISO 4217 code for `currency` (`USD`, `EUR`, `BRL`); any text otherwise | Required for `currency`. Prumi warns when one block mixes units |
-| `decimals` | 0–20 | Optional. Defaults: 2 for `number` and `currency`, 0 for `integer`, 1 for `percent` |
+| `decimals` | 0–20 | Optional. Defaults: up to 2 for `number`, 0 for `integer`, 1 for `percent`, and the currency's usual digits for `currency` (2 for USD, 0 for JPY) |
 
 - **It's optional.** A metric without `meta.prumi` still works: it's shown as a plain number, and the validator warns that no format is declared (`R10.no_format`). An invalid entry is treated the same way.
 - **Why under a `prumi` key:** `meta` is dbt's free-form dictionary for other tools, and dbt itself ignores it. Several tools read keys like `meta.format` with their own meanings, so Prumi keeps its settings in its own namespace to avoid clashes.
