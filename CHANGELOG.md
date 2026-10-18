@@ -15,11 +15,11 @@ The first release: it proves the core loop on one machine, for one local user, a
   - Engine: blocks with time windows aligned to whole periods (`as_of`, partial periods, comparisons), totals and "Others" computed by the source, freshness, and a 5,000-row cap.
   - Registry on SQLite: immutable versions, fingerprints, and certification status computed on every read.
   - Hosting: each dashboard runs in a sandboxed frame (CSP, no network access), inside Prumi's shell with the trust badge and data freshness, with a default light and dark theme.
-  - Home page at `/`: the connected source and how recent its data is, a card for each dashboard with its status, version, update time and metrics, and the open metric requests. It shows no metric values. The optional `[source] project` in `prumi.toml` names the project in its header.
+  - Home page at `/`: the connected source and how recent its data is, a card for each dashboard with its status, version, update time and metrics, and the open metric requests. A search box filters the cards by title, id or metric, and with no dashboards yet the page shows the connect command with a copy button. It shows no metric values. The optional `[source] project` in `prumi.toml` names the project in its header.
   - Query logs with origin, viewer, duration and row count, never values.
   - CLI: `serve`, `list`, `certify`, `uncertify`, `delete`, `requests`, `validate`.
 - **`prumi-adapter-dbt`**: reads `target/semantic_manifest.json`. MetricFlow 0.213.0 compiles (exact pin, Apache-2.0); Prumi runs the SQL over its own DuckDB connection. Formats come from `config.meta.prumi`, and startup checks cover the manifest, the connection type and every relation.
-- **`prumi-runtime`**: `runtime.js` (the `prumi.*` API in the dashboard frame, with no aggregation helpers), `shell.js`, `provenance.js` (the number matcher), `theme.css` and `home.css`, plain JS and CSS with no build step. The `prumi-core` wheel carries a copy of each.
+- **`prumi-runtime`**: `runtime.js` (the `prumi.*` API in the dashboard frame, with no aggregation helpers), `shell.js`, `provenance.js` (the number matcher), `theme.css`, `home.css` and `home.js`, plain JS and CSS with no build step. The `prumi-core` wheel carries a copy of each.
 - **Demo dbt project** (`examples/demo-dbt-project`): a deterministic synthetic shop on DuckDB, with metrics that plant the usual BI traps.
 
 ### Known limitations

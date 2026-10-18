@@ -58,7 +58,14 @@ def test_uv_build_makes_both_wheels_and_sdists(wheels):
 def test_the_core_wheel_carries_the_runtime(wheels):
     with zipfile.ZipFile(wheels / "prumi_core-0.1.0-py3-none-any.whl") as wheel:
         names = set(wheel.namelist())
-        for asset in ("runtime.js", "shell.js", "provenance.js", "theme.css", "home.css"):
+        for asset in (
+            "runtime.js",
+            "shell.js",
+            "provenance.js",
+            "theme.css",
+            "home.css",
+            "home.js",
+        ):
             bundled = wheel.read(f"prumi/_runtime/{asset}")
             assert bundled == (PACKAGES / "prumi-runtime" / "src" / asset).read_bytes()
         assert "prumi/registry/migrations/0001_initial.sql" in names

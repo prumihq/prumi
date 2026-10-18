@@ -16,6 +16,7 @@ RUNTIME_SRC = Path(__file__).parents[2] / "prumi-runtime" / "src"
         ("provenance.js", "text/javascript"),
         ("theme.css", "text/css"),
         ("home.css", "text/css"),
+        ("home.js", "text/javascript"),
     ],
 )
 def test_served_from_the_runtime_package(client, name, kind):

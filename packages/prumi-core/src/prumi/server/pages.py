@@ -138,8 +138,11 @@ def home(
         dashboards = f"""<section aria-labelledby="dashboards-heading">
   <div class="section-head">
     <h1 id="dashboards-heading">Dashboards</h1>
+    <input type="search" id="search" placeholder="Search by title, id or metric"
+           aria-label="Search dashboards" autocomplete="off">
   </div>
   <ul class="cards" id="cards">{"".join(_card(c, now) for c in found)}</ul>
+  <p class="no-match" id="no-match" hidden>No dashboard matches your search.</p>
 </section>"""
     else:
         command = f"claude mcp add --scope user --transport http prumi {mcp_url}"
@@ -149,6 +152,7 @@ def home(
   <p>To connect Claude Code, run:</p>
   <div class="command">
     <code id="connect-command">{escape(command)}</code>
+    <button type="button" class="copy" data-copy="connect-command">Copy</button>
   </div>
 </section>"""
     return f"""<!doctype html>
@@ -159,11 +163,12 @@ def home(
 <title>Prumi</title>
 <link rel="stylesheet" href="/theme.css">
 <link rel="stylesheet" href="/home.css">
+<script src="/home.js" defer></script>
 </head>
 <body>
 <header class="top">
   <span class="wordmark">Prumi</span>
-  <p class="source" id="source">{" · ".join(escape(f) for f in facts if f)}</p>
+  <p class="source" id="source">{" · ".join(f"<span>{escape(f)}</span>" for f in facts if f)}</p>
 </header>
 <main>
 {dashboards}

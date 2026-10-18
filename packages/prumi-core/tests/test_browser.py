@@ -428,3 +428,114 @@ def test_the_frame_and_the_shell_load_the_theme(browser, server, scheme, bg):
         assert page.evaluate(read).strip() == bg
     finally:
         context.close()
+
+
+# The home page
+
+
+@pytest.fixture(scope="module")
+def empty_server(live_services, live_server):
+    with live_server(live_services()) as live:
+        yield live
+
+
+@pytest.fixture(scope="module")
+def home_server(live_services, live_server):
+    """Four dashboards of its own, so other tests' publishing doesn't change the cards."""
+    services = live_services()
+    for name in ("demo/sales", "browser/probe", "browser/unverified", "browser/failing"):
+        services.registry.save(
+            DashboardSpec.model_validate(load_spec_file(FIXTURES / f"{name}.yaml")),
+            (FIXTURES / f"{name}.html").read_text(),
+        )
+    with live_server(services) as live:
+        yield live
+
+
+def visible_cards(page):
+    return page.locator("#cards .card:visible a.card-title").all_text_contents()
+
+
+def test_the_search_box_filters_the_cards(page, home_server):
+    errors = []
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.goto(home_server.url)
+    everything = sorted(visible_cards(page))
+    assert everything == ["Failing", "Probe", "Sales", "Unverified"]
+    search = page.locator("#search")
+    for query, expected in (
+        ("average", ["Sales"]),  # a metric label
+        ("PROBE", ["Probe"]),  # the id or title, in any case
+        ("discount rate", ["Probe"]),
+        ("unverified", ["Unverified"]),
+        ("revenue", everything),
+    ):
+        search.fill(query)
+        assert sorted(visible_cards(page)) == expected, query
+        assert page.locator("#no-match").is_hidden()
+    search.fill("no such dashboard")
+    assert visible_cards(page) == []
+    assert page.locator("#no-match").is_visible()
+    search.fill("")
+    assert sorted(visible_cards(page)) == everything
+    assert errors == []  # nothing the CSP blocked
+
+
+def test_the_copy_button_copies_the_connect_command(browser, empty_server):
+    context = browser.new_context(locale="en-US", permissions=["clipboard-read", "clipboard-write"])
+    try:
+        page = context.new_page()
+        page.set_default_timeout(TIMEOUT)
+        page.goto(empty_server.url)
+        command = page.locator("#connect-command").text_content()
+        assert command == (
+            f"claude mcp add --scope user --transport http prumi {empty_server.url}/mcp"
+        )
+        button = page.get_by_role("button", name="Copy")
+        button.click()
+        page.get_by_role("button", name="Copied").wait_for()
+        assert page.evaluate("() => navigator.clipboard.readText()") == command
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("which", ["dashboards", "empty"])
+def test_the_home_page_fits_a_phone(browser, home_server, empty_server, which):
+    context = browser.new_context(locale="en-US", viewport={"width": 390, "height": 844})
+    try:
+        page = context.new_page()
+        page.set_default_timeout(TIMEOUT)
+        page.goto((home_server if which == "dashboards" else empty_server).url)
+        widths = page.evaluate(
+            "() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]"
+        )
+        assert widths[0] <= widths[1], widths  # no horizontal scrolling
+        boxes = [c.bounding_box() for c in page.locator("#cards .card").all()]
+        if which == "dashboards":
+            assert len(boxes) == 4
+            assert len({round(b["x"]) for b in boxes}) == 1  # one column
+            assert all(b["x"] >= 16 and b["x"] + b["width"] <= 390 - 16 for b in boxes)
+            assert [b["y"] for b in boxes] == sorted(b["y"] for b in boxes)
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize(
+    ("scheme", "bg", "surface"),
+    [("light", "rgb(247, 247, 245)", "rgb(255, 255, 255)"),
+     ("dark", "rgb(18, 18, 17)", "rgb(30, 30, 28)")],
+)  # fmt: skip
+def test_the_home_page_follows_the_theme(browser, home_server, scheme, bg, surface):
+    context = browser.new_context(locale="en-US", color_scheme=scheme)
+    try:
+        page = context.new_page()
+        page.set_default_timeout(TIMEOUT)
+        page.goto(home_server.url)
+        style = "(e, p) => getComputedStyle(e)[p]"
+        assert page.locator("body").evaluate(style, "backgroundColor") == bg
+        assert page.locator(".card").first.evaluate(style, "backgroundColor") == surface
+        text = page.locator("body").evaluate(style, "color")
+        expected = "rgb(27, 27, 25)" if scheme == "light" else "rgb(240, 239, 235)"
+        assert text == expected
+    finally:
+        context.close()

@@ -71,7 +71,10 @@ def test_the_header_names_the_source_and_its_freshness(client):
     assert '<span class="wordmark">Prumi</span>' in page
     # No [source] project: the header leaves the name out. The demo's data ends the day
     # before its pinned "today".
-    assert '<p class="source" id="source">dbt · duckdb · data through 2026-10-14</p>' in page
+    assert (
+        '<p class="source" id="source"><span>dbt</span> · <span>duckdb</span> · '
+        "<span>data through 2026-10-14</span></p>"
+    ) in page
 
 
 def test_the_header_shows_the_configured_project(services, client):
@@ -80,8 +83,8 @@ def test_the_header_shows_the_configured_project(services, client):
     services.config = dataclasses.replace(services.config, sources=sources)
     page = client.get("/").text
     assert (
-        '<p class="source" id="source">'
-        "dbt · &lt;b&gt;prumi_demo&lt;/b&gt; · duckdb · data through 2026-10-14</p>"
+        '<p class="source" id="source"><span>dbt</span> · <span>&lt;b&gt;prumi_demo&lt;/b&gt;'
+        "</span> · <span>duckdb</span> · <span>data through 2026-10-14</span></p>"
     ) in page
 
 
@@ -161,7 +164,8 @@ def test_the_empty_state_shows_the_connect_command(client):
         '<code id="connect-command">'
         "claude mcp add --scope user --transport http prumi http://127.0.0.1:8484/mcp</code>"
     ) in page
-    assert 'class="cards"' not in page
+    assert '<button type="button" class="copy" data-copy="connect-command">Copy</button>' in page
+    assert 'class="cards"' not in page and 'id="search"' not in page
     assert "Metric requests" not in page  # none yet
 
 
@@ -204,6 +208,7 @@ def test_the_csp_allows_no_inline_script_or_style(services, client):
         "/theme.css",
         "/home.css",
     ]
+    assert re.findall(r'<script src="([^"]+)"', page) == ["/home.js"]
     assert not re.search(r'(?:src|href)="(?:https?:)?//', page.replace(pages.DOCS_URL, ""))
 
 

@@ -214,6 +214,7 @@ def create_app(services: Services) -> HostCheck:
             Route("/provenance.js", asset),
             Route("/theme.css", asset),
             Route("/home.css", asset),
+            Route("/home.js", asset),
             Route("/d/{id}", shell),
             Route("/d/{id}/v/{n:int}", shell),
             Route("/d/{id}/v/{n:int}/frame", frame),
