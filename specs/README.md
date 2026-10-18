@@ -52,4 +52,4 @@ An ordered checklist. Each task is small enough for one commit or PR, says when 
 
 ## Milestones
 
-`mvp` (not written yet; waits for the MetricFlow spike).
+- [`mvp`](mvp/spec.md): prove the core loop on one machine. Release 0.1.0. Status: draft. [Tasks](mvp/tasks.md).
