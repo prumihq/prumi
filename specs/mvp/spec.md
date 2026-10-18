@@ -76,6 +76,7 @@ font_hosts = ["fonts.gstatic.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "
 
 [source]
 adapter = "dbt"
+project = "prumi_demo"       # optional: shown in the home page header
 
 [source.dbt]
 semantic_manifest = "examples/demo-dbt-project/target/semantic_manifest.json"
@@ -87,6 +88,7 @@ path = "examples/demo-dbt-project/demo.duckdb"
 
 - Relative paths resolve against the config file's folder.
 - **The server refuses to start if `host` isn't a loopback address** (`127.0.0.1`, `::1`, `localhost`). There's no login in this milestone, so binding elsewhere would expose the warehouse to the network.
+- `project` is an optional display name for the source, shown in the home page header (section 20). Core reads it; adapters never see it. Without it, the header leaves the name out.
 - `as_of` is a date. Without it, "today" is the server's local date. The demo config pins it so tests and the demo are reproducible.
 - Exactly one source. Internally, sources are held in a mapping keyed by name (`"default"`), see [Design for later](#design-for-later).
 
@@ -876,7 +878,7 @@ None of the three agent runs saw the page it built, and number checks don't catc
 `GET /` is the first thing a user sees, and today it's a bare table of links. It should look like a small product, not a debug page. It doesn't need to be elaborate.
 
 **Layout, top to bottom:**
-1. **Header:** the Prumi wordmark (text, no image), and the connected source in one line: adapter (`dbt`) and connection type (`duckdb`), from a new adapter member `describe() -> SourceInfo(adapter, connection)`; and "data through <date>" (the latest freshness of any metric, computed once at startup and refreshed at most every 10 minutes).
+1. **Header:** the Prumi wordmark (text, no image), and the connected source in one line: adapter (`dbt`), the project name from `[source] project` in `prumi.toml` (left out when not set), connection type (`duckdb`), and "data through <date>" (the latest freshness of any metric, computed once at startup and refreshed at most every 10 minutes). Adapter and connection type come from a new adapter member `describe() -> SourceInfo(adapter, connection)`.
 2. **Dashboards**, as a responsive grid of cards (one column on a phone). Each card shows:
    - the title, as a link to `/d/<id>`;
    - the status as a badge: `Draft`, `Certified by <name>`, or `Needs attention` (19.13 rule 5), using the theme's colors;

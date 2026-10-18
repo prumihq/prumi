@@ -77,4 +77,4 @@ Separately, the adapter protocol (section 3) has no way to tell core the project
 
 I'd pick **A**, with the protocol member above.
 
-**Decision (2026-10-18): C. No project name in the header.** It shows adapter, connection type and "data through" only. The adapter gets `describe() -> SourceInfo(adapter, connection)`, without `project`. Spec section 20 updated.
+**Decision (2026-10-18): B, as `[source] project = "..."` in `prumi.toml`** (not under `[source.dbt]`): core reads it, so it works for every adapter and adapters never see it. Optional; without it the header leaves the name out. The demo config sets `project = "prumi_demo"`. The adapter gets `describe() -> SourceInfo(adapter, connection)`, without `project`. Spec sections 2 and 20 updated. (An earlier answer, C, was changed the same day.)
