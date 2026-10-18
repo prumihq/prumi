@@ -60,3 +60,21 @@ A related point for the browser check and the viewer bar (rule 5): the second-ru
 I'd pick **A**: list bindings were added for tables like this one.
 
 **Decision (2026-10-18): none of A–C. Remove the second-run dashboard from the fixtures.** The earlier test dashboards were written before these rules and aren't kept as they are; the rule stays exact. The first-run fixture keeps the bindings task 48 gave it. The page from the benchmark run (task 46), written with the new guide, becomes the real must-pass fixture. Spec 19.13 updated.
+
+## 4. The semantic manifest has no project name
+
+**Blocks:** the project name in the home page header (task 68, AC 72). The rest of task 68 doesn't depend on the answer.
+
+**Found:** Section 20 puts "project name from the manifest" in the header. The adapter reads only `target/semantic_manifest.json` (`[source.dbt] semantic_manifest`), and that file has no project name: its top-level keys are `semantic_models`, `metrics`, `project_configuration` and `saved_queries`, and `project_configuration.metadata` is `null` in the demo (dbt-core 1.12.6). The project name is in dbt's full `target/manifest.json` (`metadata.project_name`, `prumi_demo` for the demo), which `dbt parse` writes into the same folder, and in `dbt_project.yml`, whose location Prumi isn't told.
+
+Separately, the adapter protocol (section 3) has no way to tell core the project name or the connection type; core can't read `[source.dbt.connection]` itself without knowing dbt's config. Whatever the answer, the adapter needs one more member, e.g. `describe() -> SourceInfo(adapter, project, connection)` with `project: str | None`.
+
+**Options:**
+
+- **A. Read `metadata.project_name` from `manifest.json` next to the semantic manifest.** No new config. If the file is missing, unreadable or has no name, the header leaves the project name out (no startup error: the header is cosmetic).
+- **B. A setting in `prumi.toml`** (`[source.dbt] project = "..."`), shown when present. Works for every adapter, but it's one more thing to configure and can drift from the project.
+- **C. Drop the project name from the header** and show adapter, connection type and freshness only.
+
+I'd pick **A**, with the protocol member above.
+
+**Decision (2026-10-18): C. No project name in the header.** It shows adapter, connection type and "data through" only. The adapter gets `describe() -> SourceInfo(adapter, connection)`, without `project`. Spec section 20 updated.

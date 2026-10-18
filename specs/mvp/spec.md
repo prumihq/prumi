@@ -876,7 +876,7 @@ None of the three agent runs saw the page it built, and number checks don't catc
 `GET /` is the first thing a user sees, and today it's a bare table of links. It should look like a small product, not a debug page. It doesn't need to be elaborate.
 
 **Layout, top to bottom:**
-1. **Header:** the Prumi wordmark (text, no image), and the connected source in one line: adapter (`dbt`), project name from the manifest, connection type (`duckdb`), and "data through <date>" (the latest freshness of any metric, computed once at startup and refreshed at most every 10 minutes).
+1. **Header:** the Prumi wordmark (text, no image), and the connected source in one line: adapter (`dbt`) and connection type (`duckdb`), from a new adapter member `describe() -> SourceInfo(adapter, connection)`; and "data through <date>" (the latest freshness of any metric, computed once at startup and refreshed at most every 10 minutes).
 2. **Dashboards**, as a responsive grid of cards (one column on a phone). Each card shows:
    - the title, as a link to `/d/<id>`;
    - the status as a badge: `Draft`, `Certified by <name>`, or `Needs attention` (19.13 rule 5), using the theme's colors;
