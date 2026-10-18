@@ -314,6 +314,16 @@ provides-extras = ["duckdb"]
 name = "prumi-core"
 version = "0.1.0.dev0"
 source = { editable = "packages/prumi-core" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2" },
+    { name = "pyyaml" },
+]
 
 [[package]]
 name = "prumi-workspace"

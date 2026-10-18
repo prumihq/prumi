@@ -16,7 +16,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 ## Engine and validation
 
-- [ ] 10. `prumi.time`: grains, `as_of`, window forms, snapping, grain compatibility, comparison windows — done when the table-driven tests pass (AC 7, 8)
+- [x] 10. `prumi.time`: grains, `as_of`, window forms, snapping, grain compatibility, comparison windows — done when the table-driven tests pass (AC 7, 8)
 - [ ] 11. Config loading (`prumi.toml`, relative paths, loopback-only check) — done when a non-loopback host fails to load with a clear message (AC 20)
 - [ ] 12. Spec models (format v0), YAML/JSON loading, committed JSON Schema and its up-to-date test (AC 16)
 - [ ] 13. Validator static rules: `spec.*`, R2, R3, R4, R5, R6, R7, R10, with the issue format and one fixture per code — done when each fixture produces exactly its code (AC 12, 13, 14)

@@ -5,7 +5,10 @@ description = "Prumi server: MCP endpoint, catalog, query engine, validator and 
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic>=2",
+    "pyyaml",
+]
 
 [build-system]
 requires = ["hatchling"]
