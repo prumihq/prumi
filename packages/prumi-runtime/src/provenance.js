@@ -259,35 +259,54 @@
     return out;
   }
 
-  // Axis ticks without the marker: at least three tick-like numbers in one <svg> chart that are
-  // evenly spaced, like 0, 50K, 100K. Only in SVG: in HTML, an evenly spaced list is as easy
-  // to make up as any other, so ticks there need data-prumi-role="axis".
+  // The chart a number may be an axis tick of: its nearest axis-marked element or <svg>.
+  // Outside both, nothing is a tick: in HTML an evenly spaced list is as easy to make up as
+  // any other.
+  function chartOf(element) {
+    return element.closest ? element.closest('svg, [data-prumi-role="axis"]') : null;
+  }
+
+  // Axis ticks: three or more evenly spaced numbers in one chart, at any precision ($280,
+  // $286, $292 on a narrow axis). A chart also holds data labels and tooltips, so a number
+  // counts when it's part of some run v, v + d, v + 2d among the chart's numbers.
   function tickSeries(candidates) {
     var groups = new Map();
     candidates.forEach(function (c) {
-      var key = c.element.closest ? c.element.closest("svg") : null;
-      if (!key) return;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(c);
+      var chart = chartOf(c.element);
+      if (!chart) return;
+      if (!groups.has(chart)) groups.set(chart, []);
+      groups.get(chart).push(c);
     });
     var ok = new Set();
+    var key = function (v) {
+      return Number(v).toPrecision(12);
+    };
     groups.forEach(function (group) {
-      var values = [];
+      var byValue = new Map();
       group.forEach(function (c) {
-        var v = c.reading.value * c.number.scale;
-        if (values.indexOf(v) < 0) values.push(v);
+        var k = key(c.reading.value * c.number.scale);
+        if (!byValue.has(k)) byValue.set(k, { value: Number(k), items: [] });
+        byValue.get(k).items.push(c);
+      });
+      var values = Array.from(byValue.values()).sort(function (a, b) {
+        return a.value - b.value;
       });
       if (values.length < 3) return;
-      values.sort(function (a, b) {
-        return a - b;
-      });
-      var step = values[1] - values[0];
-      for (var i = 2; i < values.length; i++) {
-        if (Math.abs(values[i] - values[i - 1] - step) > 1e-9 * Math.max(1, Math.abs(step))) return;
+      var mark = function (entry) {
+        entry.items.forEach(function (c) {
+          ok.add(c);
+        });
+      };
+      for (var a = 0; a < values.length; a++) {
+        for (var b = a + 1; b < values.length; b++) {
+          var third = byValue.get(key(2 * values[b].value - values[a].value));
+          if (third) {
+            mark(values[a]);
+            mark(values[b]);
+            mark(third);
+          }
+        }
       }
-      group.forEach(function (c) {
-        ok.add(c);
-      });
     });
     return ok;
   }
@@ -310,18 +329,19 @@
     });
     var unverified = [];
     var checked = 0;
-    var ticks = []; // every tick-like number, verified or not: a series is judged whole
+    var ticks = []; // every number in a chart, verified or not: runs are found among them all
     texts(doc).forEach(function (t) {
       numbers(t.text).forEach(function (number) {
         checked++;
         var item = { number: number, element: t.element };
-        var tick = readings(number.raw).filter(tickLike)[0];
-        if (tick) {
-          item.reading = tick;
+        var reading = readings(number.raw)[0];
+        if (reading && chartOf(t.element)) {
+          item.reading = reading; // a run of ticks is judged on every number in the chart
           ticks.push(item);
         }
         if (nonData(number, ctx)) return;
-        if (tick && isAxis(t.element)) return;
+        // A single round number in an axis-marked element is a tick on its own.
+        if (readings(number.raw).some(tickLike) && isAxis(t.element)) return;
         var blocks = boundBlocks(t.element, context.bindings);
         if (!blocks) {
           item.code = UNBOUND;

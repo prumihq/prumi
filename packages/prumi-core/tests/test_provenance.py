@@ -437,3 +437,25 @@ def test_an_error_in_a_callback_names_the_callback(demo_services):
     stack = message.splitlines()[1:]
     assert 1 <= len(stack) <= 5 and stack[0].startswith("  at ") and "page:2:" in stack[0]
     assert any("runtime.js:" in line for line in stack)  # Prumi's own frames, by file name
+
+
+NARROW = "".join(f"<{{tag}}>${n}</{{tag}}>" for n in (280, 286, 292, 298))
+
+
+@pytest.mark.parametrize(
+    ("body", "flagged"),
+    [
+        # A narrow axis: evenly spaced, three significant digits.
+        (f"<svg>{NARROW.format(tag='text')}</svg>", []),
+        (f'<div data-prumi-role="axis">{NARROW.format(tag="span")}</div>', []),
+        (f"<div>{NARROW.format(tag='span')}</div>", ["$280", "$286", "$292", "$298"]),
+        # A made-up label among the ticks is still flagged; the ticks still pass.
+        (f"<svg>{NARROW.format(tag='text')}<text>$284.57</text></svg>", ["$284.57"]),
+        # A single round number needs the marker; a single precise one is never a tick.
+        ('<div data-prumi-role="axis"><span>$300</span></div>', []),
+        ('<div data-prumi-role="axis"><span>$286</span></div>', ["$286"]),
+    ],
+)
+def test_evenly_spaced_ticks_at_any_precision(demo_services, body, flagged):
+    report = demo_services.validate(KPI_SPEC, kpi_page(SHOW_REVENUE, '<p id="revenue"></p>' + body))
+    assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == flagged
