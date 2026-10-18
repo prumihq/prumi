@@ -16,7 +16,7 @@ from prumi.validate._parse import parse_spec
 from prumi.validate.html import DEFAULT_HOSTS, AllowedHosts, check_html
 from prumi.validate.rules import check_spec
 
-__all__ = ["AllowedHosts", "PageCheck", "parse_spec", "validate"]
+__all__ = ["AllowedHosts", "PageCheck", "parse_spec", "source_failed", "validate"]
 
 _MAX_REASON = 500
 
@@ -106,6 +106,18 @@ def _check_state(
     return ran + page_check(spec, html, results, state, devices=devices)
 
 
+def source_failed(path: str, what: str, exc: BaseException) -> Issue:
+    """query.failed for an error the source raised. The database's own message can hold
+    values, so it's logged nowhere and sent nowhere: only the error's type."""
+    return error(
+        "query.failed",
+        path,
+        f"The source couldn't run {what} ({type(exc).__name__}).",
+        "Check the metrics, dimensions and filters with describe_metric, or ask the data team: "
+        "the server's log has the error type.",
+    )
+
+
 def _has_errors(issues: list[Issue]) -> bool:
     return any(i.severity == "error" for i in issues)
 
@@ -125,7 +137,8 @@ def _dry_run(
             if isinstance(exc, BlockRequestError):
                 reason = " ".join(issue.message for issue in exc.issues)
             else:
-                reason = " ".join(str(exc).split()) or type(exc).__name__
+                # The database's own message can hold values: only its type goes out.
+                reason = f"the source raised {type(exc).__name__}."
             if len(reason) > _MAX_REASON:
                 reason = reason[:_MAX_REASON] + "..."
             issues.append(

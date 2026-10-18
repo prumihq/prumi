@@ -129,9 +129,9 @@ The static checks still run first, and the frame can't make network calls, so pa
 
 | Code | Severity | When |
 |---|---|---|
-| `R8.unbound_number` | error | The rendered page shows a number outside every bound element, or a tooltip does on hover. The issue gives the text and the element's path |
-| `R8.unverified_number` | error | A number in a bound element isn't a value its binding's blocks delivered. The issue names the blocks; at most 20 numbers are listed in all |
-| `R8.copied_number` | error | The HTML source holds a delivered value (in text with 3+ significant digits, in a script with 4+), with its line |
+| `R8.unbound_number` | error | The rendered page shows a number outside every bound element, or a tooltip does on hover. The issue gives the element's path and how many numbers, never the numbers |
+| `R8.unverified_number` | error | A number in a bound element isn't a value its binding's blocks delivered. The issue gives the element's path, how many and the blocks; at most 20 numbers in all |
+| `R8.copied_number` | error | The HTML source holds a delivered value (in text with 3+ significant digits, in a script with 4+). The issue gives the line, not the value |
 | `R8.embedded_numbers` | error | An inline script holds an array or object literal that looks like a dataset |
 | `R8.numbers_in_text` | warning | Visible text with several data-like numbers (`1,234`, `12.5%`, `$3.4M`) |
 | `R8.numbers_in_table` | warning | A table with several numeric cells |

@@ -2,7 +2,8 @@
 
 The server check renders each page in headless Chromium with its blocks' results for the
 filters' default values, and reads what it shows. What each fixture in fixtures/provenance/
-must get flagged ([code, text], text null for page-wide codes) is in expected.json; an empty
+must get flagged ([code, element path], "line N" for copied numbers, null for page-wide codes)
+is in expected.json; an empty
 list means it passes.
 """
 
@@ -21,9 +22,9 @@ pytestmark = pytest.mark.browser
 FIXTURES = Path(__file__).parent / "fixtures" / "provenance"
 RUNTIME = Path(__file__).parents[2] / "prumi-runtime" / "src"
 EXPECTED = json.loads((FIXTURES / "expected.json").read_text())
-SHOWN = re.compile(r"The page shows (.+) \(in (.+)\), which isn't a value Prumi delivered.*")
-# The number an R8 issue is about, whatever the code.
-NUMBER = re.compile(r"(?:The page (?:on hover )?shows|The page's source has) (.+?) \((?:in|on) ")
+# Where an R8 issue's numbers are: an element path, never the number itself.
+WHERE = re.compile(r"(?:On hover, )?(?:[Aa] number|\d+ numbers) in (.+?) (?:is|are|isn't|aren't) ")
+LINE = re.compile(r"on line (\d+)")
 FLAGGED = {"html.image", "html.iframe", "html.closed_shadow_root", "html.canvas"}
 
 KPI_SPEC = {
@@ -78,9 +79,12 @@ def chromium(demo_services):
 def flagged(report) -> list[tuple[str, str | None]]:
     found = []
     for issue in report.issues:
-        if issue.code.startswith("R8.") or issue.code in FLAGGED:
-            number = NUMBER.match(issue.message)
-            found.append((issue.code, number[1] if number else None))
+        if issue.code == "R8.copied_number":
+            found.append((issue.code, f"line {LINE.search(issue.message)[1]}"))
+        elif issue.code.startswith("R8."):
+            found.append((issue.code, WHERE.match(issue.message)[1]))
+        elif issue.code in FLAGGED:
+            found.append((issue.code, None))
     return sorted(found, key=str)
 
 
@@ -97,7 +101,8 @@ def test_an_unverified_number_names_its_element(demo_services):
     page = kpi_page(SHOW_REVENUE, '<p id="revenue"></p><div class="note"><b>$1,234.56</b></div>')
     [issue] = demo_services.validate(KPI_SPEC, page).errors
     assert (issue.code, issue.severity, issue.path) == ("R8.unverified_number", "error", "html")
-    assert SHOWN.fullmatch(issue.message).groups() == ("$1,234.56", "div#page > div.note > b")
+    assert WHERE.match(issue.message)[1] == "div#page > div.note > b"
+    assert "1,234" not in issue.message and "1234" not in issue.message  # never the number
 
 
 def test_at_most_twenty_numbers_are_listed(demo_services):
@@ -144,7 +149,7 @@ def test_page_code_cant_switch_the_check_off(demo_services):
         }, 0);
       });"""
     report = demo_services.validate(KPI_SPEC, kpi_page(tamper))
-    assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == ["$9,999,999.99"]
+    assert [WHERE.match(i.message)[1] for i in report.errors] == ["p#revenue"]
 
 
 def test_a_blocked_request_is_a_warning(demo_services):
@@ -236,11 +241,11 @@ def test_numbers_are_read_in_either_locale(demo_services, text, readings):
 def test_copied_numbers(demo_services, body, script, copied):
     page = kpi_page(SHOW_REVENUE + script, '<p id="revenue"></p>' + body)
     report = demo_services.validate(KPI_SPEC, page)
-    found = [NUMBER.match(i.message)[1] for i in report.issues if i.code == "R8.copied_number"]
-    assert found == copied, report.issues
-    if copied:
-        [issue] = [i for i in report.errors if i.code == "R8.copied_number"]
-        assert issue.severity == "error" and re.search(r"\(on line \d+\)", issue.message)
+    found = [i for i in report.issues if i.code == "R8.copied_number"]
+    assert len(found) == (1 if copied else 0), report.issues
+    for issue in found:
+        assert issue.severity == "error" and LINE.search(issue.message)
+        assert not any(c.strip("$") in issue.message for c in copied)  # never the number
 
 
 # Content the number check can't read
@@ -272,13 +277,13 @@ def test_open_shadow_roots_are_read(demo_services):
       const root = document.getElementById("page").attachShadow({ mode: "open" });
       root.innerHTML = "<p>$9,999,999.99</p><slot></slot>";"""
     report = demo_services.validate(KPI_SPEC, kpi_page(SHOW_REVENUE + script))
-    assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == ["$9,999,999.99"]
+    assert [WHERE.match(i.message)[1] for i in report.errors] == ["div#page > p"]
 
 
 # Axis ticks
 
 
-TICKS = "".join(f"<{{tag}}>${n}K</{{tag}}>" for n in (100, 200, 300, 400))
+TICKS = "".join(f'<{{tag}} id="t{n}">${n}K</{{tag}}>' for n in (100, 200, 300, 400))
 
 
 @pytest.mark.parametrize(
@@ -287,13 +292,16 @@ TICKS = "".join(f"<{{tag}}>${n}K</{{tag}}>" for n in (100, 200, 300, 400))
         # Evenly spaced round numbers in a chart are its axis.
         (f"<svg>{TICKS.format(tag='text')}</svg>", []),
         # The same numbers in HTML need the marker.
-        (f"<div>{TICKS.format(tag='span')}</div>", ["$100K", "$200K", "$300K", "$400K"]),
+        (
+            f"<div>{TICKS.format(tag='span')}</div>",
+            ["span#t100", "span#t200", "span#t300", "span#t400"],
+        ),
         (f'<div data-prumi-role="axis">{TICKS.format(tag="span")}</div>', []),
     ],
 )
 def test_unmarked_ticks_only_inside_svg(demo_services, body, flagged):
     report = demo_services.validate(KPI_SPEC, kpi_page(SHOW_REVENUE, '<p id="revenue"></p>' + body))
-    assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == flagged
+    assert [WHERE.match(i.message)[1] for i in report.errors] == flagged
 
 
 # Bindings decide what a number may match
@@ -330,8 +338,7 @@ def test_a_number_outside_every_bound_element_is_unbound(demo_services):
     report = demo_services.validate(two_blocks({"#rows": "weekly"}), TWO_BLOCKS_PAGE)
     [issue] = report.errors
     assert issue.code == "R8.unbound_number"
-    assert NUMBER.match(issue.message)[1] == "$2,742,409.35"
-    assert "(in td#total)" in issue.message
+    assert WHERE.match(issue.message)[1] == "td#total"
     assert issue.hint.startswith("Bind this element to the block it shows")
 
 
@@ -365,10 +372,7 @@ def test_the_hover_pass_finds_unbound_tooltips(demo_services):
     report = demo_services.validate(spec, html)
     assert report.errors and {i.code for i in report.errors} == {"R8.unbound_number"}
     for issue in report.errors:
-        assert (
-            issue.message.startswith("The page on hover shows $")
-            and "(in div#tip)" in issue.message
-        )
+        assert issue.message.startswith("On hover, ") and WHERE.match(issue.message)[1] == "div#tip"
         assert issue.hint.startswith("Render the tooltip inside the bound element")
     spec["presentation"]["bindings"]["#tip"] = "weekly"
     assert demo_services.validate(spec, html).ok
@@ -439,7 +443,7 @@ def test_an_error_in_a_callback_names_the_callback(demo_services):
     assert any("runtime.js:" in line for line in stack)  # Prumi's own frames, by file name
 
 
-NARROW = "".join(f"<{{tag}}>${n}</{{tag}}>" for n in (280, 286, 292, 298))
+NARROW = "".join(f'<{{tag}} id="n{n}">${n}</{{tag}}>' for n in (280, 286, 292, 298))
 
 
 @pytest.mark.parametrize(
@@ -448,14 +452,17 @@ NARROW = "".join(f"<{{tag}}>${n}</{{tag}}>" for n in (280, 286, 292, 298))
         # A narrow axis: evenly spaced, three significant digits.
         (f"<svg>{NARROW.format(tag='text')}</svg>", []),
         (f'<div data-prumi-role="axis">{NARROW.format(tag="span")}</div>', []),
-        (f"<div>{NARROW.format(tag='span')}</div>", ["$280", "$286", "$292", "$298"]),
+        (
+            f"<div>{NARROW.format(tag='span')}</div>",
+            ["span#n280", "span#n286", "span#n292", "span#n298"],
+        ),
         # A made-up label among the ticks is still flagged; the ticks still pass.
-        (f"<svg>{NARROW.format(tag='text')}<text>$284.57</text></svg>", ["$284.57"]),
+        (f'<svg>{NARROW.format(tag="text")}<text id="label">$284.57</text></svg>', ["text#label"]),
         # A single round number needs the marker; a single precise one is never a tick.
         ('<div data-prumi-role="axis"><span>$300</span></div>', []),
-        ('<div data-prumi-role="axis"><span>$286</span></div>', ["$286"]),
+        ('<div data-prumi-role="axis"><span id="one">$286</span></div>', ["span#one"]),
     ],
 )
 def test_evenly_spaced_ticks_at_any_precision(demo_services, body, flagged):
     report = demo_services.validate(KPI_SPEC, kpi_page(SHOW_REVENUE, '<p id="revenue"></p>' + body))
-    assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == flagged
+    assert [WHERE.match(i.message)[1] for i in report.errors] == flagged

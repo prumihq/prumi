@@ -5,24 +5,24 @@
   "axis_ticks": [],
   "dates_and_periods": [],
   "probe": [
-    ["R8.copied_number", "$2,742,409"],
-    ["R8.unbound_number", "$2,742,409"],
-    ["R8.unbound_number", "$228,534.11"],
-    ["R8.unbound_number", "284.57"],
-    ["R8.unbound_number", "$25,951.3"],
-    ["R8.unbound_number", "$30,521.91"],
-    ["R8.unbound_number", "$25,677.39"]
+    ["R8.copied_number", "line 7"],
+    ["R8.unbound_number", "p:nth-of-type(1)"],
+    ["R8.unbound_number", "span#monthly"],
+    ["R8.unbound_number", "span#aov"],
+    ["R8.unbound_number", "ul#weeks > li:nth-of-type(1)"],
+    ["R8.unbound_number", "ul#weeks > li:nth-of-type(2)"],
+    ["R8.unbound_number", "ul#weeks > li:nth-of-type(3)"]
   ],
-  "js_total": [["R8.unverified_number", "6,983"]],
-  "average_of_averages": [["R8.unverified_number", "$283.68"]],
-  "compact_outside_axis": [["R8.unverified_number", "$5M"]],
-  "copied_today": [["R8.copied_number", "$2,742,409.35"]],
-  "coincident_average": [["R8.unverified_number", "$229K"]],
+  "js_total": [["R8.unverified_number", "b#total"]],
+  "average_of_averages": [["R8.unverified_number", "b#all"]],
+  "compact_outside_axis": [["R8.unverified_number", "p#kpi > span"]],
+  "copied_today": [["R8.copied_number", "line 6"]],
+  "coincident_average": [["R8.unverified_number", "b#average"]],
   "image_numbers": [["html.image", null]],
   "spaced_series_outside_svg": [
-    ["R8.unverified_number", "$100K"],
-    ["R8.unverified_number", "$200K"],
-    ["R8.unverified_number", "$300K"],
-    ["R8.unverified_number", "$400K"]
+    ["R8.unverified_number", "div#regions > p > span:nth-of-type(1)"],
+    ["R8.unverified_number", "div#regions > p > span:nth-of-type(2)"],
+    ["R8.unverified_number", "div#regions > p > span:nth-of-type(3)"],
+    ["R8.unverified_number", "div#regions > p > span:nth-of-type(4)"]
   ]
 }

@@ -609,37 +609,47 @@ def _issues(
                     "shadow roots or none.",
                 )
             )
-    for item in scan.get("copied", []):
-        line = f"on line {item['line']}" if item.get("line") else "on a line"
+    # Company data never reaches the agent: these issues name the element (or the source
+    # line) and how many numbers, never the number found.
+    lines = sorted({item.get("line") or 0 for item in scan.get("copied", [])})
+    for line in lines:
+        where = f"on line {line}" if line else "somewhere"
         issues.append(
             error(
                 "R8.copied_number",
                 "html",
-                f"The page's source has {item['text']} ({line}), a value Prumi delivered: it "
-                "was copied into the page, so it won't follow the data.",
+                f"The page's source has a value Prumi delivered {where}: it was copied into "
+                "the page, so it won't follow the data.",
                 "Remove it, and show the value from the block's result in prumi.on(...).",
             )
         )
+    groups: dict[tuple[str, str, bool, str], int] = {}
     for item in scan.get("flagged", []):
-        if item.get("code") == "R8.unbound_number":
-            shown = "on hover shows" if item.get("hover") else "shows"
+        code = item.get("code") or "R8.unverified_number"
+        key = (code, item["path"], bool(item.get("hover")), ", ".join(item.get("blocks", [])))
+        groups[key] = groups.get(key, 0) + 1
+    for (code, where, hover, blocks), count in groups.items():
+        numbers = "A number" if count == 1 else f"{count} numbers"
+        verb = ("is", "isn't") if count == 1 else ("are", "aren't")
+        if code == "R8.unbound_number":
+            when = "On hover, " + numbers[0].lower() + numbers[1:] if hover else numbers
             issues.append(
                 error(
-                    "R8.unbound_number",
+                    code,
                     "html",
-                    f"The page {shown} {item['text']} (in {item['path']}), outside every bound "
-                    "element, so it can't be checked against the block it comes from.",
-                    TOOLTIP_HINT if item.get("hover") else UNBOUND_HINT,
+                    f"{when} in {where} {verb[0]} outside every bound element, so "
+                    f"{'it' if count == 1 else 'they'} can't be checked against the block "
+                    f"{'it comes' if count == 1 else 'they come'} from.",
+                    TOOLTIP_HINT if hover else UNBOUND_HINT,
                 )
             )
         else:
-            blocks = ", ".join(item.get("blocks", []))
             issues.append(
                 error(
-                    "R8.unverified_number",
+                    code,
                     "html",
-                    f"The page shows {item['text']} (in {item['path']}), which isn't a value "
-                    f"Prumi delivered for the blocks bound there ({blocks}).",
+                    f"{numbers} in {where} {verb[1]} a value Prumi delivered for the blocks "
+                    f"bound there ({blocks}).",
                     R8_HINT,
                 )
             )

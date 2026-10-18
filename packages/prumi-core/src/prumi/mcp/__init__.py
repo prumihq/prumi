@@ -30,10 +30,11 @@ from prumi.agent_output import QueryProfile, for_agent
 from prumi.config import is_loopback
 from prumi.engine import BlockInputs, BlockRequestError
 from prumi.issues import Issue, error
-from prumi.registry import FINGERPRINT_VERSION, Content, normalize_html
+from prumi.registry import FINGERPRINT_VERSION, Content, PageCheck, normalize_html
 from prumi.services import Services
-from prumi.spec import Block, DashboardSpec, Sort
+from prumi.spec import Block, DashboardSpec, DimensionFilter, Sort
 from prumi.time import Compare, Grain, Window
+from prumi.validate import source_failed
 from prumi.validate._parse import plain_issues
 from prumi.validate.rules import REQUEST_METRIC_HINT, check_spec
 
@@ -158,8 +159,9 @@ class DashboardOut(BaseModel):
     url: str
     needs_attention: bool
     checks: list[dict[str, Any]] = Field(
-        description="What viewers' browsers found, per filter state: numbers Prumi didn't "
-        "deliver, canvas, runtime errors"
+        description="What viewers' browsers found, per filter state: where numbers Prumi "
+        "didn't deliver appeared (code, element path, count), canvas, runtime errors (count). "
+        "A dimension filter shows how many values were selected, not which."
     )
 
 
@@ -214,6 +216,28 @@ def _dashboard_url(services: Services, dashboard_id: str, version: int | None = 
     host = f"[{server.host}]" if ":" in server.host else server.host
     url = f"http://{host}:{server.port}/d/{dashboard_id}"
     return url if version is None else f"{url}/v/{version}"
+
+
+def _check_for_agent(check: PageCheck, spec: DashboardSpec) -> dict[str, Any]:
+    """A browser report without company data: no numbers found, no dimension values."""
+    dimensions = {f.id for f in spec.filters if isinstance(f, DimensionFilter)}
+    filters = {
+        fid: {"selected": len(value) if isinstance(value, list) else 1}
+        if fid in dimensions
+        else value
+        for fid, value in check.filters.items()
+    }
+    counts: dict[tuple[str, str], int] = {}
+    for item in check.flagged:
+        key = (item.get("code", "R8.unverified_number"), item["path"])
+        counts[key] = counts.get(key, 0) + 1
+    return {
+        "filters": filters,
+        "flagged": [{"code": c, "path": p, "count": n} for (c, p), n in counts.items()],
+        "canvas": check.canvas,
+        "errors": len(check.errors),
+        "reported_at": check.reported_at,
+    }
 
 
 def _not_found(dashboard_id: str, version: int | None = None) -> CallToolResult:
@@ -350,9 +374,7 @@ def create_mcp(services: Services) -> MCPServer:
         except BlockRequestError as exc:
             return _fail(exc.issues)
         except Exception as exc:
-            return _fail(
-                [error("query.failed", "query", f"The source couldn't run the query: {exc}")]
-            )
+            return _fail([source_failed("query", "the query", exc)])
         agent = for_agent(result)
         agent.warnings[:0] = issues  # the validator's warnings first
         return agent
@@ -560,7 +582,7 @@ def create_mcp(services: Services) -> MCPServer:
             status=(status := registry.status(id, number)).status,
             url=_dashboard_url(services, id, None if version is None else number),
             needs_attention=status.needs_attention,
-            checks=[c.to_json() for c in registry.checks(id, number)],
+            checks=[_check_for_agent(c, stored.spec) for c in registry.checks(id, number)],
         )
 
     @mcp.tool()

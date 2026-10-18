@@ -164,9 +164,11 @@ def test_no_dry_run_when_static_checks_fail(fake_source, fake_adapter, as_of):
     assert not report.ok and fake_adapter.queries == []
 
 
-def test_query_failed_says_why(fake_source, as_of):
+def test_query_failed_names_the_block_but_not_the_sources_message(fake_source, as_of):
     [issue] = run(FIXTURES / "query.failed.yaml", fake_source, as_of).errors
-    assert "'trend'" in issue.message and "the warehouse refused the query" in issue.message
+    assert "'trend'" in issue.message and "RuntimeError" in issue.message
+    # The database's own text can hold values, so it never reaches the agent.
+    assert "the warehouse refused the query" not in issue.message
 
 
 PYDANTIC_WORDS = ("tuple", "model", "union", "dict", "input should be")

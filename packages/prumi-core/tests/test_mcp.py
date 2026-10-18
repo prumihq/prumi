@@ -482,7 +482,12 @@ def test_list_and_get_dashboards(server, services):
     assert current["html"] == READBACK_HTML + "<!-- 2 -->"
     assert current["url"] == f"http://127.0.0.1:{port}/d/read-back"
     [check] = current["checks"]
-    assert (check["filters"], check["flagged"]) == ({}, flagged)
+    # Where, not what: no number found reaches the agent.
+    assert (check["filters"], check["flagged"]) == (
+        {},
+        [{"code": "R8.unverified_number", "path": "p#kpi", "count": 1}],
+    )
+    assert "$5" not in json.dumps(current)
 
     first = ok(call(server, "get_dashboard", id="read-back", version=1, include_html=False))
     assert (first["version"], first["html"], first["checks"]) == (1, None, [])
@@ -655,8 +660,9 @@ def test_check_states_are_rendered_and_checked(server):
     [issue] = report["errors"]
     assert issue["code"] == "R8.unverified_number"
     assert issue["message"].startswith(
-        'With the filters {"region": ["North America"]}: The page shows $1,234.56'
+        'With the filters {"region": ["North America"]}: A number in p#extra isn\'t a value'
     )
+    assert "1,234" not in issue["message"]
     # A state that's fine adds nothing.
     fine = {"filters": {"region": ["Europe"]}}
     edited = html.replace('"Target $1,234.56"', '""')
@@ -696,3 +702,46 @@ def test_publishing_checks_the_candidates_states_again(server, services, monkeyp
         ok(call(server, "publish_dashboard", candidate_id=edited["candidate_id"]))["version"] == 1
     )
     assert seen == [[fine["filters"]]]
+
+
+# No company data reaches the agent
+
+
+def test_browser_reports_reach_the_agent_without_data(server, services):
+    from prumi.registry import PageCheck
+
+    spec, html = unverified_page("reports")
+    html = html.replace('"Target $1,234.56"', '""')
+    assert services.publish(spec, html)[1] is not None
+    flagged = [
+        {"text": "$1,234.56", "path": "p#extra", "code": "R8.unverified_number"},
+        {"text": "$7.5", "path": "p#extra", "code": "R8.unverified_number"},
+    ]
+    check = PageCheck({"region": ["North America"]}, flagged, False, ["Boom: North America"])
+    services.registry.record_check("reports", 1, check)
+    [found] = ok(call(server, "get_dashboard", id="reports"))["checks"]
+    assert found["filters"] == {"region": {"selected": 1}}  # how many values, not which
+    assert found["flagged"] == [{"code": "R8.unverified_number", "path": "p#extra", "count": 2}]
+    assert found["errors"] == 1
+    text = json.dumps(found)
+    assert "North" not in text and "1,234" not in text and "7.5" not in text
+
+
+def test_a_failing_source_sends_no_database_text(server, services, monkeypatch):
+    secret = "Binder Error: column 'North America' not found near 2742409.35"
+
+    def fail(*args, **kwargs):
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr(services.engine, "run", fail)
+    [issue] = issues(
+        call(server, "query", metrics=["revenue"], window={"last": 1, "grain": "week"})
+    )
+    assert issue["code"] == "query.failed" and "RuntimeError" in issue["message"]
+    assert "North" not in json.dumps(issue) and "2742409" not in json.dumps(issue)
+
+    monkeypatch.setattr(services.engine, "run_block", fail)
+    report = ok(call(server, "validate_spec", spec=readback_spec("fails"), html=READBACK_HTML))
+    [issue] = report["errors"]
+    assert issue["code"] == "query.failed" and "RuntimeError" in issue["message"]
+    assert "North" not in json.dumps(report) and "2742409" not in json.dumps(report)
