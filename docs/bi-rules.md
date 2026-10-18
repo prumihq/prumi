@@ -2,7 +2,7 @@
 
 Dashboards built by AI agents tend to make the same mistakes BI teams spent years learning to avoid: averaging averages, comparing a half month with a full one, totals that don't match their rows. Prumi checks a dashboard against ten rules, **R1 to R10**, before it's published and every time a block runs.
 
-Issue codes start with the rule they belong to: `R6.others_requires_top_n` is a rule-6 problem. Codes that aren't about a BI rule use `spec.*`, `html.*`, `filter.*`, `publish.*`, `validate.*`, `edit.*`, `dashboard.*`, `query.failed` and `result.truncated`; the full list is in the [MVP spec, sections 7, 18 and 19](../specs/mvp/spec.md#7-validator-prumivalidate).
+Issue codes start with the rule they belong to: `R6.others_requires_top_n` is a rule-6 problem. Codes that aren't about a BI rule use `spec.*`, `html.*`, `filter.*`, `publish.*`, `validate.*`, `edit.*`, `dashboard.*`, `layout.*` (warnings about the rendered page's layout), `query.failed` and `result.truncated`; the full list is in the [MVP spec, sections 7, 18 and 19](../specs/mvp/spec.md#7-validator-prumivalidate).
 
 Every issue has a `code`, a `severity` (`error` blocks publishing; `warning` doesn't), a `path` into the spec (e.g. `data[1].others`), a `message` and a `hint` saying how to fix it.
 

@@ -9,8 +9,9 @@ A dashboard is two things you write side by side: a **spec** (JSON) that says wh
 3. Write the spec and the HTML below.
 4. `validate_spec` with both, and fix every error. Send the HTML straight to `validate_spec`; don't write it to a local file first. Validation renders the page in a browser with the blocks' data and checks every number it shows (see "Every number comes from Prumi"). The result always has a `candidate_id`: publish it when `ok`; when it isn't, fix it with `validate_spec(base=candidate_id, html_edits=[...])` instead of sending the page again. A runtime error gives the line and column in your HTML and a short stack.
    - Pass `check_states` to check filter states viewers will pick, not just the defaults: up to 5, like `[{"filters": {"region": ["North America"]}}, {"filters": {"period": {"last": 52, "grain": "week"}}}]`. Each is rendered and checked the same way; its issues start with "With the filters …". The states stay with the candidate and are checked again when it's published.
+   - **Read the layout warnings** after each validation. The check measures its render (desktop, 1280×800) and reports `layout.text_overlap`, `layout.text_clipped`, `layout.too_wide`, `layout.small_text` (under 10 px) and `layout.empty_block` (a bound element that renders nothing), each with element paths and boxes (`x, y, width×height`). Pass `layout_devices: ["phone"]` to measure a phone render (390×844) too. Fix them with `html_edits` on the candidate. They're warnings: they don't block publishing, but each is something a viewer will see.
 5. `publish_dashboard` with that `candidate_id` (don't send the spec and HTML again). Give the user the URL; the dashboard starts as an uncertified draft.
-6. If you can open a browser, take one screenshot of the draft at desktop width; don't read the page's text.
+6. If you can open a browser, take one screenshot of the draft at desktop width; don't read the page's text. Either way, ask the user to look at the draft link for what a measurement can't judge: whether the page reads well, the colors, the order of things.
 
 To change a dashboard later, see "Changing a dashboard" at the end.
 

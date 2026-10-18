@@ -90,7 +90,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 ## Layout report from validation (spec section 19.15; added 2026-10-18)
 
 - [x] 62. Layout measurements in the server check: the five `layout.*` warnings, devices, no page text in issues (AC 65, 66, 67)
-- [ ] 63. Guide additions for the layout report
+- [x] 63. Guide additions for the layout report
 
 ## No company data reaches the agent (spec section 19.16; added 2026-10-18)
 

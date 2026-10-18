@@ -68,5 +68,9 @@ def test_the_guide_covers_numbers_theme_and_editing():
         "They carry no comparison values in this release", "check_states", "With the filters",
         "also one whose validation failed", "base=candidate_id, html_edits=",
         "a dashboard id for its current version",
+        # The layout report.
+        "Read the layout warnings", "layout.text_overlap", "layout.text_clipped",
+        "layout.too_wide", "layout.small_text", "layout.empty_block", 'layout_devices: ["phone"]',
+        "ask the user to look at the draft link",
     ):  # fmt: skip
         assert text in GUIDE, text
