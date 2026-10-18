@@ -1,70 +1,37 @@
 """Number provenance: every number a page shows must be a value Prumi delivered.
 
-Each fixture page runs in headless Chromium with its blocks' results for the filters'
-default values, and the matcher reads what it shows. The expected numbers it flags are in
-fixtures/provenance/expected.json; an empty list means the page passes.
+The server check renders each page in headless Chromium with its blocks' results for the
+filters' default values, and reads what it shows. The numbers each fixture in
+fixtures/provenance/ must get flagged are in its expected.json; an empty list means it passes.
 """
 
 import json
 import os
 import re
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
-from prumi.adapters import LOCAL_VIEWER
+from prumi.cli import main
 from prumi.mcp import AUTHORING_GUIDE
-from prumi.server.pages import frame_csp, frame_html, shell_config
-from prumi.spec import DashboardSpec
-from prumi.validate.html import DEFAULT_HOSTS
+from prumi.validate import page as page_check
 
 pytestmark = pytest.mark.browser
 
 FIXTURES = Path(__file__).parent / "fixtures" / "provenance"
 RUNTIME = Path(__file__).parents[2] / "prumi-runtime" / "src"
 EXPECTED = json.loads((FIXTURES / "expected.json").read_text())
-ORIGIN = "http://prumi.test"
+SHOWN = re.compile(r"The page shows (.+) \(in (.+)\), which isn't a value Prumi delivered\.")
 
-# Stands in for the shell: answers the frame's handshake with the results, nothing else.
-HOST = """<!doctype html><html><body>
-<iframe id="frame" src="/frame" sandbox="allow-scripts" style="width:1280px;height:900px"></iframe>
-<script>
-  var setup = JSON.parse(document.getElementById("setup").textContent);
-  var frame = document.getElementById("frame");
-  function post(type, payload) {
-    var message = Object.assign({ prumi: 0, type: type }, payload);
-    frame.contentWindow.postMessage(message, "*");
-  }
-  var ready = false;
-  window.addEventListener("message", function (event) {
-    var m = event.data;
-    if (!m || m.prumi !== 0) return;
-    if (m.type === "ready" && !ready) {
-      ready = true;
-      post("init", { filters: setup.filters, values: setup.values, labels: setup.labels,
-                     formats: setup.formats });
-      (m.blocks || []).forEach(function (id) {
-        if (setup.results[id]) post("data", { block: id, result: setup.results[id] });
-      });
-    } else if (m.type === "filterValues") {
-      post("filterValues", { request: m.request, values: setup.values_of[m.id] || [] });
-    }
-  });
-</script>
-</body></html>"""
+KPI_SPEC = {
+    "spec_version": 0,
+    "dashboard": {"id": "kpi", "title": "Revenue"},
+    "data": [{"id": "kpi", "metrics": ["revenue"], "window": {"last": 12, "grain": "week"},
+              "filters": []}],
+}  # fmt: skip
 
-SETTLE = """() => new Promise((resolve) => {
-  let timer;
-  const done = () => { observer.disconnect(); resolve(); };
-  const observer = new MutationObserver(() => {
-    clearTimeout(timer);
-    timer = setTimeout(done, 300);
-  });
-  const all = { subtree: true, childList: true, characterData: true, attributes: true };
-  observer.observe(document, all);
-  timer = setTimeout(done, 300);
-  setTimeout(done, 10000);
-})"""
+SHOW_REVENUE = """prumi.on("kpi", (b) => {
+  document.getElementById("revenue").textContent = prumi.format(b.rows[0].revenue, "revenue");
+});"""
 
 
 def fenced(heading: str, language: str) -> str:
@@ -80,89 +47,128 @@ def fixture(name: str) -> tuple[dict, str]:
     ).read_text()
 
 
-@pytest.fixture(scope="module")
-def browser():
-    from playwright.sync_api import Error, sync_playwright
-
-    with sync_playwright() as playwright:
-        try:
-            chromium = playwright.chromium.launch()
-        except Error:
-            if os.environ.get("PRUMI_REQUIRE_BROWSER"):
-                raise
-            pytest.skip("Headless Chromium can't start; run `uv run playwright install chromium`.")
-        yield chromium
-        chromium.close()
+def kpi_page(script: str, body: str = '<p id="revenue"></p>') -> str:
+    return f"<!doctype html><html><body>{body}<script>{script}</script></body></html>"
 
 
-def shown_numbers(browser, demo_services, spec_data, html):
-    """What the matcher flags on the page, rendered with the default filters' results."""
-    report = demo_services.validate(spec_data, html)
-    assert report.ok, report.errors
-    spec = DashboardSpec.model_validate(spec_data)
-    engine, source = demo_services.engine, demo_services.source
-    results = {b.id: engine.run_block(spec, b.id, {}, LOCAL_VIEWER).to_json() for b in spec.data}
-    config = shell_config(SimpleNamespace(spec=spec, version=0), source)
-    setup = {
-        "filters": config["filters"],
-        "values": {f["id"]: f["default"] for f in config["filters"]},
-        "labels": config["labels"],
-        "formats": config["formats"],
-        "results": results,
-        "values_of": {},
-    }
-    host = HOST.replace(
-        "<body>",
-        '<body><script type="application/json" id="setup">'
-        + json.dumps(setup).replace("<", "\\u003c")
-        + "</script>",
-        1,
-    )
-    routes = {
-        "/": ("text/html", host, {}),
-        "/frame": (
-            "text/html",
-            frame_html(html, ORIGIN),
-            {"Content-Security-Policy": frame_csp(ORIGIN, DEFAULT_HOSTS)},
-        ),
-        "/runtime.js": ("text/javascript", (RUNTIME / "runtime.js").read_text(), {}),
-    }
+def codes(report) -> list[str]:
+    return [i.code for i in report.issues]
 
-    def route(r):
-        path = "/" + r.request.url.removeprefix(ORIGIN).lstrip("/").split("?")[0]
-        if path not in routes:
-            return r.abort()
-        kind, body, headers = routes[path]
-        r.fulfill(status=200, content_type=kind, body=body, headers=headers)
 
-    context = browser.new_context(locale="en-US", viewport={"width": 1280, "height": 900})
+@pytest.fixture(autouse=True)
+def chromium(demo_services):
+    """The shared checker, or a skip when Chromium can't start (a failure in CI)."""
     try:
-        context.route("**/*", route)
-        page = context.new_page()
-        page.goto(ORIGIN + "/")
-        frame = page.locator("#frame").element_handle().content_frame()
-        frame.wait_for_load_state()
-        frame.evaluate(SETTLE)
-        frame.evaluate((RUNTIME / "provenance.js").read_text())
-        allowed = {"spec": spec_data, "labels": config["labels"]}
-        return frame.evaluate(
-            """([results, extra]) => {
-                const p = window.prumiProvenance;
-                const delivered = p.fromResults(results);
-                const allowed = p.fromData(extra, delivered.allowed);
-                return p.scan(document, { values: delivered.values, allowed });
-            }""",
-            [results, allowed],
-        )
-    finally:
-        context.close()
+        demo_services.checker.start()
+    except page_check.BrowserStartupError:
+        if os.environ.get("PRUMI_REQUIRE_BROWSER"):
+            raise
+        pytest.skip("Headless Chromium can't start; run `uv run playwright install chromium`.")
 
 
 @pytest.mark.parametrize("name", sorted(EXPECTED))
-def test_provenance_fixtures(name, browser, demo_services):
-    report = shown_numbers(browser, demo_services, *fixture(name))
-    assert report["checked"] >= 3, "the page didn't render its numbers"
-    assert sorted(f["text"] for f in report["flagged"]) == sorted(EXPECTED[name]), report
+def test_provenance_fixtures(name, demo_services):
+    report = demo_services.validate(*fixture(name))
+    flagged = [
+        SHOWN.fullmatch(i.message) for i in report.issues if i.code == "R8.unverified_number"
+    ]
+    assert sorted(m[1] for m in flagged) == sorted(EXPECTED[name]), report.issues
+    if not EXPECTED[name]:
+        assert report.ok, report.errors
+
+
+def test_an_unverified_number_names_its_element(demo_services):
+    page = kpi_page(SHOW_REVENUE, '<p id="revenue"></p><div class="note"><b>$1,234.56</b></div>')
+    [issue] = demo_services.validate(KPI_SPEC, page).errors
+    assert (issue.code, issue.severity, issue.path) == ("R8.unverified_number", "error", "html")
+    assert SHOWN.fullmatch(issue.message).groups() == ("$1,234.56", "div.note > b")
+
+
+def test_at_most_twenty_numbers_are_listed(demo_services):
+    made_up = "".join(f"<p>{n},111.5</p>" for n in range(100, 130))
+    report = demo_services.validate(
+        KPI_SPEC, kpi_page(SHOW_REVENUE, '<p id="revenue"></p>' + made_up)
+    )
+    assert codes(report) == ["R8.unverified_number"] * 20
+
+
+@pytest.mark.parametrize(
+    ("page", "code"),
+    [
+        (kpi_page(SHOW_REVENUE, '<p id="revenue"></p><canvas></canvas>'), "html.canvas"),
+        (kpi_page("document.getElementById('missing').textContent = 'x';"), "html.runtime_error"),
+        (kpi_page('prumi.on("kpi", (b) => { b.rows[0].nothing.value; });'), "html.runtime_error"),
+        (kpi_page("setInterval(() => { document.body.dataset.tick = Date.now(); }, 50);"),
+         "html.render_timeout"),
+    ],
+)  # fmt: skip
+def test_pages_that_cant_be_checked_are_errors_and_cant_be_published(
+    demo_services, monkeypatch, page, code
+):
+    monkeypatch.setattr(demo_services.checker, "timeout_s", 2.0)
+    report = demo_services.validate(KPI_SPEC, page)
+    assert code in codes(report), report.issues
+    assert next(i for i in report.issues if i.code == code).severity == "error"
+    refused, published = demo_services.publish(KPI_SPEC, page)
+    assert published is None and code in codes(refused)
+
+
+def test_page_code_cant_switch_the_check_off(demo_services):
+    """The scan runs in an isolated world: overriding prumi or the DOM API changes nothing."""
+    tamper = """
+      prumi.on("kpi", () => {
+        document.getElementById("revenue").textContent = "$9,999,999.99";
+        setTimeout(() => {
+          window.prumi = { format: () => "", on: () => {} };
+          window.prumiProvenance = { scan: () => ({ flagged: [], checked: 0, canvas: false }) };
+          Object.defineProperty(Node.prototype, "textContent", { get: () => "" });
+          Object.defineProperty(CharacterData.prototype, "data", { get: () => "" });
+          Document.prototype.createTreeWalker = () => ({ nextNode: () => null });
+          window.MutationObserver = function () { this.observe = () => {}; };
+        }, 0);
+      });"""
+    report = demo_services.validate(KPI_SPEC, kpi_page(tamper))
+    assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == ["$9,999,999.99"]
+
+
+def test_a_blocked_request_is_a_warning(demo_services):
+    page = kpi_page(SHOW_REVENUE + 'fetch("https://example.com/data.json").catch(() => {});')
+    report = demo_services.validate(KPI_SPEC, page)
+    assert report.ok
+    [issue] = report.warnings
+    assert issue.code == "html.blocked_request" and "https://example.com/data.json" in issue.message
+
+
+def test_the_server_check_runs_no_extra_queries(demo_services, monkeypatch):
+    runs = []
+    original = demo_services.engine.run_block
+    monkeypatch.setattr(
+        demo_services.engine, "run_block", lambda *a, **k: runs.append(a[1]) or original(*a, **k)
+    )
+    spec, html = fixture("second_run")
+    assert demo_services.validate(spec, html).ok
+    assert sorted(runs) == sorted(b["id"] for b in spec["data"])
+
+
+def test_one_chromium_per_process(demo_services, make_demo_config, tmp_path):
+    from prumi.config import load_config
+    from prumi.services import Services
+
+    other = Services(load_config(make_demo_config(tmp_path)))
+    assert other.checker is demo_services.checker
+
+
+def test_serve_without_chromium_fails_with_the_install_command(
+    make_demo_config, tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path / "no-browsers"))
+    monkeypatch.setattr(page_check, "_shared", None)
+    try:
+        assert main(["serve", "--config", str(make_demo_config(tmp_path))]) == 1
+    finally:
+        if page_check._shared is not None:
+            page_check._shared.close()
+    assert "uv run playwright install chromium" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -175,15 +181,17 @@ def test_provenance_fixtures(name, browser, demo_services):
         ("2.7M", [2.7]),
     ],
 )
-def test_numbers_are_read_in_either_locale(browser, text, readings):
-    page = browser.new_page()
-    try:
-        page.add_script_tag(content=(RUNTIME / "provenance.js").read_text())
-        found = page.evaluate(
-            """(text) => window.prumiProvenance.numbers(text).flatMap(
-                (n) => window.prumiProvenance.readings(n.raw).map((r) => r.value))""",
-            text,
-        )
-    finally:
-        page.close()
-    assert found == pytest.approx(readings)
+def test_numbers_are_read_in_either_locale(demo_services, text, readings):
+    def evaluate(browser):
+        page = browser.new_page()
+        try:
+            page.add_script_tag(content=(RUNTIME / "provenance.js").read_text())
+            return page.evaluate(
+                """(text) => window.prumiProvenance.numbers(text).flatMap(
+                    (n) => window.prumiProvenance.readings(n.raw).map((r) => r.value))""",
+                text,
+            )
+        finally:
+            page.close()
+
+    assert demo_services.checker._submit(evaluate) == pytest.approx(readings)

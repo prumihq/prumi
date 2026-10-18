@@ -683,6 +683,7 @@ version = "0.1.0"
 source = { editable = "packages/prumi-core" }
 dependencies = [
     { name = "mcp" },
+    { name = "playwright" },
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "starlette" },
@@ -692,6 +693,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=2.3,<3" },
+    { name = "playwright", specifier = ">=1.64,<2" },
     { name = "pydantic", specifier = ">=2.14,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "starlette", specifier = ">=1.8,<2" },
@@ -706,7 +708,6 @@ source = { virtual = "." }
 [package.dev-dependencies]
 dev = [
     { name = "httpx2" },
-    { name = "playwright" },
     { name = "prumi-adapter-dbt", extra = ["duckdb"] },
     { name = "prumi-core" },
     { name = "pytest" },
@@ -718,7 +719,6 @@ dev = [
 [package.metadata.requires-dev]
 dev = [
     { name = "httpx2" },
-    { name = "playwright" },
     { name = "prumi-adapter-dbt", extras = ["duckdb"], editable = "packages/prumi-adapter-dbt" },
     { name = "prumi-core", editable = "packages/prumi-core" },
     { name = "pytest", specifier = ">=8" },

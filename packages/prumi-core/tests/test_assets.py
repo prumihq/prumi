@@ -1,4 +1,4 @@
-"""runtime.js and shell.js: one source, served from the workspace or the wheel's copy."""
+"""The browser assets: one source, served from the workspace or the wheel's copy."""
 
 from pathlib import Path
 
@@ -25,7 +25,7 @@ def test_the_wheels_copy_comes_first(tmp_path, monkeypatch):
     assert assets.read_asset("shell.js") == (RUNTIME_SRC / "shell.js").read_bytes()
 
 
-def test_only_the_two_assets(tmp_path):
+def test_only_the_assets(tmp_path):
     with pytest.raises(KeyError):
         assets.read_asset("../../pyproject.toml")
 

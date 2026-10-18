@@ -19,6 +19,9 @@ Requires [uv](https://docs.astral.sh/uv/).
 ```sh
 uv sync
 
+# Headless Chromium: Prumi renders every dashboard it publishes to check its numbers
+uv run playwright install chromium
+
 # Build the demo warehouse and semantic manifest (about 10 seconds)
 uv run --project examples/demo-dbt-project python examples/demo-dbt-project/build.py
 
@@ -91,7 +94,7 @@ uv run ruff check
 uv run ruff format
 ```
 
-The browser tests drive headless Chromium and skip when it isn't installed. To run them: `uv run playwright install --with-deps chromium`.
+Like the server, the tests need headless Chromium: `uv run playwright install --with-deps chromium`.
 
 ## License
 

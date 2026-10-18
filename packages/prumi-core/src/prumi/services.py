@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any
@@ -10,10 +10,12 @@ from typing import Any
 from prumi.adapters import LOCAL_VIEWER, Viewer
 from prumi.config import DEFAULT_SOURCE, Config
 from prumi.engine import Engine
-from prumi.issues import Report
+from prumi.issues import Issue, Report
 from prumi.registry import Published, Registry, publish
 from prumi.source import Source
+from prumi.spec import DashboardSpec
 from prumi.validate import AllowedHosts, validate
+from prumi.validate.page import PageChecker, shared_checker
 
 
 @dataclass
@@ -33,6 +35,11 @@ class Services:
     def engine(self) -> Engine:
         return Engine(self.source, self.config.server.as_of)
 
+    @cached_property
+    def checker(self) -> PageChecker:
+        """Headless Chromium for the page check, shared by the whole process."""
+        return shared_checker()
+
     @property
     def hosts(self) -> AllowedHosts:
         server = self.config.server
@@ -45,7 +52,8 @@ class Services:
         viewer: Viewer = LOCAL_VIEWER,
         metric_request_ids: Collection[int] | None = None,
     ) -> Report:
-        """Static checks, HTML checks and the dry run, against the current catalog."""
+        """Static checks, HTML checks, the dry run and the page check, against the current
+        catalog."""
         if metric_request_ids is None:
             metric_request_ids = self.registry.metric_request_ids()
         return validate(
@@ -57,6 +65,25 @@ class Services:
             hosts=self.hosts,
             engine=self.engine,
             viewer=viewer,
+            page_check=self.check_page,
+        )
+
+    def check_page(
+        self, spec: DashboardSpec, html: str, results: Mapping[str, dict[str, Any]]
+    ) -> list[Issue]:
+        """Render the page with these block results, as a viewer's browser would."""
+        from prumi.server import pages  # the server package imports this module
+
+        labels, formats = pages.labels_and_formats(spec, self.source)
+        hosts = self.hosts
+        return self.checker.check(
+            spec,
+            html,
+            results,
+            labels,
+            formats,
+            lambda origin: (pages.frame_html(html, origin), pages.frame_csp(origin, hosts)),
+            frozenset(hosts.script) | frozenset(hosts.style) | frozenset(hosts.font),
         )
 
     def publish(self, spec: Any, html: str) -> tuple[Report, Published | None]:

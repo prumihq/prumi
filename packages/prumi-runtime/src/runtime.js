@@ -32,12 +32,23 @@
     window.parent.postMessage(message, "*");
   }
 
+  // Reported like an uncaught error, so it shows in the console and in Prumi's page check;
+  // taken now, before the page's own scripts could replace it.
+  var reportError =
+    typeof window.reportError === "function"
+      ? window.reportError.bind(window)
+      : function (error) {
+          setTimeout(function () {
+            throw error;
+          });
+        };
+
   function call(callbacks, value) {
     (callbacks || []).forEach(function (callback) {
       try {
         callback(value);
       } catch (error) {
-        console.error(error);
+        reportError(error);
       }
     });
   }

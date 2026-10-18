@@ -10,7 +10,7 @@ from typing import Any
 from prumi.adapters import METRIC_TIME
 from prumi.registry import Registry, Version, VersionStatus
 from prumi.source import Source
-from prumi.spec import DimensionFilter
+from prumi.spec import DashboardSpec, DimensionFilter
 from prumi.validate import AllowedHosts
 
 
@@ -88,9 +88,10 @@ def badge(status: VersionStatus) -> tuple[str, str]:
     return "draft", "Draft · not certified"
 
 
-def shell_config(version: Version, source: Source) -> dict[str, Any]:
-    """What shell.js needs: the API path, filters, blocks, interactions, labels, formats."""
-    spec = version.spec
+def labels_and_formats(
+    spec: DashboardSpec, source: Source
+) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
+    """What prumi.label and prumi.format know: the spec's metrics and dimensions."""
     metrics = sorted({m for block in spec.data for m in block.metrics})
     dimensions = {d for block in spec.data for d in block.dimensions}
     dimensions |= {f.dimension for f in spec.filters if isinstance(f, DimensionFilter)}
@@ -105,6 +106,13 @@ def shell_config(version: Version, source: Source) -> dict[str, Any]:
     for name in sorted(dimensions | {METRIC_TIME}):
         dimension = source.dimension(name)
         labels[name] = dimension.label if dimension else name
+    return labels, formats
+
+
+def shell_config(version: Version, source: Source) -> dict[str, Any]:
+    """What shell.js needs: the API path, filters, blocks, interactions, labels, formats."""
+    spec = version.spec
+    labels, formats = labels_and_formats(spec, source)
     return {
         "dashboard": spec.dashboard.id,
         "version": version.version,

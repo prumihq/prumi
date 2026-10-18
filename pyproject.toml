@@ -24,7 +24,6 @@ dev = [
     "prumi-core",
     "prumi-adapter-dbt[duckdb]",
     "httpx2",
-    "playwright",
     "pytest>=8",
     "ruff>=0.6",
 ]
