@@ -78,3 +78,12 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 55. Hover pass in the server check, with the unbound-tooltip fixture (AC 58). Do it after task 50
 - [x] 54. Guide and `docs/bi-rules.md`: bindings for every number, tooltips inside bound elements, no images, iframes or closed shadow roots, the new codes
 
+## Polish from the third run (spec section 19.14; added 2026-10-18)
+
+- [ ] 56. Add the third-run dashboard as a must-pass fixture (AC 64)
+- [ ] 57. Candidates for failed validations, `publish.invalid_candidate`, plain dashboard id as `base`, `validate.invalid_base` (AC 59)
+- [ ] 58. Line, column and stack for `html.runtime_error` (AC 60)
+- [ ] 59. Evenly spaced ticks at any precision in SVG and axis-marked elements (AC 61)
+- [ ] 60. `check_states` in `validate_spec` and publish (AC 62)
+- [ ] 61. Guide additions (AC 63)
+

@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18 and 19 on 2026-10-18)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; 18 and 19.1–19.13 accepted 2026-10-18; 19.14 awaits acceptance)
 
 ## Goal
 
@@ -772,6 +772,37 @@ This replaces 19.1b's "nothing is shown to viewers": publishing can't catch what
 - an image with numbers in it;
 - an evenly spaced fake series outside SVG.
 
+#### 19.14 Polish from the third run (added 2026-10-18; status: draft)
+
+The third agent run (2026-10-18) followed the rules from the guide and never triggered a number-check code. These five changes come from what it ran into.
+
+**1. Failed validations return an id too.**
+- `validate_spec` returns a `candidate_id` for every call that has a spec and HTML, valid or not, with `ok` saying which.
+- Any candidate can be the `base` of an edit, so a page that failed can be fixed with `html_edits` instead of being resent.
+- Only a valid candidate can be published; publishing an invalid one gives `publish.invalid_candidate` (error).
+- `base` also accepts a plain dashboard id, meaning its current version.
+- A `base` of any other shape gives `validate.invalid_base`, with the message "base must be a candidate_id from validate_spec, a dashboard id, or {dashboard_id, version}".
+
+**2. Runtime errors say where.** `html.runtime_error` gives the line and column in the submitted HTML, and up to 5 lines of the stack, for errors thrown by the page's inline scripts.
+
+**3. Axis ticks at any precision.**
+- Inside `<svg>` or an element marked `data-prumi-role="axis"`, 3 or more **evenly spaced** numbers count as ticks whatever their precision: `$280, $286, $292` is a valid AOV axis.
+- The "at most 2 significant digits" limit stays only for single tick-like numbers in axis-marked elements.
+- Outside SVG and axis-marked elements, nothing counts as a tick (19.13 rule 4).
+
+**4. Check more filter states before publishing.**
+- `validate_spec` accepts `check_states`: up to 5 filter states (`{"filters": {"<filter id>": <value>}}`).
+- Each one is rendered and checked like the default state, and its issues name the state.
+- The states are stored with the candidate, and publishing re-checks them.
+
+**5. Guide additions:**
+- the exact text patterns that aren't data: dates, years, period counts such as "Last 26 weeks", numbers from the spec or result metadata, ticks;
+- ordering or sorting by a value computed in JavaScript is layout and is allowed, as long as the computed value isn't shown;
+- `total` and `others` carry no comparison values in this release;
+- `check_states`, and editing a failed candidate.
+
+**Fixture:** the third-run dashboard (`~/test3/region-revenue-aov-weekly.html` and `.spec.json`) is added as the real must-pass fixture decided in question 3.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -892,3 +923,9 @@ Each criterion has at least one automated test unless it says otherwise.
 56. Evenly spaced round numbers count as ticks inside `<svg>` without the marker, and are flagged outside it.
 57. *(browser test)* A published version whose browser report flags a number shows the bar to that viewer and is marked `needs_attention` in `list_dashboards` and `get_dashboard`, until a clean report or a new version.
 58. A fixture page whose tooltip shows block values in an unbound element appended to `<body>` gives `R8.unbound_number` from the server check's hover pass; the same page with the tooltip bound passes; the hover pass adds at most about 1 s.
+59. A validation with errors returns a `candidate_id`; editing it with `html_edits` gives a new candidate; publishing an invalid candidate gives `publish.invalid_candidate`; a plain dashboard id works as `base`; any other shape gives `validate.invalid_base`.
+60. A page that throws in an inline script gets `html.runtime_error` with the line and column in the submitted HTML.
+61. Evenly spaced 3-digit ticks (`$280, $286, $292`) pass inside `<svg>` and inside an axis-marked element, and are flagged in plain HTML.
+62. `check_states` renders and checks each state; an issue that appears only in one state names it; publishing re-checks the stored states.
+63. The guide contains the 19.14 additions.
+64. The third-run dashboard passes as a must-pass fixture.
