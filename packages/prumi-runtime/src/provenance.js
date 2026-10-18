@@ -373,8 +373,49 @@
     });
   }
 
+  // Numbers in a page's source that equal a delivered value: copied into the page instead of
+  // coming through prumi.on, so they go stale. Honest pages render data numbers from
+  // callbacks, so their source holds none. Text needs 3+ significant digits and script
+  // literals 4+, so round layout constants (1200) don't count; attributes (SVG coordinates)
+  // aren't read. Returns [{text, line}], at most `limit`.
+  var COPIED_IN_TEXT = 3;
+  var COPIED_IN_SCRIPT = 4;
+
+  function copied(source, values, limit) {
+    limit = limit || 20;
+    var sorted = sortedValues(values);
+    var doc = new DOMParser().parseFromString(source, "text/html"); // runs no scripts
+    var found = [];
+    var seen = {};
+    function read(text, minimum) {
+      numbers(text).forEach(function (number) {
+        var match = readings(number.raw).some(function (r) {
+          if (significant(r.digits) < minimum) return false;
+          var year = r.decimals === 0 && r.value >= 1900 && r.value <= 2199 && r.digits === number.raw;
+          return !(number.scale === 1 && year) && delivered(r, number.scale, sorted);
+        });
+        if (!match) return;
+        var symbol = number.before.match(/[$€£¥₹₩₽¢]\s*$/);
+        var text = (symbol ? symbol[0].trim() : "") + number.text.trim();
+        if (seen[text] || found.length >= limit) return;
+        seen[text] = true;
+        var at = source.indexOf(number.text.trim());
+        found.push({ text: text, line: at < 0 ? null : source.slice(0, at).split("\n").length });
+      });
+    }
+    var walker = doc.createTreeWalker(doc.documentElement, 4 /* SHOW_TEXT */);
+    for (var node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.parentElement && !skipped(node.parentElement)) read(node.data, COPIED_IN_TEXT);
+    }
+    Array.prototype.forEach.call(doc.querySelectorAll("script"), function (script) {
+      read(script.textContent, COPIED_IN_SCRIPT);
+    });
+    return found;
+  }
+
   root.prumiProvenance = Object.freeze({
     scan: scan,
+    copied: copied,
     fromResults: fromResults,
     fromData: fromData,
     numbers: numbers,

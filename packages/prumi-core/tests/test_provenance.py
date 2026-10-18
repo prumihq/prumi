@@ -27,7 +27,6 @@ NUMBER = re.compile(r"(?:The page shows|The page's source has) (.+?) \((?:in|on)
 FLAGGED = {"html.image", "html.iframe", "html.closed_shadow_root", "html.canvas"}
 # Must-fail pages for checks that don't exist yet.
 NOT_CHECKED_YET = {
-    "copied_today": "numbers copied into the source aren't checked yet",
     "coincident_average": "numbers aren't matched against their binding's blocks yet",
     "image_numbers": "images aren't refused yet",
     "spaced_series_outside_svg": "unmarked ticks are still allowed outside <svg>",
@@ -223,3 +222,31 @@ def test_numbers_are_read_in_either_locale(demo_services, text, readings):
             page.close()
 
     assert demo_services.checker._submit(evaluate) == pytest.approx(readings)
+
+
+# Numbers copied into the source
+
+
+@pytest.mark.parametrize(
+    ("body", "script", "copied"),
+    [
+        # The 12-week revenue typed into the text, at any precision with 3+ digits.
+        ("<p>Revenue was $2,742,409.35</p>", "", ["$2,742,409.35"]),
+        ("<p>about $2,742K</p>", "", ["$2,742K"]),
+        # In a script literal, with 4+ digits.
+        ("", "const total = 2742409.35;", ["2742409.35"]),
+        ("", 'const label = "$2,742,409";', ["$2,742,409"]),
+        # Round layout constants, attributes and round text don't count.
+        ("", "const width = 1200; const height = 2742;", []),
+        ('<svg width="2742409"><rect x="2742409" /></svg>', "", []),
+        ("<p>$2.7M</p>", "", []),
+    ],
+)
+def test_copied_numbers(demo_services, body, script, copied):
+    page = kpi_page(SHOW_REVENUE + script, '<p id="revenue"></p>' + body)
+    report = demo_services.validate(KPI_SPEC, page)
+    found = [NUMBER.match(i.message)[1] for i in report.issues if i.code == "R8.copied_number"]
+    assert found == copied, report.issues
+    if copied:
+        [issue] = [i for i in report.errors if i.code == "R8.copied_number"]
+        assert issue.severity == "error" and re.search(r"\(on line \d+\)", issue.message)

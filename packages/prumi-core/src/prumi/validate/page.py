@@ -83,7 +83,9 @@ _SCAN = """(() => {
   const setup = %s;
   const delivered = p.fromResults(setup.results);
   const allowed = p.fromData([setup.spec, setup.labels], delivered.allowed);
-  return p.scan(document, { values: delivered.values, allowed }, %d);
+  const found = p.scan(document, { values: delivered.values, allowed }, %d);
+  found.copied = p.copied(%s, delivered.values, %d);
+  return found;
 })()"""
 
 _CSP_URL = re.compile(r"'((?:https?|wss?)://[^']+)'")
@@ -190,10 +192,10 @@ class PageChecker:
             "spec": spec.model_dump(mode="json", by_alias=True),
         }
         return self._submit(
-            lambda browser: self._check(browser, frame_html, csp, setup, allowed_hosts)
+            lambda browser: self._check(browser, frame_html, csp, setup, allowed_hosts, html)
         )
 
-    def _check(self, browser, frame_html, csp, setup, allowed_hosts) -> list[Issue]:
+    def _check(self, browser, frame_html, csp, setup, allowed_hosts, source_html) -> list[Issue]:
         from prumi.server.assets import read_asset  # prumi.server imports the validator
 
         setup_json = json.dumps(setup, ensure_ascii=False).replace("<", "\\u003c")
@@ -278,7 +280,8 @@ class PageChecker:
                 )
             )
             evaluate(provenance)
-            scan = evaluate(_SCAN % (setup_json, MAX_LISTED))
+            source = json.dumps(source_html).replace("<", "\\u003c")
+            scan = evaluate(_SCAN % (setup_json, MAX_LISTED, source, MAX_LISTED))
         finally:
             context.close()
         return _issues(scan, errors, blocked, settled, self.timeout_s)
@@ -332,6 +335,17 @@ def _issues(
                 "The page uses <canvas>. Text drawn into a canvas can't be read, so its numbers "
                 "can't be checked.",
                 "Draw charts with SVG or HTML elements instead.",
+            )
+        )
+    for item in scan.get("copied", []):
+        line = f"on line {item['line']}" if item.get("line") else "on a line"
+        issues.append(
+            error(
+                "R8.copied_number",
+                "html",
+                f"The page's source has {item['text']} ({line}), a value Prumi delivered: it "
+                "was copied into the page, so it won't follow the data.",
+                "Remove it, and show the value from the block's result in prumi.on(...).",
             )
         )
     for item in scan.get("flagged", []):

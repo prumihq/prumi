@@ -70,7 +70,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 ## Tightening after the proof (spec section 19.13; added 2026-10-18)
 
 - [x] 48. Fixtures first: bindings in the first-run fixture's spec, and the four new must-fail pages (AC 52)
-- [ ] 49. `R8.copied_number`: the source scan at the server check (AC 53)
+- [x] 49. `R8.copied_number`: the source scan at the server check (AC 53)
 - [ ] 50. Bindings decide what a number may match, lists of blocks per binding, `R8.unbound_number`, in both checks (AC 54)
 - [ ] 51. `html.iframe`, `html.closed_shadow_root`, `html.image` and `img-src 'none'` (AC 55)
 - [ ] 52. Unmarked ticks only inside `<svg>` (AC 56)

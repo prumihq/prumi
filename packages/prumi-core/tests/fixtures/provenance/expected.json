@@ -5,6 +5,7 @@
   "axis_ticks": [],
   "dates_and_periods": [],
   "probe": [
+    ["R8.copied_number", "$2,742,409"],
     ["R8.unverified_number", "$228,534.11"],
     ["R8.unverified_number", "$25,951.3"],
     ["R8.unverified_number", "$30,521.91"],
