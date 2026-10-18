@@ -1,0 +1,94 @@
+{
+  "spec_version": 0,
+  "dashboard": {
+    "id": "region-revenue-aov-weekly",
+    "title": "Weekly revenue & average order value by region"
+  },
+  "filters": [
+    {
+      "id": "period",
+      "type": "time",
+      "calendar": "standard",
+      "default": { "last": 12, "grain": "week", "include_current": false }
+    },
+    {
+      "id": "region",
+      "type": "dimension",
+      "dimension": "customer__region",
+      "default": []
+    }
+  ],
+  "data": [
+    {
+      "id": "kpi",
+      "title": "Headline figures",
+      "metrics": ["revenue", "average_order_value"],
+      "dimensions": [],
+      "filters": ["period", "region"],
+      "time_grain": null,
+      "window": null,
+      "compare": "previous_period",
+      "sort": null,
+      "top_n": null,
+      "others": false,
+      "total": false
+    },
+    {
+      "id": "trend",
+      "title": "Weekly trend",
+      "metrics": ["revenue", "average_order_value"],
+      "dimensions": [],
+      "filters": ["period", "region"],
+      "time_grain": "week",
+      "window": null,
+      "compare": null,
+      "sort": { "by": "metric_time", "descending": false },
+      "top_n": null,
+      "others": false,
+      "total": false
+    },
+    {
+      "id": "regions",
+      "title": "By region",
+      "metrics": ["revenue", "average_order_value"],
+      "dimensions": ["customer__region"],
+      "filters": ["period"],
+      "time_grain": null,
+      "window": null,
+      "compare": "previous_period",
+      "sort": { "by": "revenue", "descending": true },
+      "top_n": null,
+      "others": false,
+      "total": true
+    },
+    {
+      "id": "region_weeks",
+      "title": "Week by week, per region",
+      "metrics": ["revenue", "average_order_value"],
+      "dimensions": ["customer__region"],
+      "filters": ["period"],
+      "time_grain": "week",
+      "window": null,
+      "compare": null,
+      "sort": { "by": "metric_time", "descending": false },
+      "top_n": null,
+      "others": false,
+      "total": false
+    }
+  ],
+  "interactions": [
+    { "from": "regions", "on": "click", "sets_filter": "region" },
+    { "from": "region_weeks", "on": "click", "sets_filter": "region" }
+  ],
+  "metric_requests": [],
+  "presentation": {
+    "bindings": {
+      "#kpis": "kpi",
+      "#trend-rev": "trend",
+      "#trend-aov": "trend",
+      "#regions": "regions",
+      "#heat": "region_weeks",
+      "#tip": ["trend", "region_weeks"]
+    }
+  }
+}

@@ -80,7 +80,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 ## Polish from the third run (spec section 19.14; added 2026-10-18)
 
-- [ ] 56. Add the third-run dashboard as a must-pass fixture (AC 64)
+- [x] 56. Add the third-run dashboard as a must-pass fixture (AC 64)
 - [ ] 57. Candidates for failed validations, `publish.invalid_candidate`, plain dashboard id as `base`, `validate.invalid_base` (AC 59)
 - [ ] 58. Line, column and stack for `html.runtime_error` (AC 60)
 - [ ] 59. Evenly spaced ticks at any precision in SVG and axis-marked elements (AC 61)
