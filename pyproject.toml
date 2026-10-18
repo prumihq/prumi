@@ -37,3 +37,6 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["packages", "examples/demo-dbt-project/tests"]
 addopts = "--import-mode=importlib"
+markers = [
+    "demo: needs the built demo dbt project (added to every test that uses `demo_project`)",
+]
