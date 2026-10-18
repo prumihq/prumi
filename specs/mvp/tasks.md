@@ -56,7 +56,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 35. Server check: Chromium lifecycle, rendering the candidate with dry-run results, isolated-world scan, the five codes, publish refusal; Chromium as a dependency with the startup check (AC 38, 39, 40, 49)
 - [x] 36. Browser check: the runtime's matching after render, reports to the shell, the check endpoint and registry table (AC 41)
 - [x] 37. Certification refuses on server-check errors and on flagged browser reports (AC 41)
-- [ ] 38. `prumi.format(value, metric, options)` (AC 42)
+- [x] 38. `prumi.format(value, metric, options)` (AC 42)
 - [ ] 39. Visible errors in bound elements (AC 43)
 - [ ] 40. `html.network_call` and `html.blocked_request` (AC 44)
 - [ ] 41. `list_dashboards`, `get_dashboard`, `can_read`/`can_edit` and `dashboard.forbidden` (AC 45)

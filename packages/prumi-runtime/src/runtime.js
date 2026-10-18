@@ -238,50 +238,58 @@
     })();
   }
 
-  var FORMAT_TYPES = ["number", "integer", "percent", "currency"];
   var warned = {};
 
-  // A metric name, or a column's format object ({type, unit, decimals}). Anything else is
-  // formatted as a plain number, with one console warning per argument so the mistake shows.
+  // The metric's format: type and unit always come from its definition (R10). Anything other
+  // than a known metric name (a format object, a typo, nothing) is formatted as a plain
+  // number, with one console warning per argument so the mistake shows.
   function resolveFormat(metric) {
     if (typeof metric === "string" && Object.prototype.hasOwnProperty.call(formats, metric)) {
       return formats[metric];
-    }
-    if (metric && typeof metric === "object" && FORMAT_TYPES.indexOf(metric.type) >= 0) {
-      return metric;
     }
     var key = typeof metric === "string" ? "name:" + metric : String(JSON.stringify(metric));
     if (!warned[key]) {
       warned[key] = true;
       console.warn(
         "prumi.format: unknown metric " + key.replace(/^name:/, "") +
-          "; formatting as a plain number. Pass a metric name or a column's format object."
+          "; formatting as a plain number. Pass a metric name: its type and unit come from " +
+          "the metric definition."
       );
     }
     return { type: "number" };
   }
 
-  function format(value, metric) {
+  // options only change the presentation: {decimals: n} and {compact: true} ($80K, 2.7M).
+  function format(value, metric, options) {
     var f = resolveFormat(metric);
     if (value === null || value === undefined) return "–";
     if (typeof value !== "number") return String(value);
-    var decimals = f.decimals === null || f.decimals === undefined ? undefined : f.decimals;
-    var options;
+    options = options && typeof options === "object" ? options : {};
+    var compact = options.compact === true;
+    var decimals = typeof options.decimals === "number" ? options.decimals : undefined;
+    if (decimals === undefined && !compact && f.decimals !== null && f.decimals !== undefined) {
+      decimals = f.decimals;
+    }
+    var intl;
     if (f.type === "integer") {
-      options = { maximumFractionDigits: 0 };
+      intl = { maximumFractionDigits: decimals === undefined ? 0 : decimals };
     } else if (f.type === "currency") {
-      options = { style: "currency", currency: f.unit };
+      intl = { style: "currency", currency: f.unit };
       if (decimals !== undefined) {
-        options.minimumFractionDigits = decimals;
-        options.maximumFractionDigits = decimals;
+        intl.minimumFractionDigits = decimals;
+        intl.maximumFractionDigits = decimals;
       }
     } else if (f.type === "percent") {
-      options = { style: "percent", maximumFractionDigits: decimals === undefined ? 1 : decimals };
+      intl = { style: "percent", maximumFractionDigits: decimals === undefined ? 1 : decimals };
     } else {
-      options = { maximumFractionDigits: decimals === undefined ? 2 : decimals };
+      intl = { maximumFractionDigits: decimals === undefined ? 2 : decimals };
+    }
+    if (compact) {
+      intl.notation = "compact";
+      if (decimals === undefined) delete intl.maximumFractionDigits;
     }
     try {
-      return new Intl.NumberFormat(undefined, options).format(value);
+      return new Intl.NumberFormat(undefined, intl).format(value);
     } catch (error) {
       return String(value);
     }

@@ -252,39 +252,40 @@ def test_format_renders_each_format_type(page, server):
     }
 
 
-def test_format_takes_a_metric_name_or_a_format_object(page, server):
-    """AC 35: both forms give the same string; anything else warns once in the console."""
+def test_format_takes_a_metric_name_and_presentation_options(page, server):
+    """The unit always comes from the metric; anything but a metric name warns once."""
     warnings = []
     page.on("console", lambda m: m.type == "warning" and warnings.append(m.text))
     _, frame = open_dashboard(page, server)
     wait_for_calls(frame, "formats")
     formatted = frame.evaluate(
-        """() => {
-            const column = window.__results.formats.columns.find((c) => c.name === "revenue");
-            return {
-                byName: prumi.format(1234.5, "revenue"),
-                byObject: prumi.format(1234.5, column.format),
-                percent: prumi.format(0.25, {type: "percent", unit: null, decimals: 0}),
-                nope: prumi.format(1, "nope"),
-                nopeAgain: prumi.format(2, "nope"),
-                missing: prumi.format(3),
-                badObject: prumi.format(4, {type: "money"}),
-            };
-        }"""
+        """() => ({
+            byName: prumi.format(1234.5, "revenue"),
+            compact: prumi.format(2742409.35, "revenue", {compact: true}),
+            compactSmall: prumi.format(80250, "revenue", {compact: true}),
+            decimals: prumi.format(1234.5, "revenue", {decimals: 0}),
+            percent: prumi.format(0.2512, "gross_margin_pct", {decimals: 0}),
+            ownUnit: prumi.format(1234.5, {type: "currency", unit: "EUR"}),
+            ownUnitAgain: prumi.format(99, {type: "currency", unit: "EUR"}),
+            nope: prumi.format(1, "nope"),
+            missing: prumi.format(3),
+        })"""
     )
     assert formatted == {
         "byName": "$1,234.50",
-        "byObject": "$1,234.50",
+        "compact": "$2.7M",
+        "compactSmall": "$80K",
+        "decimals": "$1,235",
         "percent": "25%",
+        "ownUnit": "1,234.5",
+        "ownUnitAgain": "99",
         "nope": "1",
-        "nopeAgain": "2",
         "missing": "3",
-        "badObject": "4",
     }
     page.wait_for_timeout(100)
     unknown = [w for w in warnings if w.startswith("prumi.format: unknown metric")]
-    assert len(unknown) == 3  # "nope" once, the missing argument once, the bad object once
-    assert unknown[0].startswith("prumi.format: unknown metric nope;")
+    assert len(unknown) == 3  # the format object once, "nope" once, the missing argument once
+    assert unknown[0].startswith('prumi.format: unknown metric {"type":"currency","unit":"EUR"};')
 
 
 def test_a_bad_filter_value_reaches_on_error(page, server):

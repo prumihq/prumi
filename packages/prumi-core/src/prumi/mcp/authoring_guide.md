@@ -57,7 +57,7 @@ Your HTML runs in a sandboxed frame. It **can't** call any server (no `fetch`, n
 | `prumi.onFilters(callback)` | Calls `callback(filters)` with all current values (`{filterId: value}`) on load and on every change. | nothing |
 | `prumi.filterValues(filterId)` | The distinct values of a dimension filter, for building a picker. | `Promise<values[]>` |
 | `prumi.click(blockId, row)` | Applies the interactions declared `from` that block, using `row` (an item of `result.rows`). | nothing |
-| `prumi.format(value, metric)` | Formats a value for display. `metric` is a metric name (`"revenue"`) or a column's `format` object (`column.format`). `null` gives `"–"`. Anything else formats as a plain number and warns in the browser console. | string |
+| `prumi.format(value, metric, options?)` | Formats a value for display. `metric` is a metric name (`"revenue"`): the type and unit always come from the metric's definition. `options` only change the presentation: `{decimals: 0}`, `{compact: true}` (`$80K`, `$2.7M`). `null` gives `"–"`. Anything other than a metric name (a format object, a typo) formats as a plain number and warns in the browser console. | string |
 | `prumi.label(name)` | A metric's or dimension's label from the catalog (`"customer__region"` → `"Region"`). | string |
 
 ### The result object
@@ -87,7 +87,7 @@ What `prumi.on` callbacks receive:
 - Blocks with `compare` add `_previous`, `_delta` and `_delta_pct` to each row, each an object keyed by metric (`row._delta_pct.revenue` is a fraction: 0.12 is +12%; `null` when there's nothing to compare with).
 - `others` (with `top_n` and `others`) and `total` (with `total`) are objects keyed by metric, or `null` when not asked for or when every group is already in the top N.
 - An empty result has `rows: []`, for example a month to date on its first day. Draw an empty state.
-- Format `metric` columns with `prumi.format(value, column.format)` or `prumi.format(value, "<metric>")`. Percent formats expect fractions (0.25 shows as 25%).
+- Format metric values (and `_previous`, `_delta`, `total`, `others`) with `prumi.format(value, "<metric>")`. Percent metrics are fractions (0.25 shows as 25%). `_delta_pct` is a fraction too, whatever the metric's unit: show it as a percent with `new Intl.NumberFormat(undefined, {style: "percent", maximumFractionDigits: 1}).format(value)`.
 
 ## Example
 
@@ -143,19 +143,21 @@ Replace `revenue` and `customer__region` with metrics and dimensions from `find_
   <p id="others"></p>
   <ol id="trend"></ol>
   <script>
+    // _delta_pct is a fraction whatever the metric's unit, so it's shown as a percent.
+    const pct = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 1 });
+
     prumi.on("kpi", (result) => {
       const row = result.rows[0];
       document.getElementById("revenue").textContent = row ? prumi.format(row.revenue, "revenue") : "–";
       const change = row && row._delta_pct.revenue;
       document.getElementById("change").textContent =
-        change == null ? "" : `${prumi.format(change, {type: "percent", unit: null, decimals: 1})} vs last year`;
+        change == null ? "" : `${pct.format(change)} vs last year`;
     });
 
     prumi.on("regions", (result) => {
-      const revenue = result.columns.find((c) => c.name === "revenue");
       document.getElementById("regions").replaceChildren(...result.rows.map((row) => {
         const button = document.createElement("button");
-        button.textContent = `${row.customer__region ?? "(none)"}: ${prumi.format(row.revenue, revenue.format)}`;
+        button.textContent = `${row.customer__region ?? "(none)"}: ${prumi.format(row.revenue, "revenue")}`;
         button.onclick = () => prumi.click("regions", row);
         return button;
       }));
