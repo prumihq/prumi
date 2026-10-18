@@ -146,6 +146,11 @@ The static checks still run first, and the frame can't make network calls, so pa
 
 **What the check can't see: visual encoding.** It reads the numbers a page shows, not the shapes it draws. A bar whose height was computed from the wrong value, a line plotted against the wrong axis, or a color scale that misleads all pass. Whether the picture matches the numbers is what a reviewer still has to judge before certifying.
 
+**Other limits, by design:**
+- A made-up number that completes a run of three evenly spaced values in a chart passes as an axis tick: next to ticks at `$200` and `$250`, a typed `$300` looks like the next one.
+- A low-precision number can still equal some value of its own block by chance at the precision shown; binding numbers to their blocks narrows this, it doesn't remove it.
+- A value typed into the page in pieces the source scan can't recognize (`"2,742," + "409"` in a script) is right at publish, so it passes then; once the data changes, viewers' browsers flag it.
+
 ## R9. Queries run as the viewer
 
 **Catches:** a viewer seeing rows they're not allowed to see.
