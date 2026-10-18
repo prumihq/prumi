@@ -389,3 +389,51 @@ def test_the_hover_pass_adds_about_a_second_at_most(demo_services, monkeypatch):
     monkeypatch.setattr(demo_services.checker, "hover_samples", 0)
     without = min(timed() for _ in range(2))
     assert with_hover - without < 1.5
+
+
+# Where a runtime error happened
+
+THROWS = """<!doctype html>
+<html><head><title>x</title></head>
+<body><div id="page"><p id="revenue"></p></div>
+<script>
+  function draw() {
+    document.getElementById("missing").textContent = "x";
+  }
+  draw();
+</script></body></html>"""
+
+
+def runtime_error(demo_services, html):
+    [issue] = [i for i in demo_services.validate(KPI_SPEC, html).errors]
+    assert issue.code == "html.runtime_error"
+    return issue.message
+
+
+def test_a_runtime_error_gives_its_line_and_column_in_the_html(demo_services):
+    message = runtime_error(demo_services, THROWS)
+    column = THROWS.splitlines()[5].index(" = ") + 2  # V8 points at the failing assignment
+    first, *stack = message.splitlines()
+    assert first == (
+        f"The page threw an error while rendering, at line 6, column {column} of the HTML: "
+        "Cannot set properties of null (setting 'textContent')"
+    )
+    assert stack == [f"  at draw (page:6:{column})", "  at page:8:3"]
+
+
+def test_columns_on_the_head_line_ignore_what_prumi_inserts(demo_services):
+    html = (
+        '<!doctype html><html><head><script>document.getElementById("x").textContent = 1;'
+        '</script></head><body><div id="page"></div></body></html>'
+    )
+    column = html.index(" = ") + 2
+    assert f"at line 1, column {column} of the HTML" in runtime_error(demo_services, html)
+
+
+def test_an_error_in_a_callback_names_the_callback(demo_services):
+    page = kpi_page('prumi.on("kpi", (b) => {\n  b.rows[0].nothing.value;\n});')
+    message = runtime_error(demo_services, page)
+    assert ", at line 2, column " in message.splitlines()[0]
+    stack = message.splitlines()[1:]
+    assert 1 <= len(stack) <= 5 and stack[0].startswith("  at ") and "page:2:" in stack[0]
+    assert any("runtime.js:" in line for line in stack)  # Prumi's own frames, by file name

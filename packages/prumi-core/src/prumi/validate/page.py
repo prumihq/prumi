@@ -232,6 +232,7 @@ class PageChecker:
         provenance = read_asset("provenance.js").decode("utf-8")
         errors: list[str] = []
         blocked: list[str] = []
+        locate = _locator(source_html, frame_html)
 
         def route(r) -> None:
             url = r.request.url
@@ -267,7 +268,7 @@ class PageChecker:
         try:
             context.route("**/*", route)
             page = context.new_page()
-            page.on("pageerror", lambda exc: errors.append(str(exc) or type(exc).__name__))
+            page.on("pageerror", lambda exc: errors.append(_describe_error(exc, locate)))
             page.on("console", on_console)
             page.goto(f"{ORIGIN}/", wait_until="load", timeout=self.timeout_s * 1000)
             frame = page.frame(url=f"{ORIGIN}/frame")
@@ -384,6 +385,59 @@ def _frame_document(cdp) -> dict | None:
     return None
 
 
+_STACK_PLACE = re.compile(r"(https?://[^\s()]+):(\d+):(\d+)")
+MAX_STACK_LINES = 5
+
+
+def _locator(source: str, frame: str) -> Callable[[int, int], tuple[int, int]]:
+    """Maps a line and column in the frame document to the submitted HTML.
+
+    Prumi's tags are inserted on one line (the <head> line), so only columns after them on
+    that line move.
+    """
+    start = frame.find(f'<link rel="stylesheet" href="{ORIGIN}/theme.css">')
+    shift = len(frame) - len(source)
+    if start < 0 or shift <= 0:
+        return lambda line, column: (line, column)
+    line_at = frame.count("\n", 0, start) + 1
+    column_at = start - (frame.rfind("\n", 0, start) + 1) + 1
+
+    def locate(line: int, column: int) -> tuple[int, int]:
+        if line == line_at and column > column_at:
+            return line, max(column_at, column - shift)
+        return line, column
+
+    return locate
+
+
+def _describe_error(exc: Any, locate: Callable[[int, int], tuple[int, int]]) -> str:
+    """ ", at line L, column C of the HTML: <message>", then up to 5 lines of the stack, with
+    positions in the submitted HTML ("page") and Prumi's own files by name."""
+    message = getattr(exc, "message", None) or str(exc) or type(exc).__name__
+    place = ""
+    stack = []
+    for raw in (getattr(exc, "stack", None) or "").splitlines()[1:]:
+        line = raw.strip()
+        if not line.startswith("at "):
+            continue
+
+        def rewrite(match: re.Match) -> str:
+            nonlocal place
+            url, row, column = match[1], int(match[2]), int(match[3])
+            if url == f"{ORIGIN}/frame":
+                row, column = locate(row, column)
+                if not place:
+                    place = f", at line {row}, column {column} of the HTML"
+                return f"page:{row}:{column}"
+            return f"{url.rsplit('/', 1)[-1]}:{row}:{column}"
+
+        stack.append(_STACK_PLACE.sub(rewrite, line))
+    text = f"{place}: {message}"
+    if stack:
+        text += "\n" + "\n".join(f"  {s}" for s in stack[:MAX_STACK_LINES])
+    return text
+
+
 def _has_closed_shadow_root(cdp) -> bool:
     """Closed shadow roots are invisible to page and isolated-world JavaScript alike; the
     DevTools protocol still sees them."""
@@ -436,7 +490,7 @@ def _issues(
             error(
                 "html.runtime_error",
                 "html",
-                f"The page threw an error while rendering: {message}",
+                f"The page threw an error while rendering{message}",
                 "Fix the script; check every field you read from a result exists, and every "
                 "element you write to.",
             )
