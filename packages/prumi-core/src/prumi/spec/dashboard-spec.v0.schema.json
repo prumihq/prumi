@@ -1,0 +1,495 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Prumi dashboard spec, format version 0",
+  "$defs": {
+    "Block": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "metrics": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Metrics",
+          "type": "array"
+        },
+        "dimensions": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 3,
+          "title": "Dimensions",
+          "type": "array"
+        },
+        "time_grain": {
+          "anyOf": [
+            {
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "quarter",
+                "year"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time Grain"
+        },
+        "filters": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Filters",
+          "type": "array"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/LastWindow"
+                },
+                {
+                  "$ref": "#/$defs/ToDateWindow"
+                },
+                {
+                  "$ref": "#/$defs/RangeWindow"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window"
+        },
+        "compare": {
+          "anyOf": [
+            {
+              "enum": [
+                "previous_period",
+                "previous_year"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Compare"
+        },
+        "sort": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sort"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "top_n": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Top N"
+        },
+        "others": {
+          "default": false,
+          "title": "Others",
+          "type": "boolean"
+        },
+        "total": {
+          "default": false,
+          "title": "Total",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "metrics",
+        "filters"
+      ],
+      "title": "Block",
+      "type": "object"
+    },
+    "DashboardInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "DashboardInfo",
+      "type": "object"
+    },
+    "DimensionFilter": {
+      "additionalProperties": false,
+      "description": "An `in` filter on one dimension. `[]` means no filter; `null` matches NULL.",
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "dimension",
+          "title": "Type",
+          "type": "string"
+        },
+        "dimension": {
+          "title": "Dimension",
+          "type": "string"
+        },
+        "default": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": [],
+          "title": "Default"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "dimension"
+      ],
+      "title": "DimensionFilter",
+      "type": "object"
+    },
+    "Interaction": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "on": {
+          "const": "click",
+          "title": "On",
+          "type": "string"
+        },
+        "sets_filter": {
+          "title": "Sets Filter",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "on",
+        "sets_filter"
+      ],
+      "title": "Interaction",
+      "type": "object"
+    },
+    "LastWindow": {
+      "additionalProperties": false,
+      "description": "The N complete periods of `grain` before the current one (plus it, if asked).",
+      "properties": {
+        "last": {
+          "maximum": 400,
+          "minimum": 1,
+          "title": "Last",
+          "type": "integer"
+        },
+        "grain": {
+          "enum": [
+            "day",
+            "week",
+            "month",
+            "quarter",
+            "year"
+          ],
+          "title": "Grain",
+          "type": "string"
+        },
+        "include_current": {
+          "default": false,
+          "title": "Include Current",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "last",
+        "grain"
+      ],
+      "title": "LastWindow",
+      "type": "object"
+    },
+    "Presentation": {
+      "additionalProperties": false,
+      "properties": {
+        "bindings": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "title": "Bindings",
+          "type": "object"
+        }
+      },
+      "title": "Presentation",
+      "type": "object"
+    },
+    "RangeWindow": {
+      "additionalProperties": false,
+      "description": "Inclusive dates, snapped inward to whole periods of `grain`.",
+      "properties": {
+        "start": {
+          "format": "date",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date",
+          "title": "End",
+          "type": "string"
+        },
+        "grain": {
+          "anyOf": [
+            {
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "quarter",
+                "year"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grain"
+        },
+        "include_current": {
+          "default": false,
+          "title": "Include Current",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "RangeWindow",
+      "type": "object"
+    },
+    "Sort": {
+      "additionalProperties": false,
+      "properties": {
+        "by": {
+          "title": "By",
+          "type": "string"
+        },
+        "descending": {
+          "default": false,
+          "title": "Descending",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "by"
+      ],
+      "title": "Sort",
+      "type": "object"
+    },
+    "TimeFilter": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "time",
+          "title": "Type",
+          "type": "string"
+        },
+        "default": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/LastWindow"
+            },
+            {
+              "$ref": "#/$defs/ToDateWindow"
+            },
+            {
+              "$ref": "#/$defs/RangeWindow"
+            }
+          ],
+          "title": "Default"
+        },
+        "calendar": {
+          "default": "standard",
+          "title": "Calendar",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "default"
+      ],
+      "title": "TimeFilter",
+      "type": "object"
+    },
+    "ToDateWindow": {
+      "additionalProperties": false,
+      "description": "From the start of the current period of `to_date` to the day before as_of.",
+      "properties": {
+        "to_date": {
+          "enum": [
+            "day",
+            "week",
+            "month",
+            "quarter",
+            "year"
+          ],
+          "title": "To Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "to_date"
+      ],
+      "title": "ToDateWindow",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "spec_version": {
+      "const": 0,
+      "title": "Spec Version",
+      "type": "integer"
+    },
+    "dashboard": {
+      "$ref": "#/$defs/DashboardInfo"
+    },
+    "filters": {
+      "default": [],
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "dimension": "#/$defs/DimensionFilter",
+            "time": "#/$defs/TimeFilter"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/TimeFilter"
+          },
+          {
+            "$ref": "#/$defs/DimensionFilter"
+          }
+        ]
+      },
+      "title": "Filters",
+      "type": "array"
+    },
+    "data": {
+      "items": {
+        "$ref": "#/$defs/Block"
+      },
+      "title": "Data",
+      "type": "array"
+    },
+    "interactions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Interaction"
+      },
+      "title": "Interactions",
+      "type": "array"
+    },
+    "metric_requests": {
+      "default": [],
+      "items": {
+        "type": "integer"
+      },
+      "title": "Metric Requests",
+      "type": "array"
+    },
+    "presentation": {
+      "$ref": "#/$defs/Presentation",
+      "default": {
+        "bindings": {}
+      }
+    }
+  },
+  "required": [
+    "spec_version",
+    "dashboard",
+    "data"
+  ],
+  "type": "object"
+}

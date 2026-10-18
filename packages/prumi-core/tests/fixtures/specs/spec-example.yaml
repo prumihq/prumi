@@ -1,0 +1,56 @@
+spec_version: 0
+dashboard:
+  id: sales-weekly                 # ^[a-z0-9][a-z0-9-]{0,62}$
+  title: Sales, weekly
+
+filters:
+  - id: period
+    type: time
+    default: {last: 12, grain: week}
+    calendar: standard             # optional; the only accepted value in this milestone
+  - id: region
+    type: dimension
+    dimension: customer__region
+    default: []                    # list of values; empty = all
+
+data:
+  - id: kpi_revenue
+    title: Revenue                 # optional, informational
+    metrics: [revenue, average_order_value]
+    filters: [period, region]      # required; may be []
+    compare: previous_year
+
+  - id: revenue_by_region
+    metrics: [revenue, gross_margin_pct]
+    dimensions: [customer__region]
+    filters: [period]              # explicit: the region filter does NOT apply here
+    sort: {by: revenue, descending: true}
+    top_n: 5
+    others: true
+    total: true
+
+  - id: weekly_trend
+    metrics: [revenue]
+    time_grain: week
+    dimensions: [channel]          # optional: one series per channel
+    filters: [period, region]
+
+  - id: monthly_trend
+    metrics: [revenue]
+    time_grain: month
+    window: {last: 24, grain: month}   # a fixed window instead of a time filter
+    filters: [region]
+
+interactions:
+  - from: revenue_by_region
+    on: click
+    sets_filter: region
+
+metric_requests: [3]               # optional: ids returned by request_metric
+
+presentation:
+  bindings:                        # "#element-id" → block id
+    "#kpi": kpi_revenue
+    "#bars": revenue_by_region
+    "#trend": weekly_trend
+    "#monthly": monthly_trend
