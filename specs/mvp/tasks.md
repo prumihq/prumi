@@ -92,3 +92,10 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [ ] 62. Layout measurements in the server check: the five `layout.*` warnings, devices, no page text in issues (AC 65, 66, 67)
 - [ ] 63. Guide additions for the layout report
 
+## No company data reaches the agent (spec section 19.16; added 2026-10-18)
+
+- [ ] 64. `query` returns the profile; remove the 200-row cap from `for_agent` (AC 69)
+- [ ] 65. Scrub agent-facing messages: `R8.*`, layout issues, browser reports in `get_dashboard`, source errors (AC 70)
+- [ ] 66. The sentinel test across every MCP tool output (AC 68)
+- [ ] 67. README, guide and instructions wording (AC 71)
+

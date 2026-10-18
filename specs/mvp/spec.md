@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; 18 and 19.1–19.14 accepted 2026-10-18; 19.15 awaits acceptance)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18 and 19 on 2026-10-18)
 
 ## Goal
 
@@ -43,7 +43,7 @@ Everything runs on one machine, for one local user, against a demo dbt project o
 ### Data flow (stated in the README, AC 30)
 
 - **Dashboard data:** warehouse → Prumi → browser. It never passes through the agent or its LLM.
-- **`query` results:** warehouse → Prumi → the agent → the agent's LLM provider. That's why `query` returns at most 200 rows.
+- **`query` results:** a profile of the result (counts, empties, label lengths, magnitudes), never values or names (section 19.16). No company data reaches the agent or its LLM provider.
 - **What Prumi stores:** specs, HTML, certifications, metric requests. No query results, and no row data in logs.
 
 ## In scope
@@ -502,7 +502,7 @@ Built with the official Python SDK (`MCPServer`, called `FastMCP` before `mcp` 2
 |---|---|---|
 | `find_metrics` | `question: str`, `limit: int = 20` | Up to `limit` metrics: `name`, `label`, `description`, `kind`, `additive`, `format`, `owner`, `score`, ranked by score. |
 | `describe_metric` | `name: str` | Everything in the catalog for the metric, its valid dimensions (name, label, description), time grains, the metric's own filter, and `caveats` (generated: "non-additive: never sum or average its rows", "no format declared"). Unknown name: error with suggestions. |
-| `query` | A block-shaped query: `metrics`, `dimensions`, `time_grain`, `window` (**required**), `where: [{dimension, op, values}]`, `sort`, `top_n`, `others`, `total`, `compare` | The block result through `for_agent` (≤ 200 rows), or validation issues. |
+| `query` | A block-shaped query: `metrics`, `dimensions`, `time_grain`, `window` (**required**), `where: [{dimension, op, values}]`, `sort`, `top_n`, `others`, `total`, `compare` | A profile of the block result through `for_agent` (section 19.16), or validation issues. |
 | `validate_spec` | `spec`, `html: str \| None` | `{ok, errors, warnings}` |
 | `publish_dashboard` | `spec` + `html`, or `candidate_id` (section 18) | `{id, version, url, status, warnings}`; `status` is computed (`draft`, or `certified` when the content is identical to a certified version), or the errors that blocked publishing. `url` is `http://<host>:<port>/d/<id>`. |
 | `request_metric` | `description: str`, `reason: str`, `dashboard_id: str \| None` | `{id, message}`. The id can go in the spec's `metric_requests`. |
@@ -803,7 +803,7 @@ The third agent run (2026-10-18) followed the rules from the guide and never tri
 
 **Fixture:** the third-run dashboard (`~/test3/region-revenue-aov-weekly.html` and `.spec.json`) is added as the real must-pass fixture decided in question 3.
 
-#### 19.15 Layout report from validation (added 2026-10-18; status: draft)
+#### 19.15 Layout report from validation (added and accepted 2026-10-18)
 
 None of the three agent runs saw the page it built, and number checks don't catch overlapping labels, clipped text or a page wider than the screen. The server already renders the page during validation (19.1), so it measures the render and reports layout problems as warnings. **No image and no text from the page is returned:** only problem kinds, element paths and box geometry. No dashboard data reaches the agent.
 
@@ -819,6 +819,43 @@ None of the three agent runs saw the page it built, and number checks don't catc
 - At most 20 issues per check. The default render is desktop (1280×800). `validate_spec(..., layout_devices: ["desktop", "phone"])` adds a phone render (390×844).
 - The report runs for the default state and for each `check_states` entry (19.14). Warnings don't block publishing.
 - Guide: read the layout warnings after each validation and fix them with `html_edits`; ask the user to look at the draft link for anything a measurement can't judge.
+
+#### 19.16 No company data reaches the agent (added and accepted 2026-10-18)
+
+**Prumi never sends company data to the agent.** The agent sees metric definitions, the shape of results, codes and element paths. The numbers and names appear only in the dashboard, in the viewer's browser. This replaces the 200-row cap: `query` returns a profile instead of rows.
+
+**1. `query` returns a profile.** Same input as before; the output has no values:
+
+```json
+{
+  "block": "query",
+  "row_count": 96,
+  "window": {"start": "2026-07-20", "end": "2026-10-11", "grain": "week", "partial": false},
+  "freshness": {"revenue": "2026-10-14"},
+  "columns": [
+    {"name": "customer__region", "kind": "dimension", "label": "Region",
+     "distinct": 8, "nulls": 12, "label_length": {"min": 4, "max": 13}},
+    {"name": "metric_time", "kind": "time", "label": "Time", "distinct": 12},
+    {"name": "revenue", "kind": "metric", "label": "Revenue", "format": {"type": "currency", "unit": "USD"},
+     "nulls": 0, "sign": "positive", "magnitude": {"min": 4, "max": 5}, "decimals": 2}
+  ],
+  "has_total": true, "has_others": false, "has_comparison": true,
+  "warnings": []
+}
+```
+
+- `magnitude` is the range of integer-digit counts of the column's values (4–5 digits means 1,000–99,999). It's the one statistic derived from values, kept because agents need it to design axes.
+- `sign` is `positive`, `negative`, `mixed` or `zero`; `decimals` is the most common number of decimals shown by the format.
+- `label_length` gives the shortest and longest label in characters, for layout.
+- The 200-row cap and the `truncated`/`total` fields of section 9's agent output are gone.
+
+**2. Nothing agent-facing echoes page text or data:**
+- Number-check issues (`R8.*`), layout issues and the browser reports in `get_dashboard` give codes, element paths and counts. They never give the text or number found.
+- Errors coming from the source (`query.failed`, the 502 of the block API as seen through MCP) give the error type and a generic message, never the database's own message text, which can contain values.
+
+**3. Allowed in agent output:** metric and dimension names, labels and descriptions from the catalog; counts; magnitudes; window and freshness dates (calendar facts); spec and issue text the agent itself wrote.
+
+**4. Wording.** The README's "Where your data goes", the guide and the server instructions say: *"Prumi never sends company data to your agent: `query` shows the shape of the data, and the numbers appear only in the dashboard."* Instruction step 2 becomes "Use `query` to learn the shape of the data (how many rows, empties, label lengths, magnitudes) while designing."
 
 ## Out of scope
 
@@ -949,3 +986,7 @@ Each criterion has at least one automated test unless it says otherwise.
 65. A fixture page with overlapping labels, clipped text, a too-wide element, 8 px text and an empty bound element gets each `layout.*` warning once; a clean page gets none.
 66. No `layout.*` issue contains text content, numbers or attribute values from the page (a test with a sentinel value in every text node checks it).
 67. `layout_devices: ["phone"]` adds the phone render's issues; publishing isn't blocked by layout warnings.
+68. `query` returns the profile of 19.16 and no values: a test with a sentinel value in the demo data checks that it appears nowhere in any MCP tool output (`query`, `validate_spec`, `publish_dashboard`, `get_dashboard`, `list_dashboards`, errors).
+69. `magnitude`, `sign`, `decimals`, `distinct`, `nulls` and `label_length` are correct for the demo's revenue-by-region and revenue-by-region×week queries.
+70. A page showing an unverified number gets `R8.unverified_number` with the element path and no number in the message; a failing source query's error contains no database message text.
+71. The README, guide and instructions contain the 19.16 wording; nothing mentions the 200-row cap.
