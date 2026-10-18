@@ -54,16 +54,19 @@ claude mcp add --scope user --transport http prumi http://127.0.0.1:8484/mcp
 
 Any MCP client that runs on your machine and supports Streamable HTTP can connect the same way. Clients that connect from their vendor's cloud (connectors configured in a web app, for example) can't reach a server on your machine.
 
-The server tells the agent how to work with it: use only catalog metrics and ask for missing ones with `request_metric`, never write numbers into the page, declare totals and comparisons in the spec, and validate before publishing. Its tools:
+The server tells the agent how to work with it: use only catalog metrics and ask for missing ones with `request_metric`, never write numbers into the page, declare totals and comparisons in the spec, and validate before publishing. Validation renders the page in headless Chromium with its data and checks that every number it shows is a value Prumi delivered ([R8](docs/bi-rules.md#r8-every-number-shown-is-a-value-prumi-delivered)). Its tools:
 
 | Tool | For |
 |---|---|
 | `authoring_guide` | The spec format, the page API (`prumi.*`), the result object and a working example. Agents read it once before writing. |
 | `find_metrics`, `describe_metric` | Finding the official metrics and the dimensions each one can be split by. |
 | `query` | Looking at the data while designing (at most 200 rows). |
-| `validate_spec` | Checking a spec and its HTML. A clean result has a `candidate_id`. |
+| `validate_spec` | Checking a spec and its HTML, or edits to validated or published content (`base` + `html_edits`). A clean result has a `candidate_id`. |
 | `publish_dashboard` | Publishing that `candidate_id` (or a spec and HTML) as a new draft version. |
+| `list_dashboards`, `get_dashboard` | Reading back published dashboards: versions, spec, HTML, status, and the numbers viewers' browsers flagged. |
 | `request_metric` | Asking the data team for a metric that doesn't exist yet. |
+
+**Restart your agent sessions after upgrading Prumi.** An open session keeps the tool list and the instructions it loaded when it started.
 
 ## Where your data goes
 

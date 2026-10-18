@@ -47,3 +47,14 @@ def test_the_guide_describes_the_result_object():
     for key in ("_partial", "_previous", "_delta", "_delta_pct", "others", "total", "window",
                 "freshness", "rows: []"):  # fmt: skip
         assert key in GUIDE, key
+
+
+def test_the_guide_covers_numbers_theme_and_editing():
+    for text in (
+        "5,000 rows", "200-row cap is only for `query`", "one grand total for the whole window",
+        "Layout math is fine", 'data-prumi-role="axis"', "No `<canvas>`", "--prumi-series-1",
+        "--prumi-radius", "{compact: true}", "html_edits", "base", "edit.no_match",
+        "take one screenshot of the draft at desktop width; don't read the page's text",
+        "Send the HTML straight to `validate_spec`",
+    ):  # fmt: skip
+        assert text in GUIDE, text

@@ -7,8 +7,11 @@ A dashboard is two things you write side by side: a **spec** (JSON) that says wh
 1. `find_metrics`, then `describe_metric` for each metric you'll use. Use only catalog metrics and the dimensions `describe_metric` lists; if one is missing, call `request_metric`.
 2. `query` to look at the data (at most 200 rows, for exploring only).
 3. Write the spec and the HTML below.
-4. `validate_spec` with both, and fix every error. A successful result has a `candidate_id`.
+4. `validate_spec` with both, and fix every error. Send the HTML straight to `validate_spec`; don't write it to a local file first. Validation renders the page in a browser with the blocks' data and checks every number it shows (see "Every number comes from Prumi"). A successful result has a `candidate_id`.
 5. `publish_dashboard` with that `candidate_id` (don't send the spec and HTML again). Give the user the URL; the dashboard starts as an uncertified draft.
+6. If you can open a browser, take one screenshot of the draft at desktop width; don't read the page's text.
+
+To change a dashboard later, see "Changing a dashboard" at the end.
 
 ## The spec
 
@@ -36,15 +39,31 @@ A dashboard is two things you write side by side: a **spec** (JSON) that says wh
   - `id`, `metrics` (1–10), `filters` (**required**: the ids of the filters that apply to this block; `[]` for none), and one window: a time filter in `filters`, or a fixed `window`.
   - Optional: `title`, `dimensions` (0–3), `time_grain` (one series point per period), `sort: {"by": <metric, dimension or "metric_time">, "descending": true}`, `top_n` (1–100), `others`, `total`, `compare` (`previous_period` or `previous_year`).
   - `top_n` needs exactly one dimension, no `time_grain`, and `sort` by one of the block's metrics. `others` needs `top_n`. `total` needs dimensions or a `time_grain`. `compare` only works without `time_grain`.
+  - `total` on a block with a `time_grain` is one grand total for the whole window, not one per period. For a total per period, add a block with the same `time_grain` and no dimensions.
+  - A block returns at most 5,000 rows (`truncated: true` beyond that). The 200-row cap is only for `query`.
   - A `time_grain` must divide the window's periods: the same grain, `day`, `month` in a quarter or year, `quarter` in a year. Weeks only fit week windows.
 - **Interactions**: `{"from": "regions", "on": "click", "sets_filter": "region"}`. A click on a row of `regions` sets the dimension filter `region` to that row's value; clicking it again clears it. The block must have the filter's dimension.
 - **Bindings** (`presentation.bindings`): `"#element-id": "block-id"`, documenting which element shows which block. Every block should be bound or drawn with `prumi.on`.
 
 ## The page
 
-Your HTML runs in a sandboxed frame. It **can't** call any server (no `fetch`, no images from other hosts) and can't see the page around it. Scripts, stylesheets and fonts may come from `cdn.jsdelivr.net`, `cdnjs.cloudflare.com` or `unpkg.com` (fonts also from Google Fonts), pinned to an exact version (`chart.js@4.4.1`). Prumi adds its runtime to the page; you don't load it.
+Your HTML runs in a sandboxed frame. It **can't** call any server (no `fetch`, `XMLHttpRequest` or `WebSocket`, no images from other hosts) and can't see the page around it. Scripts, stylesheets and fonts may come from `cdn.jsdelivr.net`, `cdnjs.cloudflare.com` or `unpkg.com` (fonts also from Google Fonts), pinned to an exact version (`chart.js@4.4.1`). Prumi adds its runtime to the page; you don't load it.
 
-**Never write numbers into the page**: no datasets, totals or values in the HTML or in script literals, and never compute totals, averages or ratios in JavaScript. Every number comes from `prumi.on`; ask for `total`, `others` or `compare` in the spec instead.
+### Every number comes from Prumi
+
+**Every number the page shows must be a value Prumi delivered**: a metric value from a block result (rows, `total`, `others`, `_previous`, `_delta`, `_delta_pct`), as `prumi.format` shows it. Validation renders the page with the data and reads every number it shows (text, SVG text, `title` tooltips); viewers' browsers do the same for other filter states. Any other number is an error (`R8.unverified_number`) and blocks publishing: a value typed into the HTML or kept in a script, a number copied from a `query` result, a sum, average or share computed in JavaScript. Ask for `total`, `others` or `compare` in the spec instead.
+
+- A shown number matches a delivered value at the precision shown, also scaled (`$2.7M`, `31%`). Dates, years, counts of periods ("Last 12 weeks"), numbers from the spec and row counts are fine.
+- **Layout math is fine**: scales, widths, positions, color ranges. Compute anything you need to *draw*; *show* only delivered values.
+- **Axis ticks** aren't data: put them in an element marked `data-prumi-role="axis"` (an SVG `<g>`, a `<div>`). There, round numbers with at most two significant digits (`0`, `50K`, `2.5M`, `20%`) are allowed.
+- **No `<canvas>`**: its text can't be read (`html.canvas`). Draw charts with SVG or HTML elements; chart libraries that render to SVG are fine.
+- A page that throws while rendering (`html.runtime_error`) or never stops changing (`html.render_timeout`, after 10 s) fails validation too. In the browser, a callback that throws, or a block that fails without a `prumi.onError` handler, shows "This part of the dashboard couldn't load." in the block's bound elements.
+
+### Theme
+
+Prumi loads a default theme before your styles: CSS variables on `:root`, light by default and dark when the viewer's system is in dark mode. Use them to match Prumi's shell in both modes, or ignore them.
+
+`--prumi-bg`, `--prumi-surface`, `--prumi-text`, `--prumi-text-muted`, `--prumi-border`, `--prumi-accent`, `--prumi-positive`, `--prumi-negative`, `--prumi-series-1` … `--prumi-series-8` (chart colors), `--prumi-font`, `--prumi-font-mono`, `--prumi-radius`.
 
 ### `window.prumi`
 
@@ -131,7 +150,7 @@ Replace `revenue` and `customer__region` with metrics and dimensions from `find_
   <meta charset="utf-8">
   <title>Revenue by region</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 24px; }
+    body { font-family: var(--prumi-font); background: var(--prumi-bg); color: var(--prumi-text); margin: 24px; }
     #kpi strong { font-size: 32px; }
     #regions button { display: block; margin: 4px 0; }
   </style>
@@ -181,6 +200,12 @@ Replace `revenue` and `customer__region` with metrics and dimensions from `find_
 </body>
 </html>
 ```
+
+## Changing a dashboard
+
+1. `list_dashboards` lists the published dashboards; `get_dashboard(id)` gives the current version's spec and HTML (and `checks`: numbers viewers' browsers flagged).
+2. `validate_spec(base=..., html_edits=[...], spec=...)` validates a change without resending the page. `base` is a `candidate_id` or `{"dashboard_id": "...", "version": 3}`; `html_edits` are `{"old": "...", "new": "..."}` replacements applied in order, and each `old` must occur exactly once in the HTML at that point (`edit.no_match`, `edit.ambiguous`); `spec` is a full new spec (default: the base's). The result is validated like any content and has its own `candidate_id`.
+3. `publish_dashboard` with that `candidate_id` makes a new version, a draft again.
 
 ## The spec's JSON Schema
 

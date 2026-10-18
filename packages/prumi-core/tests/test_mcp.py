@@ -38,13 +38,19 @@ def server(services, live_server):
 
 
 def expected_instructions() -> str:
-    """Section 14's instructions, with steps 3 and 5 as section 18 rewrote them."""
+    """Section 14's instructions, with steps 3 and 5 as section 18 rewrote them, and section
+    19's step 0 and addition to step 3."""
     spec = SPEC_MD.read_text()
     quote = re.search(r"\*\*Server instructions\*\*.*?\n\n((?:> .*\n)+)", spec)
     lines = [line[2:] for line in quote.group(1).splitlines()]
     section_18 = spec.split("### 18.", 1)[1].split("\n## ", 1)[0]
     for line in re.findall(r"^> (\d\. .*)$", section_18, re.M):
         lines = [line if old.startswith(line[:3]) else old for old in lines]
+    section_19 = spec.split("#### 19.9", 1)[1].split("\n#### ", 1)[0]
+    step_3 = re.search(r'in step 3: "(.*)"$', section_19, re.M)[1]
+    step_0 = re.search(r'a step 0: "(.*)"$', section_19, re.M)[1]
+    lines = [f"{line} {step_3}" if line.startswith("3. ") else line for line in lines]
+    lines.insert(1, f"0. {step_0}")
     return "\n".join(lines)
 
 
@@ -417,6 +423,7 @@ def test_authoring_guide_returns_the_guide(server):
 def test_the_instructions_follow_section_18():
     from prumi.mcp import INSTRUCTIONS
 
+    assert "\n0. When the user wants a dashboard or chart about company metrics" in INSTRUCTIONS
     assert "3. Call `authoring_guide` once before writing anything" in INSTRUCTIONS
     assert "with the `candidate_id` from the last successful validation" in INSTRUCTIONS
     assert INSTRUCTIONS == expected_instructions()

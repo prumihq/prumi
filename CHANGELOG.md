@@ -9,19 +9,22 @@ The first release: it proves the core loop on one machine, for one local user, a
 ### Added
 
 - **`prumi-core`**: the server and the `prumi` CLI.
-  - MCP endpoint at `/mcp` (Streamable HTTP, stateless) with seven tools: `authoring_guide` (the spec format, the page API and a working example), `find_metrics`, `describe_metric`, `query` (capped at 200 rows for agents), `validate_spec`, `publish_dashboard` (by the `candidate_id` of a successful validation, so the HTML is sent once) and `request_metric`.
+  - MCP endpoint at `/mcp` (Streamable HTTP, stateless) with nine tools: `authoring_guide` (the spec format, the page API and a working example), `find_metrics`, `describe_metric`, `query` (capped at 200 rows for agents), `validate_spec` (also for edits to validated or published content: `base` + `html_edits`), `publish_dashboard` (by the `candidate_id` of a successful validation, so the HTML is sent once), `list_dashboards`, `get_dashboard` and `request_metric`.
   - Dashboard spec format version 0, with its JSON Schema.
-  - Validator: spec rules, BI rules R2 to R8 and R10, HTML checks, and a dry run of every block.
+  - Validator: spec rules, BI rules R2 to R8 and R10, HTML checks, a dry run of every block, and the number check: the page is rendered in headless Chromium with the dry run's data, and every number it shows must be a value Prumi delivered (R8). Viewers' browsers run the same check for other filter states, and certification refuses a version with flagged numbers.
   - Engine: blocks with time windows aligned to whole periods (`as_of`, partial periods, comparisons), totals and "Others" computed by the source, freshness, and a 5,000-row cap.
   - Registry on SQLite: immutable versions, fingerprints, and certification status computed on every read.
-  - Hosting: each dashboard runs in a sandboxed frame (CSP, no network access), inside Prumi's shell with the trust badge and data freshness.
+  - Hosting: each dashboard runs in a sandboxed frame (CSP, no network access), inside Prumi's shell with the trust badge and data freshness, with a default light and dark theme.
   - Query logs with origin, viewer, duration and row count, never values.
   - CLI: `serve`, `list`, `certify`, `uncertify`, `delete`, `requests`, `validate`.
 - **`prumi-adapter-dbt`**: reads `target/semantic_manifest.json`. MetricFlow 0.213.0 compiles (exact pin, Apache-2.0); Prumi runs the SQL over its own DuckDB connection. Formats come from `config.meta.prumi`, and startup checks cover the manifest, the connection type and every relation.
-- **`prumi-runtime`**: `runtime.js` (the `prumi.*` API in the dashboard frame, with no aggregation helpers) and `shell.js`, plain JS with no build step. The `prumi-core` wheel carries a copy of both.
+- **`prumi-runtime`**: `runtime.js` (the `prumi.*` API in the dashboard frame, with no aggregation helpers), `shell.js`, `provenance.js` (the number matcher) and `theme.css`, plain JS and CSS with no build step. The `prumi-core` wheel carries a copy of each.
 - **Demo dbt project** (`examples/demo-dbt-project`): a deterministic synthetic shop on DuckDB, with metrics that plant the usual BI traps.
 
 ### Known limitations
+
+- The server needs headless Chromium (`uv run playwright install chromium`) and won't start without it.
+- Canvas charts aren't allowed: their text can't be checked.
 
 - No login. The server only listens on loopback addresses, and every viewer is the local user; the DuckDB connection is a shared account.
 - One source, dbt on DuckDB only, with the legacy `measures:` YAML.

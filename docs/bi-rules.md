@@ -2,7 +2,7 @@
 
 Dashboards built by AI agents tend to make the same mistakes BI teams spent years learning to avoid: averaging averages, comparing a half month with a full one, totals that don't match their rows. Prumi checks a dashboard against ten rules, **R1 to R10**, before it's published and every time a block runs.
 
-Issue codes start with the rule they belong to: `R6.others_requires_top_n` is a rule-6 problem. Codes that aren't about a BI rule use `spec.*`, `html.*`, `filter.*`, `publish.*`, `query.failed` and `result.truncated`; the full list is in the [MVP spec, section 7](../specs/mvp/spec.md#7-validator-prumivalidate).
+Issue codes start with the rule they belong to: `R6.others_requires_top_n` is a rule-6 problem. Codes that aren't about a BI rule use `spec.*`, `html.*`, `filter.*`, `publish.*`, `validate.*`, `edit.*`, `dashboard.*`, `query.failed` and `result.truncated`; the full list is in the [MVP spec, sections 7, 18 and 19](../specs/mvp/spec.md#7-validator-prumivalidate).
 
 Every issue has a `code`, a `severity` (`error` blocks publishing; `warning` doesn't), a `path` into the spec (e.g. `data[1].others`), a `message` and a `hint` saying how to fix it.
 
@@ -15,7 +15,7 @@ Every issue has a `code`, a `severity` (`error` blocks publishing; `warning` doe
 | [R5](#r5-filter-scope-is-explicit) | Filter scope is explicit | Enforced |
 | [R6](#r6-totals-and-others-are-separate-queries) | Totals and "Others" are separate queries | Enforced |
 | [R7](#r7-only-source-metrics) | Only metrics from the source | Enforced |
-| [R8](#r8-no-numbers-embedded-in-the-html) | No numbers embedded in the HTML | Basic checks |
+| [R8](#r8-every-number-shown-is-a-value-prumi-delivered) | Every number shown is a value Prumi delivered | Enforced (checked in a browser) |
 | [R9](#r9-queries-run-as-the-viewer) | Queries run as the viewer | Planned |
 | [R10](#r10-formats-and-units-come-from-the-metric-definition) | Formats and units come from the metric definition | Enforced |
 
@@ -104,19 +104,38 @@ A dashboard can only use metrics that exist in the source. If the right one is m
 | `R7.unknown_metric` | error | The metric isn't in the catalog. The message suggests close names; the hint points to `request_metric` |
 | `R7.unknown_metric_request` | error | The spec lists a metric request id that doesn't exist |
 
-## R8. No numbers embedded in the HTML
+## R8. Every number shown is a value Prumi delivered
 
-**Catches:** a dashboard that looks live but shows a frozen copy of the data pasted into the page.
+**Catches:** a dashboard that looks live but shows numbers the source never computed: a frozen copy of the data pasted into the page, a value copied from an earlier result, a total summed or an average computed in JavaScript.
 
-The HTML is stored without data; every number arrives through the runtime. At publish, Prumi scans the HTML for literal datasets. The dashboard also runs in a sandboxed frame that can't make network calls, so its code can't fetch data from elsewhere or send it out.
+The HTML is stored without data; every number arrives through the runtime. It doesn't matter how a wrong number got onto the page: if Prumi didn't deliver it, it's flagged.
+
+**What counts as delivered:** every metric value in the block results (rows, `total`, `others`, `_previous`, `_delta`, `_delta_pct`). A number on screen matches when a delivered value, rounded to the precision shown and scaled for `%` or `K`/`M`/`B`, gives the same number; currency symbols, separators and signs are ignored, and both `1,234.5` and `1.234,5` are read. `$2.7M` matches `2742409.17`; `$228,534` doesn't match anything if only `2742409.17` was delivered.
+
+**Also allowed:** dates and years in common formats, counts of periods ("Last 4 weeks"), numbers written in the spec or in result metadata (window lengths, `top_n`, row counts, numbers in dimension values), and axis ticks: round numbers with at most two significant digits (`0`, `50K`, `2.5M`, `20%`) inside an element marked `data-prumi-role="axis"`, or three or more evenly spaced ones in the same chart.
+
+**What's read:** visible text, i.e. text outside `<script>` and `<style>`, SVG `<text>`, `title` attributes and open shadow roots, including text that appears later, such as tooltips. Text drawn into a `<canvas>` can't be read, so a canvas is an error.
+
+The number check runs in two places:
+
+- **On the server, at validation (the guarantee).** When the static checks and the dry run pass, Prumi renders the page in headless Chromium with the dry run's results, waits until it settles (no DOM changes for 300 ms, at most 10 s) and reads every number from an isolated world: page code shares the DOM with the check but none of its JavaScript, so it can't switch the check off or feed it values. Errors block publishing, and `prumi certify` runs the check again. Only the filters' default values are checked.
+- **In viewers' browsers, every time the page is viewed.** The runtime runs the same check after each render and reports what it found for that filter state; the registry keeps the latest report per version and filter state. Viewers see nothing of it. Page code could interfere with this check, so it's informational, but `get_dashboard` shows the reports and `prumi certify` refuses a version with a flagged report.
+
+The static checks still run first, and the frame can't make network calls, so page code can't fetch data from elsewhere or send it out.
 
 | Code | Severity | When |
 |---|---|---|
+| `R8.unverified_number` | error | The rendered page shows a number Prumi didn't deliver. The issue gives the text and the element's path; at most 20 are listed |
 | `R8.embedded_numbers` | error | An inline script holds an array or object literal that looks like a dataset |
 | `R8.numbers_in_text` | warning | Visible text with several data-like numbers (`1,234`, `12.5%`, `$3.4M`) |
 | `R8.numbers_in_table` | warning | A table with several numeric cells |
+| `html.canvas` | error | The page uses `<canvas>`, whose text can't be checked |
+| `html.runtime_error` | error | The page, or a `prumi.on` callback, threw an error while rendering |
+| `html.render_timeout` | error | The page didn't settle within 10 s, so its numbers couldn't be checked |
+| `html.network_call` | warning | A script calls `fetch(`, `XMLHttpRequest`, `WebSocket`, `EventSource` or `sendBeacon`, which the frame blocks |
+| `html.blocked_request` | warning | While rendering, the page tried a network call and the frame blocked it |
 
-**Limit:** this can't be fully enforced. An agent can still write numbers into an SVG or a sentence. The checks catch the common snapshot pattern, and a dashboard is only marked certified after a person has reviewed it.
+**What the check can't see: visual encoding.** It reads the numbers a page shows, not the shapes it draws. A bar whose height was computed from the wrong value, a line plotted against the wrong axis, or a color scale that misleads all pass. Whether the picture matches the numbers is what a reviewer still has to judge before certifying.
 
 ## R9. Queries run as the viewer
 
@@ -130,7 +149,7 @@ Prumi never decides who sees which rows. It runs each query with the viewer's ow
 
 **Catches:** `0.25` on one dashboard and `25%` on another for the same metric, or USD and EUR on one axis.
 
-Formats and units are read from the metric's definition in the source, and the runtime formats values with `prumi.format(value, metric)`. dbt's semantic layer has no format fields, so Prumi reads a small convention under `config.meta.prumi`; see [Preparing your dbt project](../packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project).
+Formats and units are read from the metric's definition in the source, and the runtime formats values with `prumi.format(value, metric)`. Pages can only adjust the presentation (`{decimals}`, `{compact: true}`); passing a unit of their own gives a plain number and a console warning. dbt's semantic layer has no format fields, so Prumi reads a small convention under `config.meta.prumi`; see [Preparing your dbt project](../packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project).
 
 | Code | Severity | When |
 |---|---|---|
