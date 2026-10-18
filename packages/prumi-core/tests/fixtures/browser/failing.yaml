@@ -1,0 +1,16 @@
+# A callback that throws, and a block without an onError handler. Its page would fail the
+# server check (html.runtime_error), so the browser tests store it without validating.
+spec_version: 0
+dashboard: {id: failing, title: Failing}
+filters:
+  - {id: period, type: time, default: {last: 12, grain: week}}
+data:
+  - id: kpi
+    metrics: [revenue]
+    filters: [period]
+  - id: trend
+    metrics: [revenue]
+    time_grain: week
+    filters: [period]
+presentation:
+  bindings: {"#kpi": kpi, "#trend": trend, "#trend-note": trend}

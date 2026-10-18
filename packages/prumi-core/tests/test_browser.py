@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 import pytest
-from prumi.spec import load_spec_file
+from prumi.spec import DashboardSpec, load_spec_file
 
 pytestmark = pytest.mark.browser
 
@@ -28,6 +28,11 @@ def services(live_services):
     ):
         report, published = services.publish(load_spec_file(spec), html.read_text())
         assert report.ok, report.issues
+    failing = FIXTURES / "browser" / "failing"
+    services.registry.save(
+        DashboardSpec.model_validate(load_spec_file(failing.with_suffix(".yaml"))),
+        failing.with_suffix(".html").read_text(),
+    )
     return services
 
 
@@ -378,3 +383,18 @@ def test_the_browser_reports_numbers_prumi_didnt_deliver(page, server, services,
     assert main(["certify", "unverified", "1", "--config", config]) == 1
     out = capsys.readouterr().out
     assert '{"region": ["North America"]}' in out and "$1,234.56 in p#extra" in out
+
+
+# Visible errors
+
+
+def test_errors_show_in_the_blocks_bound_elements(page, server):
+    frame, _ = open_dashboard(page, server, "failing")
+    failed = "This part of the dashboard couldn't load."
+    # The kpi callback throws on load.
+    frame.locator("#kpi").filter(has_text=failed).wait_for()
+    frame.locator("#trend").filter(has_text="weeks").wait_for()
+    # The trend block fails, and nothing handles it with prumi.onError.
+    frame.locator("body").evaluate("() => prumi.setFilter('period', {last: 0, grain: 'week'})")
+    frame.locator("#trend").filter(has_text=failed).wait_for()
+    assert frame.locator("#trend-note").text_content() == failed

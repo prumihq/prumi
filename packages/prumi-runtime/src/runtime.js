@@ -22,6 +22,7 @@
   var filters = {};
   var labels = {};
   var formats = {};
+  var bindings = {}; // "#element-id" -> block id
   var pending = {};
   var nextRequest = 1;
   // The number matcher, loaded just before this file, taken before page scripts run.
@@ -45,14 +46,34 @@
           });
         };
 
-  function call(callbacks, value) {
+  // A callback that throws doesn't stop the others; for a block's callbacks, the block's
+  // bound elements say it couldn't load instead of staying blank or on "Loading…".
+  function call(callbacks, value, block) {
     (callbacks || []).forEach(function (callback) {
       try {
         callback(value);
       } catch (error) {
         noteError(error);
         reportError(error);
+        if (block !== undefined) showFailed(block);
       }
+    });
+  }
+
+  var FAILED = "This part of the dashboard couldn't load.";
+
+  function showFailed(block) {
+    Object.keys(bindings).forEach(function (selector) {
+      if (bindings[selector] !== block) return;
+      var element;
+      try {
+        element = document.querySelector(selector);
+      } catch (error) {
+        return;
+      }
+      if (!element) return;
+      element.textContent = FAILED;
+      element.setAttribute("data-prumi-failed", "");
     });
   }
 
@@ -190,20 +211,22 @@
         filters = message.values || {};
         labels = message.labels || {};
         formats = message.formats || {};
+        bindings = message.bindings || {};
         check.spec = message.spec || null;
         call(onFilters, copy(filters));
         scheduleCheck();
         break;
       case "data":
         delivered(message.result);
-        call(onData[message.block], message.result);
+        call(onData[message.block], message.result, message.block);
         scheduleCheck();
         break;
       case "error":
         if (!(onError[message.block] || []).length) {
           noteError("Block " + message.block + ": " + ((message.issue || {}).message || "failed"));
+          showFailed(message.block);
         }
-        call(onError[message.block], message.issue);
+        call(onError[message.block], message.issue, message.block);
         break;
       case "filters":
         filters = message.filters || {};

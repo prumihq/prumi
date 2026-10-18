@@ -57,6 +57,7 @@
           labels: config.labels,
           formats: config.formats,
           spec: config.spec,
+          bindings: config.bindings,
         });
         subscribed.forEach(fetchBlock);
         break;

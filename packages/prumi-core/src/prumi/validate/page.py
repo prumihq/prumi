@@ -52,7 +52,7 @@ _HOST = """<!doctype html><html><body>
     if (event.source !== frame.contentWindow || !m || m.prumi !== 0) return;
     if (m.type === "ready" && !window.prumiDelivered) {
       post("init", { filters: setup.filters, values: setup.values, labels: setup.labels,
-                     formats: setup.formats });
+                     formats: setup.formats, bindings: setup.bindings });
       (m.blocks || []).forEach(function (id) {
         if (setup.results[id]) post("data", { block: id, result: setup.results[id] });
       });
@@ -185,6 +185,7 @@ class PageChecker:
             "values": {f.id: f.model_dump(mode="json")["default"] for f in spec.filters},
             "labels": dict(labels),
             "formats": dict(formats),
+            "bindings": dict(spec.presentation.bindings),
             "results": dict(results),
             "spec": spec.model_dump(mode="json", by_alias=True),
         }
