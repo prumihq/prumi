@@ -864,6 +864,13 @@ None of the three agent runs saw the page it built, and number checks don't catc
 
 **4. Wording.** The README's "Where your data goes", the guide and the server instructions say: *"Prumi never sends company data to your agent: `query` shows the shape of the data, and the numbers appear only in the dashboard."* Instruction step 2 becomes "Use `query` to learn the shape of the data (how many rows, empties, label lengths, magnitudes) while designing."
 
+**Details settled during implementation (2026-10-18):**
+- Bound elements that aren't rendered (a hidden tooltip, `display: none`) don't get `layout.empty_block`; screen-reader-only text is ignored by the layout checks.
+- The phone render measures layout only; number checks run on the desktop render.
+- In `get_dashboard`'s browser reports, time-filter windows stay (calendar facts) and dimension-filter values become `{"selected": n}`. `prumi certify`, used by the data team, still shows full reports.
+- `html.runtime_error` removes the page's dimension values and any 3+-digit number from the browser's message (positions and stack stay), and `html.blocked_request` names only the origin, since a page can put data in both.
+- `row_count` says "more than 5000" past the engine's cap.
+
 ### 20. Home page (added and accepted 2026-10-18)
 
 `GET /` is the first thing a user sees, and today it's a bare table of links. It should look like a small product, not a debug page. It doesn't need to be elaborate.
