@@ -566,7 +566,7 @@ Standard `logging`. Each executed query logs: origin (`block <dashboard>/<v>/<bl
 
 ### 17. Docs
 
-README: quick start (build the demo, `prumi serve`, connect an agent), "Connect your agent" (Claude Code: `claude mcp add --transport http prumi http://127.0.0.1:8484/mcp`; clients that connect from their vendor's cloud can't reach a local server), and "Where your data goes" (the data flow above).
+README: quick start (build the demo, `prumi serve`, connect an agent), "Connect your agent" (Claude Code: `claude mcp add --scope user --transport http prumi http://127.0.0.1:8484/mcp`; clients that connect from their vendor's cloud can't reach a local server), and "Where your data goes" (the data flow above).
 
 The dbt adapter's README has "Preparing your dbt project": what Prumi reads, and the recommended `config.meta.prumi` format convention with the reason for it. The main README's quick start links to it.
 
