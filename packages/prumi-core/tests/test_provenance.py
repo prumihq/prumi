@@ -28,7 +28,6 @@ FLAGGED = {"html.image", "html.iframe", "html.closed_shadow_root", "html.canvas"
 # Must-fail pages for checks that don't exist yet.
 NOT_CHECKED_YET = {
     "coincident_average": "numbers aren't matched against their binding's blocks yet",
-    "spaced_series_outside_svg": "unmarked ticks are still allowed outside <svg>",
 }
 
 KPI_SPEC = {
@@ -281,3 +280,24 @@ def test_open_shadow_roots_are_read(demo_services):
       root.innerHTML = "<p>$9,999,999.99</p><slot></slot>";"""
     report = demo_services.validate(KPI_SPEC, kpi_page(SHOW_REVENUE + script))
     assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == ["$9,999,999.99"]
+
+
+# Axis ticks
+
+
+TICKS = "".join(f"<{{tag}}>${n}K</{{tag}}>" for n in (100, 200, 300, 400))
+
+
+@pytest.mark.parametrize(
+    ("body", "flagged"),
+    [
+        # Evenly spaced round numbers in a chart are its axis.
+        (f"<svg>{TICKS.format(tag='text')}</svg>", []),
+        # The same numbers in HTML need the marker.
+        (f"<div>{TICKS.format(tag='span')}</div>", ["$100K", "$200K", "$300K", "$400K"]),
+        (f'<div data-prumi-role="axis">{TICKS.format(tag="span")}</div>', []),
+    ],
+)
+def test_unmarked_ticks_only_inside_svg(demo_services, body, flagged):
+    report = demo_services.validate(KPI_SPEC, kpi_page(SHOW_REVENUE, '<p id="revenue"></p>' + body))
+    assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == flagged

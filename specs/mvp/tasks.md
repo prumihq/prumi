@@ -73,7 +73,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 49. `R8.copied_number`: the source scan at the server check (AC 53)
 - [ ] 50. Bindings decide what a number may match, lists of blocks per binding, `R8.unbound_number`, in both checks (AC 54)
 - [x] 51. `html.iframe`, `html.closed_shadow_root`, `html.image` and `img-src 'none'` (AC 55)
-- [ ] 52. Unmarked ticks only inside `<svg>` (AC 56)
+- [x] 52. Unmarked ticks only inside `<svg>` (AC 56)
 - [ ] 53. The viewer bar and `needs_attention` for flagged published versions (AC 57)
 - [ ] 54. Guide and `docs/bi-rules.md`: bindings for every number, tooltips inside bound elements, no images, iframes or closed shadow roots, the new codes
 

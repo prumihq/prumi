@@ -236,12 +236,13 @@
     return out;
   }
 
-  // Axis ticks without the marker: at least three tick-like numbers in one chart (the same
-  // <svg>, or the same parent element) that are evenly spaced, like 0, 50K, 100K.
+  // Axis ticks without the marker: at least three tick-like numbers in one <svg> chart that are
+  // evenly spaced, like 0, 50K, 100K. Only in SVG: in HTML, an evenly spaced list is as easy
+  // to make up as any other, so ticks there need data-prumi-role="axis".
   function tickSeries(candidates) {
     var groups = new Map();
     candidates.forEach(function (c) {
-      var key = c.element.closest ? c.element.closest("svg") || c.element.parentElement : null;
+      var key = c.element.closest ? c.element.closest("svg") : null;
       if (!key) return;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(c);
