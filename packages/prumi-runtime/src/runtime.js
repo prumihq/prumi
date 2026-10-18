@@ -113,10 +113,33 @@
     })();
   }
 
+  var FORMAT_TYPES = ["number", "integer", "percent", "currency"];
+  var warned = {};
+
+  // A metric name, or a column's format object ({type, unit, decimals}). Anything else is
+  // formatted as a plain number, with one console warning per argument so the mistake shows.
+  function resolveFormat(metric) {
+    if (typeof metric === "string" && Object.prototype.hasOwnProperty.call(formats, metric)) {
+      return formats[metric];
+    }
+    if (metric && typeof metric === "object" && FORMAT_TYPES.indexOf(metric.type) >= 0) {
+      return metric;
+    }
+    var key = typeof metric === "string" ? "name:" + metric : String(JSON.stringify(metric));
+    if (!warned[key]) {
+      warned[key] = true;
+      console.warn(
+        "prumi.format: unknown metric " + key.replace(/^name:/, "") +
+          "; formatting as a plain number. Pass a metric name or a column's format object."
+      );
+    }
+    return { type: "number" };
+  }
+
   function format(value, metric) {
+    var f = resolveFormat(metric);
     if (value === null || value === undefined) return "–";
     if (typeof value !== "number") return String(value);
-    var f = formats[metric] || { type: "number" };
     var decimals = f.decimals === null || f.decimals === undefined ? undefined : f.decimals;
     var options;
     if (f.type === "integer") {
