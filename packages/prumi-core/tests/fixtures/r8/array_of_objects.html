@@ -1,0 +1,19 @@
+<!doctype html>
+<html><body>
+<div id="kpi"></div>
+<script>
+  const monthly = [
+    {month: "Jan", revenue: 1234.5},
+    {month: "Feb", revenue: 1180.2},
+    {month: "Mar", revenue: 1402.0},
+    {month: "Apr", revenue: 1377.9},
+    {month: "May", revenue: 1520.3},
+    {month: "Jun", revenue: 1488.1},
+    {month: "Jul", revenue: 1610.7},
+    {month: "Aug", revenue: 1555.0},
+    {month: "Sep", revenue: 1702.4},
+    {month: "Oct", revenue: 1690.9},
+  ];
+  prumi.on("kpi", (result) => draw(monthly));
+</script>
+</body></html>

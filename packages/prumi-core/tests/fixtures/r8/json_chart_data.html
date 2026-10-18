@@ -1,0 +1,16 @@
+<!doctype html>
+<html><body>
+<div id="kpi"></div>
+<script type="application/json" id="chart-data">
+{
+  "labels": ["North America", "Western Europe", "Southern Europe", "Asia Pacific", "Northern Europe", "Latin America"],
+  "series": [
+    {"name": "Revenue", "data": [6676149.62, 4300280.22, 3969268.91, 2923143.09, 2748209.25, 2235030.91]},
+    {"name": "Orders", "data": [23811, 15340, 14102, 10355, 9811, 7954]}
+  ]
+}
+</script>
+<script>
+  prumi.on("kpi", (result) => {});
+</script>
+</body></html>

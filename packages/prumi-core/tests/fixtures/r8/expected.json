@@ -1,0 +1,10 @@
+{
+  "array_of_12_numbers.html": ["R8.embedded_numbers"],
+  "array_of_objects.html": ["R8.embedded_numbers"],
+  "json_chart_data.html": ["R8.embedded_numbers"],
+  "chart_config.html": [],
+  "no_inline_script.html": [],
+  "numbers_in_text.html": ["R8.numbers_in_text"],
+  "numbers_in_table.html": ["R8.numbers_in_table"],
+  "plain_numbers_in_text.html": []
+}

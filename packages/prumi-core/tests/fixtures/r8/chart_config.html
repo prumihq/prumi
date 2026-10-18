@@ -1,0 +1,24 @@
+<!doctype html>
+<html><body>
+<div id="kpi"></div>
+<svg id="chart" width="640" height="360"></svg>
+<script>
+  const config = {
+    width: 640,
+    height: 360,
+    margin: {top: 20, right: 24, bottom: 32, left: 48},
+    colors: ["#2f6fdf", "#e3793b", "#4a9d5b", "#9b59b6"],
+    y: {domain: [0, 100], ticks: 5},
+    font: {family: "Inter, sans-serif", size: 12},
+  };
+  function draw(result) {
+    const inner = config.width - config.margin.left - config.margin.right;
+    const bars = result.rows.slice(0, 5);
+    bars.forEach((row, i) => {
+      const x = config.margin.left + (i * inner) / bars.length;
+      // ... draw a bar of height row.revenue at x
+    });
+  }
+  prumi.on("kpi", draw);
+</script>
+</body></html>

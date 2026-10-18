@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sales</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter&display=swap">
+  <style>body { font-family: Inter, sans-serif; margin: 24px; }</style>
+</head>
+<body>
+  <h1>Sales</h1>
+  <div id="kpi"></div>
+  <div id="bars"></div>
+  <canvas id="trend"></canvas>
+  <script>
+    prumi.on("margin", (result) => {});
+    prumi.on("kpi", (result) => {
+      const row = result.rows[0];
+      document.getElementById("kpi").textContent = prumi.format(row.revenue, "revenue");
+    });
+    prumi.on("by_region", (result) => {
+      const bars = document.getElementById("bars");
+      bars.replaceChildren(...result.rows.map((row) => {
+        const bar = document.createElement("button");
+        bar.textContent = `${row.customer__region}: ${prumi.format(row.revenue, "revenue")}`;
+        bar.onclick = () => prumi.click("by_region", row);
+        return bar;
+      }));
+    });
+    prumi.on("trend", (result) => {
+      new Chart(document.getElementById("trend"), {
+        type: "line",
+        data: {
+          labels: result.rows.map((r) => r.metric_time),
+          datasets: [{label: prumi.label("revenue"), data: result.rows.map((r) => r.revenue)}],
+        },
+        options: {responsive: true, plugins: {legend: {display: false}}},
+      });
+    });
+  </script>
+</body>
+</html>

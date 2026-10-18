@@ -9,9 +9,10 @@ from typing import Any
 from prumi.issues import Report
 from prumi.source import Source
 from prumi.validate._parse import parse_spec
+from prumi.validate.html import DEFAULT_HOSTS, AllowedHosts, check_html
 from prumi.validate.rules import check_spec
 
-__all__ = ["parse_spec", "validate"]
+__all__ = ["AllowedHosts", "parse_spec", "validate"]
 
 
 def validate(
@@ -21,9 +22,13 @@ def validate(
     metric_request_ids: Collection[int],
     *,
     as_of: dt.date,
+    hosts: AllowedHosts = DEFAULT_HOSTS,
 ) -> Report:
     """Validate a spec (data or a DashboardSpec) and, when given, its HTML."""
     parsed, issues = parse_spec(spec)
     if parsed is None:
         return Report.of(issues)
-    return Report.of(check_spec(parsed, source, metric_request_ids, as_of))
+    issues = list(check_spec(parsed, source, metric_request_ids, as_of))
+    if html is not None:
+        issues += check_html(parsed, html, hosts)
+    return Report.of(issues)

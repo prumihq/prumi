@@ -10,7 +10,8 @@ FIXTURES = Path(__file__).parent / "fixtures" / "validator"
 METRIC_REQUESTS = {1, 2}
 
 # Section 7's codes, plus spec.invalid_interaction (section 13's interaction check).
-STATIC_CODES = {
+# html.too_large is tested in test_html.py, with a generated page.
+CODES = {
     "spec.invalid",
     "spec.duplicate_id",
     "spec.unknown_filter",
@@ -32,6 +33,14 @@ STATIC_CODES = {
     "R7.unknown_metric_request",
     "R10.no_format",
     "R10.mixed_units",
+    "R8.embedded_numbers",
+    "R8.numbers_in_text",
+    "R8.numbers_in_table",
+    "html.binding_selector",
+    "html.unknown_block",
+    "html.unbound_block",
+    "html.script_host",
+    "html.unpinned_script",
 }
 
 
@@ -54,13 +63,13 @@ def run(path: Path, source, as_of):
     return validate(load_spec_file(path), html, source, METRIC_REQUESTS, as_of=as_of)
 
 
-def test_the_base_spec_is_valid(fake_source, as_of):
-    report = run(FIXTURES / "_base.yaml", fake_source, as_of)
+def test_the_base_spec_and_page_are_valid(fake_source, as_of):
+    report = run(FIXTURES / "_base.yaml", fake_source, as_of)  # with _base.html
     assert report.ok and not report.warnings, report.issues
 
 
 def test_every_code_has_a_fixture():
-    assert STATIC_CODES <= {fixture_header(p)["code"] for p in FIXTURE_FILES}
+    assert CODES <= {fixture_header(p)["code"] for p in FIXTURE_FILES}
 
 
 @pytest.mark.parametrize("path", FIXTURE_FILES, ids=lambda p: p.stem)
