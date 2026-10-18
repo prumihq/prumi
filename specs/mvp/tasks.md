@@ -64,7 +64,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 43. Default theme: `/theme.css`, injection, CSP, contrast test (AC 47)
 - [x] 44. Shutdown within 5 s (AC 48)
 - [x] 45. Guide, instructions, `docs/bi-rules.md` and README updates (AC 50)
-- [ ] 46. Benchmark run (AC 51). The maintainer does this one.
+- [x] 46. Benchmark run (AC 51). Done 2026-10-18 (third run): 373 s to publish, of which ~38 s asking about existing dashboards; ~43k output tokens; one correct refusal (a JS error); a richer page than runs 1 and 2.
 - [x] 47. Remove every spec-section and AC reference from code, comments and test names (rewrite each as the *why*, or as a pointer to an ADR, a BI rule or an issue code), and make the tests that read `specs/` compare against the shipped text instead (see AGENTS.md, code style). Done when `git grep -nE "spec(\.md)? section|\bAC [0-9]|specs/" -- packages examples` finds nothing. Do it last, after tasks 34–45
 
 ## Tightening after the proof (spec section 19.13; added 2026-10-18)
