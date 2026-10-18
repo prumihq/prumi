@@ -803,6 +803,13 @@ The third agent run (2026-10-18) followed the rules from the guide and never tri
 
 **Fixture:** the third-run dashboard (`~/test3/region-revenue-aov-weekly.html` and `.spec.json`) is added as the real must-pass fixture decided in question 3.
 
+**Details settled during implementation (2026-10-18):**
+- Tick runs (v, v+d, v+2d) are found among all of a chart's numbers, not by requiring every number to be evenly spaced, because charts also hold data labels and titles. Known limit: a made-up number that completes a run of three evenly spaced values in the same chart passes.
+- An unknown filter in `check_states` gives `spec.unknown_filter` at `check_states[i].filters.<id>`; bad filter values come back as `query.failed`, named with the state. States run only when the static checks pass.
+- A candidate edited from another keeps its `check_states` unless the edit passes its own; a published or dashboard-id base starts with none.
+- `base` accepts any JSON value in the tool schema, so a wrong shape gets `validate.invalid_base` instead of the SDK's schema error.
+- Runtime error columns are those of the failing operation, as the browser reports them.
+
 #### 19.15 Layout report from validation (added and accepted 2026-10-18)
 
 None of the three agent runs saw the page it built, and number checks don't catch overlapping labels, clipped text or a page wider than the screen. The server already renders the page during validation (19.1), so it measures the render and reports layout problems as warnings. **No image and no text from the page is returned:** only problem kinds, element paths and box geometry. No dashboard data reaches the agent.
