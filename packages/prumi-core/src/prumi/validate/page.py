@@ -204,13 +204,16 @@ class PageChecker:
         formats: Mapping[str, Any],
         frame_page: Callable[[str], tuple[str, str]],
         allowed_hosts: frozenset[str] = frozenset(),
+        values: Mapping[str, Any] | None = None,
     ) -> list[Issue]:
         """Issues for what the rendered page shows. `frame_page(origin)` gives the frame's
-        HTML and Content-Security-Policy, as the server would serve them."""
+        HTML and Content-Security-Policy, as the server would serve them. `values` are the
+        filter values the page starts with (default: the filters' defaults)."""
         frame_html, csp = frame_page(ORIGIN)
         setup = {
             "filters": [f.model_dump(mode="json") for f in spec.filters],
-            "values": {f.id: f.model_dump(mode="json")["default"] for f in spec.filters},
+            "values": {f.id: f.model_dump(mode="json")["default"] for f in spec.filters}
+            | dict(values or {}),
             "labels": dict(labels),
             "formats": dict(formats),
             "bindings": {s: list(b) for s, b in spec.presentation.blocks_of().items()},

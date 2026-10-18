@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any
@@ -51,9 +51,10 @@ class Services:
         html: str | None,
         viewer: Viewer = LOCAL_VIEWER,
         metric_request_ids: Collection[int] | None = None,
+        check_states: Sequence[Mapping[str, Any]] = (),
     ) -> Report:
         """Static checks, HTML checks, the dry run and the page check, against the current
-        catalog."""
+        catalog; then the same for each of `check_states` (filter values)."""
         if metric_request_ids is None:
             metric_request_ids = self.registry.metric_request_ids()
         return validate(
@@ -66,10 +67,15 @@ class Services:
             engine=self.engine,
             viewer=viewer,
             page_check=self.check_page,
+            check_states=check_states,
         )
 
     def check_page(
-        self, spec: DashboardSpec, html: str, results: Mapping[str, dict[str, Any]]
+        self,
+        spec: DashboardSpec,
+        html: str,
+        results: Mapping[str, dict[str, Any]],
+        values: Mapping[str, Any] | None = None,
     ) -> list[Issue]:
         """Render the page with these block results, as a viewer's browser would."""
         from prumi.server import pages  # the server package imports this module
@@ -84,9 +90,21 @@ class Services:
             formats,
             lambda origin: (pages.frame_html(html, origin), pages.frame_csp(origin, hosts)),
             frozenset(hosts.script) | frozenset(hosts.style) | frozenset(hosts.font),
+            values,
         )
 
     def publish(
-        self, spec: Any, html: str, viewer: Viewer = LOCAL_VIEWER
+        self,
+        spec: Any,
+        html: str,
+        viewer: Viewer = LOCAL_VIEWER,
+        check_states: Sequence[Mapping[str, Any]] = (),
     ) -> tuple[Report, Published | None]:
-        return publish(self.registry, spec, html, lambda s, h: self.validate(s, h, viewer), viewer)
+        """Validate (the default filter state and `check_states`), then store."""
+        return publish(
+            self.registry,
+            spec,
+            html,
+            lambda s, h: self.validate(s, h, viewer, check_states=check_states),
+            viewer,
+        )

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+from pathlib import Path
 
 import duckdb
 import pytest
@@ -356,7 +357,7 @@ def test_candidates_expire_and_are_bounded():
         }
 
     first, second = store.add(spec(1), "<p>1</p>"), store.add(spec(2), "<p>2</p>")
-    assert store.get(first) == (spec(1), "<p>1</p>", True)
+    assert store.get(first) == (spec(1), "<p>1</p>", True, [])
     store.add(spec(3), "<p>3</p>")  # over the size: the oldest goes
     assert store.get(first) is None and store.get(second) is not None
     now[0] = 3601
@@ -628,3 +629,69 @@ def test_an_invalid_base_says_what_a_base_is(server):
     assert issue["message"] == (
         "base must be a candidate_id from validate_spec, a dashboard id, or {dashboard_id, version}"
     )
+
+
+# Checking more filter states before publishing
+
+BROWSER = Path(__file__).parent / "fixtures" / "browser"
+CHOSEN = {"filters": {"region": ["North America"]}}
+
+
+def unverified_page(dashboard_id="states"):
+    from prumi.spec import load_spec_file
+
+    spec = load_spec_file(BROWSER / "unverified.yaml")
+    spec["dashboard"] = {"id": dashboard_id, "title": "States"}
+    return spec, (BROWSER / "unverified.html").read_text()
+
+
+def test_check_states_are_rendered_and_checked(server):
+    spec, html = unverified_page()
+    # The page only shows its made-up number once a region is chosen.
+    assert ok(call(server, "validate_spec", spec=spec, html=html))["ok"]
+    report = ok(call(server, "validate_spec", spec=spec, html=html, check_states=[CHOSEN]))
+    assert not report["ok"]
+    [issue] = report["errors"]
+    assert issue["code"] == "R8.unverified_number"
+    assert issue["message"].startswith(
+        'With the filters {"region": ["North America"]}: The page shows $1,234.56'
+    )
+    # A state that's fine adds nothing.
+    fine = {"filters": {"region": ["Europe"]}}
+    edited = html.replace('"Target $1,234.56"', '""')
+    assert ok(call(server, "validate_spec", spec=spec, html=edited, check_states=[fine]))["ok"]
+
+
+def test_check_states_name_only_the_dashboards_filters(server):
+    spec, html = unverified_page()
+    states = [{"filters": {"nope": 1}}]
+    [issue] = ok(call(server, "validate_spec", spec=spec, html=html, check_states=states))["errors"]
+    assert (issue["code"], issue["path"]) == ("spec.unknown_filter", "check_states[0].filters.nope")
+    too_many = [CHOSEN] * 6
+    assert call(server, "validate_spec", spec=spec, html=html, check_states=too_many).is_error
+
+
+def test_publishing_checks_the_candidates_states_again(server, services, monkeypatch):
+    from prumi.services import Services
+
+    spec, html = unverified_page("states-publish")
+    html = html.replace('"Target $1,234.56"', '""')
+    fine = {"filters": {"region": ["Europe"]}}
+    candidate = ok(call(server, "validate_spec", spec=spec, html=html, check_states=[fine]))
+    assert candidate["ok"]
+    # Edits keep the base's states.
+    edit = [{"old": "<title>", "new": "<title>Edited "}]
+    edited = ok(call(server, "validate_spec", base=candidate["candidate_id"], html_edits=edit))
+
+    seen = []
+    original = Services.validate
+
+    def spy(self, *args, **kwargs):
+        seen.append(kwargs.get("check_states", ()))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Services, "validate", spy)
+    assert (
+        ok(call(server, "publish_dashboard", candidate_id=edited["candidate_id"]))["version"] == 1
+    )
+    assert seen == [[fine["filters"]]]

@@ -102,6 +102,12 @@ class MetricDescription(BaseModel):
     caveats: list[str]
 
 
+class CheckState(BaseModel):
+    filters: dict[str, Any] = Field(
+        description='Filter values, as prumi.setFilter takes them: {"region": ["North America"]}'
+    )
+
+
 class HtmlEdit(BaseModel):
     old: str = Field(description="Text that occurs exactly once in the HTML")
     new: str
@@ -358,7 +364,7 @@ def create_mcp(services: Services) -> MCPServer:
         """A candidate (valid or not), a dashboard's current version, or a published version."""
         if isinstance(base, str) and base.startswith(f"{FINGERPRINT_VERSION}:"):
             found = candidates.get(base)
-            return found[:2] if found is not None else _unknown_candidate(base, "base")
+            return found if found is not None else _unknown_candidate(base, "base")
         if isinstance(base, str) and base:
             dashboard_id, version = base, None
         elif (
@@ -389,7 +395,7 @@ def create_mcp(services: Services) -> MCPServer:
         stored = registry.version(dashboard_id, version or dashboard.current_version)
         if stored is None:
             return _not_found(dashboard_id, version)
-        return json.loads(stored.spec_json), stored.html
+        return json.loads(stored.spec_json), stored.html, True, []
 
     @mcp.tool()
     def validate_spec(
@@ -403,6 +409,7 @@ def create_mcp(services: Services) -> MCPServer:
             ),
         ] = None,
         html_edits: list[HtmlEdit] | None = None,
+        check_states: Annotated[list[CheckState] | None, Field(max_length=5)] = None,
     ) -> ValidationOut:
         """Validate a dashboard spec and its HTML: static rules, HTML checks, a dry run of every
         block, then the page rendered with that data and its numbers checked. Fix every error
@@ -413,7 +420,11 @@ def create_mcp(services: Services) -> MCPServer:
         To change existing content, pass `base` (a candidate_id, a dashboard id for its current
         version, or {dashboard_id, version}) with `html_edits` (applied in order; each `old`
         must occur exactly once) and/or a full new `spec` (default: the base's), instead of
-        resending the HTML."""
+        resending the HTML.
+
+        `check_states`: up to 5 more filter states to render and check like the default one,
+        before viewers find a problem in them. They're kept with the candidate (and with
+        candidates edited from it) and checked again when it's published."""
         if base is None and (spec is None or html_edits is not None):
             return _invalid_validate_arguments()
         if base is not None:
@@ -422,15 +433,19 @@ def create_mcp(services: Services) -> MCPServer:
             resolved = resolve_base(base)
             if isinstance(resolved, CallToolResult):
                 return resolved
-            base_spec, base_html = resolved
+            base_spec, base_html, _, base_states = resolved
             spec = base_spec if spec is None else spec
+            if check_states is None:
+                states = base_states
             html, problems = apply_edits(base_html, html_edits or [])
             if problems:
                 return ValidationOut(ok=False, errors=problems, warnings=[])
-        report = services.validate(spec, html)
+        if check_states is not None or base is None:
+            states = [s.filters for s in check_states or []]
+        report = services.validate(spec, html, check_states=states)
         candidate_id = None
         if html is not None:
-            candidate_id = candidates.add(spec, html, valid=report.ok)
+            candidate_id = candidates.add(spec, html, valid=report.ok, check_states=states)
         return ValidationOut(
             ok=report.ok,
             errors=list(report.errors),
@@ -464,7 +479,7 @@ def create_mcp(services: Services) -> MCPServer:
             found = candidates.get(candidate_id)
             if found is None:
                 return _unknown_candidate(candidate_id, "candidate_id")
-            spec, html, valid = found
+            spec, html, valid, states = found
             if not valid:
                 return _fail(
                     [
@@ -478,7 +493,9 @@ def create_mcp(services: Services) -> MCPServer:
                         )
                     ]
                 )
-        report, published = services.publish(spec, html)
+        report, published = services.publish(
+            spec, html, check_states=states if candidate_id is not None else ()
+        )
         if published is None:
             return _fail(report.errors)
         status = services.registry.status(published.dashboard_id, published.version)
@@ -625,11 +642,19 @@ class Candidates:
     def __init__(
         self, size: int = 50, ttl: float = 3600, clock: Callable[[], float] = time.monotonic
     ) -> None:
-        self._items: OrderedDict[str, tuple[float, dict[str, Any], str, bool]] = OrderedDict()
+        self._items: OrderedDict[
+            str, tuple[float, dict[str, Any], str, bool, list[dict[str, Any]]]
+        ] = OrderedDict()
         self._size, self._ttl, self._clock = size, ttl, clock
         self._lock = threading.Lock()
 
-    def add(self, spec: dict[str, Any], html: str, valid: bool = True) -> str:
+    def add(
+        self,
+        spec: dict[str, Any],
+        html: str,
+        valid: bool = True,
+        check_states: Sequence[dict[str, Any]] = (),
+    ) -> str:
         try:
             candidate_id = Content.of(DashboardSpec.model_validate(spec), html).fingerprint
         except ValidationError:  # a spec that doesn't parse: an id from its text
@@ -638,22 +663,30 @@ class Candidates:
             candidate_id = f"{FINGERPRINT_VERSION}:{digest}"
         with self._lock:
             self._items.pop(candidate_id, None)
-            self._items[candidate_id] = (self._clock(), copy.deepcopy(spec), html, valid)
+            self._items[candidate_id] = (
+                self._clock(),
+                copy.deepcopy(spec),
+                html,
+                valid,
+                copy.deepcopy(list(check_states)),
+            )
             while len(self._items) > self._size:
                 self._items.popitem(last=False)
         return candidate_id
 
-    def get(self, candidate_id: str) -> tuple[dict[str, Any], str, bool] | None:
-        """(spec, html, valid), or None when unknown or expired."""
+    def get(
+        self, candidate_id: str
+    ) -> tuple[dict[str, Any], str, bool, list[dict[str, Any]]] | None:
+        """(spec, html, valid, check_states), or None when unknown or expired."""
         with self._lock:
             item = self._items.get(candidate_id)
             if item is None:
                 return None
-            added, spec, html, valid = item
+            added, spec, html, valid, states = item
             if self._clock() - added > self._ttl:
                 del self._items[candidate_id]
                 return None
-            return copy.deepcopy(spec), html, valid
+            return copy.deepcopy(spec), html, valid, copy.deepcopy(states)
 
 
 def _unknown_metric(services: Services, name: str, path: str) -> Issue:
