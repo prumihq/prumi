@@ -46,8 +46,9 @@ _DOCTYPE = re.compile(r"\A\s*<!doctype[^>]*>", re.IGNORECASE)
 
 
 def frame_html(html: str, origin: str) -> str:
-    """The stored HTML with the runtime as the first child of <head> (added if missing)."""
+    """The stored HTML with the theme and the runtime first in <head> (added if missing)."""
     script = (
+        f'<link rel="stylesheet" href="{origin}/theme.css">'
         f'<script src="{origin}/provenance.js"></script><script src="{origin}/runtime.js"></script>'
     )
     if match := _HEAD.search(html):
@@ -67,7 +68,7 @@ def frame_csp(origin: str, hosts: AllowedHosts) -> str:
             "sandbox allow-scripts",
             "default-src 'none'",
             " ".join(["script-src", origin, "'unsafe-inline'", *hosts.script]),
-            " ".join(["style-src", "'unsafe-inline'", *hosts.style]),
+            " ".join(["style-src", origin, "'unsafe-inline'", *hosts.style]),
             " ".join(["font-src", "data:", *hosts.font]),
             "img-src data: blob:",
             "connect-src 'none'",
@@ -145,20 +146,24 @@ def shell(version: Version, status: VersionStatus, source: Source) -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{escape(spec.dashboard.title)} · Prumi</title>
+<link rel="stylesheet" href="/theme.css">
 <style>
-  html, body {{ margin: 0; height: 100%; font-family: system-ui, sans-serif; }}
+  html, body {{ margin: 0; height: 100%; font-family: var(--prumi-font);
+               background: var(--prumi-bg); color: var(--prumi-text); }}
   body {{ display: flex; flex-direction: column; }}
   #prumi-bar {{ display: flex; gap: 16px; align-items: center; padding: 8px 16px;
-               border-bottom: 1px solid #ddd; background: #fafafa; font-size: 14px; }}
+               border-bottom: 1px solid var(--prumi-border); background: var(--prumi-surface);
+               font-size: 14px; }}
   #prumi-title {{ font-weight: 600; font-size: 16px; }}
-  #prumi-badge {{ padding: 2px 10px; border-radius: 12px; }}
-  #prumi-badge[data-kind="draft"] {{ background: #fff3cd; color: #664d03; }}
-  #prumi-badge[data-kind="certified"] {{ background: #d1e7dd; color: #0f5132; }}
-  #prumi-badge[data-kind="old"] {{ background: #e2e3e5; color: #41464b; }}
-  #prumi-freshness {{ color: #555; }}
+  #prumi-badge {{ padding: 2px 10px; border-radius: 12px; border: 1px solid currentColor; }}
+  #prumi-badge[data-kind="draft"] {{ color: var(--prumi-negative); }}
+  #prumi-badge[data-kind="certified"] {{ color: var(--prumi-positive); }}
+  #prumi-badge[data-kind="old"] {{ color: var(--prumi-text-muted); }}
+  #prumi-freshness {{ color: var(--prumi-text-muted); }}
   #prumi-details {{ margin-left: auto; position: relative; }}
-  #prumi-details ul {{ position: absolute; right: 0; z-index: 1; background: #fff;
-                      border: 1px solid #ddd; margin: 4px 0 0; padding: 8px 24px; width: 28em; }}
+  #prumi-details ul {{ position: absolute; right: 0; z-index: 1; background: var(--prumi-surface);
+                      border: 1px solid var(--prumi-border); border-radius: var(--prumi-radius);
+                      margin: 4px 0 0; padding: 8px 24px; width: 28em; }}
   #prumi-frame {{ flex: 1; border: 0; width: 100%; }}
 </style>
 </head>

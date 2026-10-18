@@ -398,3 +398,22 @@ def test_errors_show_in_the_blocks_bound_elements(page, server):
     frame.locator("body").evaluate("() => prumi.setFilter('period', {last: 0, grain: 'week'})")
     frame.locator("#trend").filter(has_text=failed).wait_for()
     assert frame.locator("#trend-note").text_content() == failed
+
+
+# The default theme
+
+
+@pytest.mark.parametrize(("scheme", "bg"), [("light", "#f7f7f5"), ("dark", "#121211")])
+def test_the_frame_and_the_shell_load_the_theme(browser, server, scheme, bg):
+    context = browser.new_context(locale="en-US", color_scheme=scheme)
+    try:
+        page = context.new_page()
+        page.set_default_timeout(TIMEOUT)
+        frame, _ = open_dashboard(page, server, "sales")
+        frame.locator("body").wait_for()
+        read = "() => getComputedStyle(document.documentElement).getPropertyValue('--prumi-bg')"
+        frame_of(page).wait_for_function(f"({read})().trim() !== ''")
+        assert frame_of(page).evaluate(read).strip() == bg
+        assert page.evaluate(read).strip() == bg
+    finally:
+        context.close()

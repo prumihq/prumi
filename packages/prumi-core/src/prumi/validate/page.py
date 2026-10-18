@@ -198,7 +198,8 @@ class PageChecker:
 
         setup_json = json.dumps(setup, ensure_ascii=False).replace("<", "\\u003c")
         assets = {
-            name: read_asset(name).decode("utf-8") for name in ("provenance.js", "runtime.js")
+            name: read_asset(name).decode("utf-8")
+            for name in ("provenance.js", "runtime.js", "theme.css")
         }
         provenance = read_asset("provenance.js").decode("utf-8")
         errors: list[str] = []
@@ -217,8 +218,10 @@ class PageChecker:
                         content_type="text/html",
                         headers={"Content-Security-Policy": csp},
                     )
-                if path.lstrip("/") in assets:
-                    return r.fulfill(body=assets[path.lstrip("/")], content_type="text/javascript")
+                name = path.lstrip("/")
+                if name in assets:
+                    kind = "text/css" if name.endswith(".css") else "text/javascript"
+                    return r.fulfill(body=assets[name], content_type=kind)
                 return r.abort()
             if (parts.hostname or "") in allowed_hosts:
                 return r.continue_()  # libraries from the allowed CDNs, as viewers load them

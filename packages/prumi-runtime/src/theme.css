@@ -1,0 +1,49 @@
+/* Prumi's default theme: CSS variables for dashboards and for Prumi's own shell.
+ *
+ * Loaded into every dashboard frame before the page's own styles. It only defines
+ * variables, so a page that ignores them looks as it did. Light by default, dark when the
+ * OS asks for it. Every text color (text, muted, accent, positive, negative) has a contrast
+ * of at least 4.5:1 against --prumi-bg and --prumi-surface in both modes.
+ */
+:root {
+  --prumi-bg: #f7f7f5;
+  --prumi-surface: #ffffff;
+  --prumi-text: #1b1b19;
+  --prumi-text-muted: #5b5a55;
+  --prumi-border: #dedcd5;
+  --prumi-accent: #2457b8;
+  --prumi-positive: #1b7332;
+  --prumi-negative: #b3261e;
+  --prumi-series-1: #2a78d6;
+  --prumi-series-2: #e07b2e;
+  --prumi-series-3: #2f9a59;
+  --prumi-series-4: #c4475c;
+  --prumi-series-5: #7a5bc4;
+  --prumi-series-6: #1c9aa6;
+  --prumi-series-7: #b38422;
+  --prumi-series-8: #6e6d68;
+  --prumi-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --prumi-font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --prumi-radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --prumi-bg: #121211;
+    --prumi-surface: #1e1e1c;
+    --prumi-text: #f0efeb;
+    --prumi-text-muted: #a8a69e;
+    --prumi-border: #3a3a36;
+    --prumi-accent: #7aaef0;
+    --prumi-positive: #5cc77a;
+    --prumi-negative: #f2867e;
+    --prumi-series-1: #5b9ae8;
+    --prumi-series-2: #f0964f;
+    --prumi-series-3: #4fbf7a;
+    --prumi-series-4: #e8697d;
+    --prumi-series-5: #a084e3;
+    --prumi-series-6: #3fc1cc;
+    --prumi-series-7: #d9a943;
+    --prumi-series-8: #a3a19a;
+  }
+}

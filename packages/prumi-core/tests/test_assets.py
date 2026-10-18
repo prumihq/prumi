@@ -8,11 +8,19 @@ from prumi.server import assets
 RUNTIME_SRC = Path(__file__).parents[2] / "prumi-runtime" / "src"
 
 
-@pytest.mark.parametrize("name", ["runtime.js", "shell.js", "provenance.js"])
-def test_served_from_the_runtime_package(client, name):
+@pytest.mark.parametrize(
+    ("name", "kind"),
+    [
+        ("runtime.js", "text/javascript"),
+        ("shell.js", "text/javascript"),
+        ("provenance.js", "text/javascript"),
+        ("theme.css", "text/css"),
+    ],
+)
+def test_served_from_the_runtime_package(client, name, kind):
     response = client.get(f"/{name}")
     assert response.status_code == 200
-    assert response.headers["content-type"] == "text/javascript; charset=utf-8"
+    assert response.headers["content-type"] == f"{kind}; charset=utf-8"
     assert response.content == (RUNTIME_SRC / name).read_bytes()
 
 

@@ -1,5 +1,5 @@
-"""Puts prumi-runtime's runtime.js, shell.js and provenance.js into the prumi-core wheel
-(prumi/_runtime/).
+"""Puts prumi-runtime's browser assets (runtime.js, shell.js, provenance.js, theme.css) into
+the prumi-core wheel (prumi/_runtime/).
 
 There is one source of each, in packages/prumi-runtime/src/. A wheel built in the workspace
 reads them there; a wheel built from the sdist reads the copies the sdist carries.
@@ -9,7 +9,7 @@ from pathlib import Path
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
-ASSETS = ("runtime.js", "shell.js", "provenance.js")
+ASSETS = ("runtime.js", "shell.js", "provenance.js", "theme.css")
 
 
 class RuntimeAssets(BuildHookInterface):

@@ -39,9 +39,10 @@ def create_app(services: Services) -> HostCheck:
 
     async def asset(request: Request) -> Response:
         name = request.url.path.lstrip("/")
+        kind = "text/css" if name.endswith(".css") else "text/javascript"
         return Response(
             read_asset(name),
-            media_type="text/javascript; charset=utf-8",
+            media_type=f"{kind}; charset=utf-8",
             headers={"Cache-Control": "no-cache"},
         )
 
@@ -199,6 +200,7 @@ def create_app(services: Services) -> HostCheck:
             Route("/runtime.js", asset),
             Route("/shell.js", asset),
             Route("/provenance.js", asset),
+            Route("/theme.css", asset),
             Route("/d/{id}", shell),
             Route("/d/{id}/v/{n:int}", shell),
             Route("/d/{id}/v/{n:int}/frame", frame),

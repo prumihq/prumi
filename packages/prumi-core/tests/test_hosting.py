@@ -8,14 +8,15 @@ from prumi.server.pages import frame_html
 
 ORIGIN = "http://127.0.0.1:8484"
 RUNTIME = (
+    f'<link rel="stylesheet" href="{ORIGIN}/theme.css">'
     f'<script src="{ORIGIN}/provenance.js"></script><script src="{ORIGIN}/runtime.js"></script>'
 )
 CSP = (
     "sandbox allow-scripts; default-src 'none'; "
     "script-src http://127.0.0.1:8484 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com "
     "unpkg.com; "
-    "style-src 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net cdnjs.cloudflare.com "
-    "unpkg.com; "
+    "style-src http://127.0.0.1:8484 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net "
+    "cdnjs.cloudflare.com unpkg.com; "
     "font-src data: fonts.gstatic.com cdn.jsdelivr.net cdnjs.cloudflare.com unpkg.com; "
     "img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; "
     "frame-ancestors http://127.0.0.1:8484"

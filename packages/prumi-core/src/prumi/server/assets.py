@@ -1,5 +1,5 @@
-"""runtime.js, shell.js and provenance.js, which live in the prumi-runtime package (one source
-of each).
+"""runtime.js, shell.js, provenance.js and theme.css, which live in the prumi-runtime package
+(one source of each).
 
 Built wheels carry a copy under prumi/_runtime/ (hatch force-include); in the workspace they
 are read from packages/prumi-runtime/src/.
@@ -10,7 +10,7 @@ from __future__ import annotations
 from importlib.resources import files
 from pathlib import Path
 
-ASSETS = ("runtime.js", "shell.js", "provenance.js")
+ASSETS = ("runtime.js", "shell.js", "provenance.js", "theme.css")
 _WORKSPACE = Path(__file__).resolve().parents[4] / "prumi-runtime" / "src"
 
 
