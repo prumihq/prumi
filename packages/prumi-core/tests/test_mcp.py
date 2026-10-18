@@ -296,7 +296,7 @@ def test_mcp_rejects_other_origins(server):
 # Publishing by candidate
 
 
-def test_validate_returns_a_candidate_only_for_valid_spec_and_html(server, demo_dashboard):
+def test_validate_returns_a_candidate_whenever_it_has_spec_and_html(server, demo_dashboard):
     spec, html = demo_dashboard
     with_html = ok(call(server, "validate_spec", spec=spec, html=html))
     assert (
@@ -304,8 +304,13 @@ def test_validate_returns_a_candidate_only_for_valid_spec_and_html(server, demo_
         == Content.of(DashboardSpec.model_validate(spec), html).fingerprint
     )
     assert ok(call(server, "validate_spec", spec=spec))["candidate_id"] is None
+    # Failed content gets one too, to be fixed with html_edits; even a spec that doesn't parse.
     broken = {**spec, "data": [{**spec["data"][0], "metrics": ["revnue"]}, *spec["data"][1:]]}
-    assert ok(call(server, "validate_spec", spec=broken, html=html))["candidate_id"] is None
+    failed = ok(call(server, "validate_spec", spec=broken, html=html))
+    assert not failed["ok"] and failed["candidate_id"].startswith("v0:")
+    unparsed = ok(call(server, "validate_spec", spec={"spec_version": 0}, html=html))
+    assert not unparsed["ok"] and unparsed["candidate_id"].startswith("v0:")
+    assert unparsed["candidate_id"] != failed["candidate_id"]
 
 
 def test_publishing_by_candidate_is_publishing_the_content(server, services, demo_dashboard):
@@ -351,7 +356,7 @@ def test_candidates_expire_and_are_bounded():
         }
 
     first, second = store.add(spec(1), "<p>1</p>"), store.add(spec(2), "<p>2</p>")
-    assert store.get(first) == (spec(1), "<p>1</p>")
+    assert store.get(first) == (spec(1), "<p>1</p>", True)
     store.add(spec(3), "<p>3</p>")  # over the size: the oldest goes
     assert store.get(first) is None and store.get(second) is not None
     now[0] = 3601
@@ -564,7 +569,7 @@ def test_edits_that_dont_apply_name_their_index(server):
         ([fine, {"old": "<p id", "new": ""}], "edit.no_match"),  # the first edit changed it
     ):
         report = ok(call(server, "validate_spec", base=base, html_edits=edits))
-        assert not report["ok"] and report["candidate_id"] is None
+        assert not report["ok"] and report["candidate_id"] is None  # no content to keep
         [issue] = report["errors"]
         assert (issue["code"], issue["path"]) == (code, "html_edits[1]")
         assert "html_edits[1]" in issue["message"]
@@ -579,8 +584,47 @@ def test_edits_that_dont_apply_name_their_index(server):
         ({"base": "v0:nope", "html": "<p></p>"}, "validate.invalid_arguments"),
         ({"base": "v0:nope"}, "publish.unknown_candidate"),
         ({"base": {"dashboard_id": "nope", "version": 1}}, "dashboard.not_found"),
+        ({"base": "nope"}, "dashboard.not_found"),
+        ({"base": 7}, "validate.invalid_base"),
+        ({"base": ""}, "validate.invalid_base"),
+        ({"base": {"dashboard_id": "x"}}, "validate.invalid_base"),
+        ({"base": {"dashboard_id": "x", "version": "1"}}, "validate.invalid_base"),
+        ({"base": ["v0:x"]}, "validate.invalid_base"),
     ],
 )
 def test_bad_bases_and_arguments(server, arguments, code):
     [issue] = issues(call(server, "validate_spec", **arguments))
     assert issue["code"] == code
+
+
+def test_a_failed_candidate_can_be_edited_but_not_published(server, services):
+    spec = readback_spec("fix-me")
+    broken = READBACK_HTML.replace("b.rows[0].revenue", "b.rows[0].nothing.revenue")
+    failed = ok(call(server, "validate_spec", spec=spec, html=broken))
+    assert not failed["ok"] and failed["errors"][0]["code"] == "html.runtime_error"
+
+    [issue] = issues(call(server, "publish_dashboard", candidate_id=failed["candidate_id"]))
+    assert (issue["code"], issue["severity"]) == ("publish.invalid_candidate", "error")
+    assert services.registry.dashboard("fix-me") is None
+
+    edit = [{"old": "b.rows[0].nothing.revenue", "new": "b.rows[0].revenue"}]
+    fixed = ok(call(server, "validate_spec", base=failed["candidate_id"], html_edits=edit))
+    assert fixed["ok"] and fixed["candidate_id"] != failed["candidate_id"]
+    assert ok(call(server, "publish_dashboard", candidate_id=fixed["candidate_id"]))["version"] == 1
+
+
+def test_a_dashboard_id_as_base_means_its_current_version(server, services):
+    spec = readback_spec("by-id")
+    services.publish(spec, READBACK_HTML)
+    services.publish(spec, READBACK_HTML + "<!-- 2 -->")
+    edit = [{"old": "<!-- 2 -->", "new": "<!-- 3 -->"}]
+    by_id = ok(call(server, "validate_spec", base="by-id", html_edits=edit))
+    by_content = ok(call(server, "validate_spec", spec=spec, html=READBACK_HTML + "<!-- 3 -->"))
+    assert by_id["ok"] and by_id["candidate_id"] == by_content["candidate_id"]
+
+
+def test_an_invalid_base_says_what_a_base_is(server):
+    [issue] = issues(call(server, "validate_spec", base=42))
+    assert issue["message"] == (
+        "base must be a candidate_id from validate_spec, a dashboard id, or {dashboard_id, version}"
+    )

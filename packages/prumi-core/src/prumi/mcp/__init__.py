@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import difflib
+import hashlib
 import json
 import re
 import threading
@@ -16,7 +17,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
@@ -29,7 +30,7 @@ from prumi.agent_output import AgentResult, for_agent
 from prumi.config import is_loopback
 from prumi.engine import BlockInputs, BlockRequestError
 from prumi.issues import Issue, error
-from prumi.registry import Content
+from prumi.registry import FINGERPRINT_VERSION, Content, normalize_html
 from prumi.services import Services
 from prumi.spec import Block, DashboardSpec, Sort
 from prumi.time import Compare, Grain, Window
@@ -101,11 +102,6 @@ class MetricDescription(BaseModel):
     caveats: list[str]
 
 
-class DashboardRef(BaseModel):
-    dashboard_id: str
-    version: int
-
-
 class HtmlEdit(BaseModel):
     old: str = Field(description="Text that occurs exactly once in the HTML")
     new: str
@@ -117,7 +113,8 @@ class ValidationOut(BaseModel):
     warnings: list[Issue]
     candidate_id: str | None = Field(
         default=None,
-        description="Set when spec and HTML validated without errors: publish with it",
+        description="Set whenever spec and HTML were sent: publish it when ok, or fix it with "
+        "validate_spec(base=candidate_id, html_edits=...)",
     )
 
 
@@ -357,35 +354,66 @@ def create_mcp(services: Services) -> MCPServer:
 
     candidates = Candidates()
 
-    def resolve_base(base: str | DashboardRef) -> tuple[dict[str, Any], str] | CallToolResult:
-        if isinstance(base, str):
+    def resolve_base(base: Any) -> tuple[dict[str, Any], str] | CallToolResult:
+        """A candidate (valid or not), a dashboard's current version, or a published version."""
+        if isinstance(base, str) and base.startswith(f"{FINGERPRINT_VERSION}:"):
             found = candidates.get(base)
-            return found if found is not None else _unknown_candidate(base, "base")
+            return found[:2] if found is not None else _unknown_candidate(base, "base")
+        if isinstance(base, str) and base:
+            dashboard_id, version = base, None
+        elif (
+            isinstance(base, dict)
+            and set(base) == {"dashboard_id", "version"}
+            and isinstance(base["dashboard_id"], str)
+            and isinstance(base["version"], int)
+            and not isinstance(base["version"], bool)
+        ):
+            dashboard_id, version = base["dashboard_id"], base["version"]
+        else:
+            return _fail(
+                [
+                    error(
+                        "validate.invalid_base",
+                        "base",
+                        "base must be a candidate_id from validate_spec, a dashboard id, or "
+                        "{dashboard_id, version}",
+                        'For example "v0:…", "sales-weekly" or '
+                        '{"dashboard_id": "sales-weekly", "version": 2}.',
+                    )
+                ]
+            )
         registry = services.registry
-        dashboard = registry.dashboard(base.dashboard_id)
+        dashboard = registry.dashboard(dashboard_id)
         if dashboard is None or not registry.can_read(LOCAL_VIEWER, dashboard):
-            return _not_found(base.dashboard_id)
-        stored = registry.version(base.dashboard_id, base.version)
+            return _not_found(dashboard_id)
+        stored = registry.version(dashboard_id, version or dashboard.current_version)
         if stored is None:
-            return _not_found(base.dashboard_id, base.version)
+            return _not_found(dashboard_id, version)
         return json.loads(stored.spec_json), stored.html
 
     @mcp.tool()
     def validate_spec(
         spec: dict[str, Any] | None = None,
         html: str | None = None,
-        base: str | DashboardRef | None = None,
+        base: Annotated[
+            Any,
+            Field(
+                description='A candidate_id ("v0:…"), a dashboard id (its current version), or '
+                "{dashboard_id, version}"
+            ),
+        ] = None,
         html_edits: list[HtmlEdit] | None = None,
     ) -> ValidationOut:
         """Validate a dashboard spec and its HTML: static rules, HTML checks, a dry run of every
         block, then the page rendered with that data and its numbers checked. Fix every error
-        before publishing. With spec and HTML and no errors, the result has a candidate_id to
-        publish with, so the content isn't sent twice.
+        before publishing. With spec and HTML the result has a candidate_id, valid or not: a
+        valid one is published with publish_dashboard, so the content isn't sent twice, and
+        any one can be edited.
 
-        To change existing content, pass `base` (a candidate_id, or {dashboard_id, version}
-        of a published version) with `html_edits` (applied in order; each `old` must occur
-        exactly once) and/or a full new `spec` (default: the base's), instead of resending
-        the HTML."""
+        To change existing content, pass `base` (a candidate_id, a dashboard id for its current
+        version, or {dashboard_id, version}) with `html_edits` (applied in order; each `old`
+        must occur exactly once) and/or a full new `spec` (default: the base's), instead of
+        resending the HTML."""
         if base is None and (spec is None or html_edits is not None):
             return _invalid_validate_arguments()
         if base is not None:
@@ -401,8 +429,8 @@ def create_mcp(services: Services) -> MCPServer:
                 return ValidationOut(ok=False, errors=problems, warnings=[])
         report = services.validate(spec, html)
         candidate_id = None
-        if report.ok and html is not None:
-            candidate_id = candidates.add(spec, html)
+        if html is not None:
+            candidate_id = candidates.add(spec, html, valid=report.ok)
         return ValidationOut(
             ok=report.ok,
             errors=list(report.errors),
@@ -436,7 +464,20 @@ def create_mcp(services: Services) -> MCPServer:
             found = candidates.get(candidate_id)
             if found is None:
                 return _unknown_candidate(candidate_id, "candidate_id")
-            spec, html = found
+            spec, html, valid = found
+            if not valid:
+                return _fail(
+                    [
+                        error(
+                            "publish.invalid_candidate",
+                            "candidate_id",
+                            f"The candidate {candidate_id!r} didn't pass validation, so it can't "
+                            "be published.",
+                            "Fix its errors with validate_spec(base=candidate_id, html_edits=...), "
+                            "then publish the new candidate_id.",
+                        )
+                    ]
+                )
         report, published = services.publish(spec, html)
         if published is None:
             return _fail(report.errors)
@@ -573,7 +614,9 @@ def apply_edits(html: str, edits: Sequence[HtmlEdit]) -> tuple[str, list[Issue]]
 
 
 class Candidates:
-    """Content that passed validate_spec, by fingerprint, so publishing needn't resend it.
+    """Content sent to validate_spec, by fingerprint, so publishing and editing needn't resend
+    it. Content that failed is kept too, to be fixed with html_edits; only valid content can
+    be published.
 
     In memory only: at most 50, each for an hour. Losing them on restart is fine; the agent
     validates again.
@@ -582,29 +625,35 @@ class Candidates:
     def __init__(
         self, size: int = 50, ttl: float = 3600, clock: Callable[[], float] = time.monotonic
     ) -> None:
-        self._items: OrderedDict[str, tuple[float, dict[str, Any], str]] = OrderedDict()
+        self._items: OrderedDict[str, tuple[float, dict[str, Any], str, bool]] = OrderedDict()
         self._size, self._ttl, self._clock = size, ttl, clock
         self._lock = threading.Lock()
 
-    def add(self, spec: dict[str, Any], html: str) -> str:
-        candidate_id = Content.of(DashboardSpec.model_validate(spec), html).fingerprint
+    def add(self, spec: dict[str, Any], html: str, valid: bool = True) -> str:
+        try:
+            candidate_id = Content.of(DashboardSpec.model_validate(spec), html).fingerprint
+        except ValidationError:  # a spec that doesn't parse: an id from its text
+            text = json.dumps(spec, sort_keys=True, separators=(",", ":"), default=str)
+            digest = hashlib.sha256(f"{text}\0{normalize_html(html)}".encode()).hexdigest()
+            candidate_id = f"{FINGERPRINT_VERSION}:{digest}"
         with self._lock:
             self._items.pop(candidate_id, None)
-            self._items[candidate_id] = (self._clock(), copy.deepcopy(spec), html)
+            self._items[candidate_id] = (self._clock(), copy.deepcopy(spec), html, valid)
             while len(self._items) > self._size:
                 self._items.popitem(last=False)
         return candidate_id
 
-    def get(self, candidate_id: str) -> tuple[dict[str, Any], str] | None:
+    def get(self, candidate_id: str) -> tuple[dict[str, Any], str, bool] | None:
+        """(spec, html, valid), or None when unknown or expired."""
         with self._lock:
             item = self._items.get(candidate_id)
             if item is None:
                 return None
-            added, spec, html = item
+            added, spec, html, valid = item
             if self._clock() - added > self._ttl:
                 del self._items[candidate_id]
                 return None
-            return copy.deepcopy(spec), html
+            return copy.deepcopy(spec), html, valid
 
 
 def _unknown_metric(services: Services, name: str, path: str) -> Issue:
