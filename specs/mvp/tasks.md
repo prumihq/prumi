@@ -11,7 +11,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 5. `_metricflow.py`: manifest loading, compile-only client per dialect, `compile(query) -> sql`, and the import-boundary test — done when the demo manifest loads and a simple query compiles with zero client calls (AC 2, 3)
 - [x] 6. **Contract test, first:** port the spike's checks onto the demo project and add the behaviors section 4 relies on that the spike didn't test (window without a time group-by, dimension values, `order_by`/`limit`, `not_in` + NULL, `non_additive_dimension`, Monday weeks). **If any of these doesn't work as the spec assumes, record it in `questions.md` and stop** — done when the contract test passes (AC 3)
 - [x] 7. DuckDB connection (`connections/duckdb.py`), `execute` with renaming to semantic column names and value normalization, startup checks — done when each startup failure case has a clear message (AC 4)
-- [ ] 8. Filter rendering: quoting, `{`/`}` rejection, number/bool literals, NULL semantics — done when the injection and NULL tests pass against the demo (AC 6)
+- [x] 8. Filter rendering: quoting, `{`/`}` rejection, number/bool literals, NULL semantics — done when the injection and NULL tests pass against the demo (AC 6)
 - [ ] 9. Catalog extraction: kinds, additivity rule, `meta.prumi` format, owner, dimensions, `relations` — done when the demo catalog matches the spec table (AC 5)
 
 ## Engine and validation
