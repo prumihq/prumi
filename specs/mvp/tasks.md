@@ -40,3 +40,13 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 25. End-to-end test: scripted MCP session → browser shows numbers equal to SQL → certify → edit → draft (AC 29)
 - [x] 26. README: quick start, "Connect your agent", "Where your data goes" (AC 30)
 - [x] 27. Release prep: versions to 0.1.0, `uv build` wheels checked for `runtime.js`/`shell.js`, changelog entry. The maintainer tags and publishes (AC 31)
+
+## First-use fixes (spec section 18; added 2026-10-18)
+
+- [ ] 28. Plain `spec.invalid` messages: map pydantic error types to the section 18 wording, with fixtures for the five kinds (AC 34)
+- [ ] 29. `prumi.format` accepts a format object, and warns once in the console for unknown arguments (AC 35)
+- [ ] 30. Candidates: `candidate_id` in `validate_spec`, the in-memory store, `publish_dashboard(candidate_id)` with re-validation and `publish.unknown_candidate` (AC 33)
+- [ ] 31. `authoring_guide` tool and its Markdown file, with the three tests (AC 32)
+- [ ] 32. Local-only note on publish; new instructions text; README updated for the new tool (AC 36)
+- [ ] 33. Rerun the README's example prompt in a fresh agent session and write down what happened (AC 37). The maintainer does this one.
+

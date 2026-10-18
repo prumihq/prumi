@@ -571,6 +571,35 @@ The dbt adapter's README has "Preparing your dbt project": what Prumi reads, and
 
 The main README links to [`docs/bi-rules.md`](../../docs/bi-rules.md). When an issue code changes, that file changes with it.
 
+### 18. First-use fixes (added 2026-10-18; status: draft)
+
+The first real agent session (Claude Code on the demo) published a correct-looking dashboard, but took about 6 minutes, and about two thirds of that time and of all output tokens went into sending the same 26 KB HTML twice (to `validate_spec`, then to `publish_dashboard`). The agent also had to guess the page API and the spec format. It guessed `prumi.format(value, column.format)`, while the runtime expects a metric name, so every number on that page lost its currency and percent format without any error. These fixes ship in 0.1.0.
+
+**1. `authoring_guide` tool.** No input. Returns one Markdown text, kept as `packages/prumi-core/src/prumi/mcp/authoring_guide.md`:
+- **The page API:** every `prumi.*` function with its arguments and return value; the exact object `prumi.on` callbacks receive (the block result of section 9, including `_partial`, `_previous`, `_delta`, `_delta_pct`, `others`, `total`, `window`, `freshness`); when callbacks fire (on load, then after each change to a filter the block lists); how errors arrive (`prumi.onError` gets an issue); what an empty result looks like (`rows: []`).
+- **A minimal valid spec and a minimal HTML page** that uses it with `prumi.on`, `prumi.format` and `prumi.click`.
+- **The spec JSON Schema** (the committed file, inlined).
+
+Tests: the guide's spec and HTML pass `validate_spec`; the guide names every function the runtime defines on `window.prumi`; the inlined schema equals the committed one.
+
+**2. Publish by candidate.** When `validate_spec` gets both `spec` and `html` and finds no errors, its result adds `candidate_id` (the fingerprint, `v0:...`). The server keeps validated candidates in memory (up to 50, for 1 hour). `publish_dashboard` takes **either** `spec` + `html` **or** `candidate_id`. It always re-validates the stored content, since the catalog may have changed. An unknown or expired id gives `publish.unknown_candidate` (error), with the hint "call `validate_spec` again with the spec and HTML". Candidates are lost on restart; that's fine.
+
+**3. Plain validation messages.** `spec.invalid` messages never use pydantic's words ("tuple", "model", "union", "tagged-union", "dict", "Input should be"). Each says what the field must be, in the spec's terms:
+- missing field: "`dashboard.id` is required";
+- unknown field: "`dashboard.description` isn't a field of `dashboard`; its fields are `id`, `title`";
+- wrong container: "`data` must be a list of blocks";
+- wrong value: "`grain` must be one of `day`, `week`, `month`, `quarter`, `year`";
+- wrong type: "`top_n` must be a whole number".
+
+**4. A forgiving, noisy `prumi.format`.** `prumi.format(value, metric)` also accepts a column's `format` object as the second argument. Given anything else (an unknown metric name, a missing argument), it formats as a plain number **and** logs `console.warn("prumi.format: unknown metric ...")` once per argument, so a wrong call is visible in the browser console.
+
+**5. Local URLs are labeled.** When the server binds to a loopback address, `publish_dashboard` adds `note: "This link only works on this machine."`
+
+**6. Server instructions.** Steps 3 and 5 of section 14 become:
+
+> 3. Call `authoring_guide` once before writing anything: it has the spec format, the page API and a working example. Then write a spec and the HTML. Every number on the page must come from `prumi.on(...)` in the HTML. Never write numbers, totals or datasets into the HTML, and never compute totals, averages or ratios in JavaScript; declare `total`, `others` or `compare` in the spec instead. Format values with `prumi.format`.
+> 5. Call `validate_spec` with the spec and the HTML and fix every error. Then call `publish_dashboard` with the `candidate_id` from the last successful validation (don't resend the spec and HTML), and give the user the URL. The dashboard starts as an uncertified draft; only the data team can certify it.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -658,3 +687,11 @@ Each criterion has at least one automated test unless it says otherwise.
 **Docs and release**
 30. The README has the quick start (linking to the dbt adapter's "Preparing your dbt project"), "Connect your agent" and "Where your data goes" sections. *(review)*
 31. `prumi-core`, `prumi-adapter-dbt` and the runtime are versioned `0.1.0`; `uv build` produces wheels, and the `prumi-core` wheel contains `runtime.js` and `shell.js`.
+
+**First-use fixes (section 18)**
+32. `authoring_guide` exists; its example spec and HTML validate, it names every `window.prumi` function, and its schema equals the committed one.
+33. `validate_spec` with spec + HTML and no errors returns a `candidate_id`; `publish_dashboard(candidate_id=...)` publishes the same version as sending the content; an unknown or expired id gives `publish.unknown_candidate`; a catalog change between validate and publish is caught by re-validation.
+34. Over the validator's `spec.invalid` fixtures, no message contains "tuple", "model", "union", "dict" or "Input should be", and each of the five message kinds in section 18 has a fixture.
+35. *(browser test)* `prumi.format(1234.5, "revenue")` and `prumi.format(1234.5, <revenue's format object>)` give the same currency string; `prumi.format(1, "nope")` gives a plain number and one console warning.
+36. On a loopback server, `publish_dashboard` returns the local-only note. The MCP instructions match section 18.
+37. *(review)* A fresh agent session given the README's example prompt calls `authoring_guide`, needs no rounds to discover the spec shape, sends the HTML once (to `validate_spec`) and publishes by `candidate_id`.
