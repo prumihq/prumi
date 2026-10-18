@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; section 18 awaits acceptance)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, section 18 on 2026-10-18)
 
 ## Goal
 
@@ -571,7 +571,7 @@ The dbt adapter's README has "Preparing your dbt project": what Prumi reads, and
 
 The main README links to [`docs/bi-rules.md`](../../docs/bi-rules.md). When an issue code changes, that file changes with it.
 
-### 18. First-use fixes (added 2026-10-18; status: draft)
+### 18. First-use fixes (added and accepted 2026-10-18)
 
 The first real agent session (Claude Code on the demo) published a correct-looking dashboard, but took about 6 minutes, and about two thirds of that time and of all output tokens went into sending the same 26 KB HTML twice (to `validate_spec`, then to `publish_dashboard`). The agent also had to guess the page API and the spec format. It guessed `prumi.format(value, column.format)`, while the runtime expects a metric name, so every number on that page lost its currency and percent format without any error. These fixes ship in 0.1.0.
 
