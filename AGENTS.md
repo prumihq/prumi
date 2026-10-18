@@ -40,6 +40,9 @@ The BI rules R1–R10 and their issue codes are explained in `docs/bi-rules.md`.
 
 - Python 3.12+, type hints on public functions, ruff for lint and format.
 - Tests live next to each package in `tests/`.
+- **Code never cites specs.** Specs are plans for one release and freeze when it ships; the code outlives them. Comments explain the *why* in their own words, without "spec section N" or "AC N". When a pointer helps, point to something lasting: an ADR (`docs/adr/0002`), a BI rule (`R6`) or an issue code, all documented in `docs/`.
+- Tests are named after the behavior they check. Which task serves which acceptance criterion is recorded in `tasks.md`, not in the code.
+- **Tests never read files under `specs/`.** Text the product ships (such as the MCP instructions) lives in the code or in a file shipped with the package, and tests compare against that.
 
 ## Commits
 
