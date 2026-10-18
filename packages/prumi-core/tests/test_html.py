@@ -122,7 +122,7 @@ def page(head: str) -> str:
         ('<style>@import url("https://styles.example.com/a.css");</style>', ["html.script_host"]),
         (
             "<style>@font-face { font-family: X; src: url(https://fonts.example.com/x.woff2); }"
-            " body { background: url(data:image/png;base64,AAAA); }</style>",
+            " body { color: red; }</style>",
             ["html.script_host"],
         ),
         ('<style>@font-face { src: url("https://fonts.gstatic.com/s/x.woff2"); }</style>', []),
@@ -158,3 +158,37 @@ def test_network_calls_are_a_warning(script):
 def test_words_that_only_look_like_network_calls():
     page = '<div id="kpi"></div><script>prumi.on("kpi", () => {}); const prefetch = 1;</script>'
     assert codes(page) == []
+
+
+@pytest.mark.parametrize(
+    ("html", "code"),
+    [
+        ('<iframe src="about:blank"></iframe>', "html.iframe"),
+        ('<template shadowrootmode="closed"><p>1</p></template>', "html.closed_shadow_root"),
+        ("<script>el.attachShadow({mode: 'closed'});</script>", "html.closed_shadow_root"),
+        ('<img src="data:image/png;base64,AAAA" alt="">', "html.image"),
+        ('<svg><image href="data:image/png;base64,AAAA"/></svg>', "html.image"),
+        ("<picture></picture>", "html.image"),
+        ('<input type="image" src="x.png">', "html.image"),
+        ("<style>.hero { background: url(data:image/png;base64,AAAA); }</style>", "html.image"),
+        ('<div style="background-image: url(x.png)"></div>', "html.image"),
+    ],
+)
+def test_what_the_number_check_cant_read(html, code):
+    issues = list(check_html(SPEC, '<div id="kpi"></div>' + html))
+    assert [(i.code, i.severity) for i in issues] == [(code, "error")]
+    assert "line 1" in issues[0].message
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        "<style>.bar { background: linear-gradient(red, blue); }</style>",
+        '<template shadowrootmode="open"><slot></slot></template>',
+        "<script>el.attachShadow({mode: 'open'});</script>",
+        '<input type="text">',
+        '<svg><rect width="10" height="10"/></svg>',
+    ],
+)
+def test_what_the_number_check_can_read(html):
+    assert codes('<div id="kpi"></div>' + html) == []

@@ -44,6 +44,9 @@ CODES = {
     "html.script_host",
     "html.unpinned_script",
     "html.network_call",
+    "html.iframe",
+    "html.closed_shadow_root",
+    "html.image",
     "query.failed",
     "filter.invalid_value",
     # Warnings in the dry-run block results.

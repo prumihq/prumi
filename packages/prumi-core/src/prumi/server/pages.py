@@ -70,7 +70,7 @@ def frame_csp(origin: str, hosts: AllowedHosts) -> str:
             " ".join(["script-src", origin, "'unsafe-inline'", *hosts.script]),
             " ".join(["style-src", origin, "'unsafe-inline'", *hosts.style]),
             " ".join(["font-src", "data:", *hosts.font]),
-            "img-src data: blob:",
+            "img-src 'none'",  # numbers in images can't be checked; icons are inline SVG
             "connect-src 'none'",
             "form-action 'none'",
             "base-uri 'none'",

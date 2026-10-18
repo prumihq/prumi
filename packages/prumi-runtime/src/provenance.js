@@ -413,9 +413,23 @@
     return found;
   }
 
+  // What the rendered page has that the scan can't read: frames and images (img, SVG image,
+  // CSS background images).
+  function unreadable(doc) {
+    var image = !!doc.querySelector("img, image, picture, input[type=image]");
+    if (!image) {
+      var view = doc.defaultView;
+      image = Array.prototype.some.call(doc.querySelectorAll("*"), function (el) {
+        return /url\(/.test(view.getComputedStyle(el).backgroundImage || "");
+      });
+    }
+    return { iframe: !!doc.querySelector("iframe, frame"), image: image };
+  }
+
   root.prumiProvenance = Object.freeze({
     scan: scan,
     copied: copied,
+    unreadable: unreadable,
     fromResults: fromResults,
     fromData: fromData,
     numbers: numbers,

@@ -85,6 +85,7 @@ _SCAN = """(() => {
   const allowed = p.fromData([setup.spec, setup.labels], delivered.allowed);
   const found = p.scan(document, { values: delivered.values, allowed }, %d);
   found.copied = p.copied(%s, delivered.values, %d);
+  found.unreadable = p.unreadable(document);
   return found;
 })()"""
 
@@ -282,9 +283,27 @@ class PageChecker:
             evaluate(provenance)
             source = json.dumps(source_html).replace("<", "\\u003c")
             scan = evaluate(_SCAN % (setup_json, MAX_LISTED, source, MAX_LISTED))
+            scan["unreadable"]["closed_shadow_root"] = _has_closed_shadow_root(cdp)
         finally:
             context.close()
         return _issues(scan, errors, blocked, settled, self.timeout_s)
+
+
+def _has_closed_shadow_root(cdp) -> bool:
+    """Closed shadow roots are invisible to page and isolated-world JavaScript alike; the
+    DevTools protocol still sees them."""
+    tree = cdp.send("DOM.getDocument", {"depth": -1, "pierce": True})["root"]
+    todo = [tree]
+    while todo:
+        node = todo.pop()
+        for shadow in node.get("shadowRoots", []):
+            if shadow.get("shadowRootType") == "closed":
+                return True
+            todo.append(shadow)
+        todo.extend(node.get("children", []))
+        if "contentDocument" in node:
+            todo.append(node["contentDocument"])
+    return False
 
 
 def _frame_id(cdp, url: str) -> str:
@@ -337,6 +356,23 @@ def _issues(
                 "Draw charts with SVG or HTML elements instead.",
             )
         )
+    found = scan.get("unreadable", {})
+    for key, code, what in (
+        ("iframe", "html.iframe", "a frame"),
+        ("closed_shadow_root", "html.closed_shadow_root", "a closed shadow root"),
+        ("image", "html.image", "an image"),
+    ):
+        if found.get(key):
+            issues.append(
+                error(
+                    code,
+                    "html",
+                    f"The rendered page has {what}. The number check can't read inside it, so "
+                    "pages can't have one.",
+                    "Draw icons and charts as inline SVG, keep text as text, and use open "
+                    "shadow roots or none.",
+                )
+            )
     for item in scan.get("copied", []):
         line = f"on line {item['line']}" if item.get("line") else "on a line"
         issues.append(

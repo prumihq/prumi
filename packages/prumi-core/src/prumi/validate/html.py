@@ -38,6 +38,8 @@ DEFAULT_HOSTS = AllowedHosts()
 # Parsing
 
 _NOT_VISIBLE = {"script", "style", "template", "noscript", "head", "title"}
+# Tags whose content the number check can't read: frames, images, declarative shadow roots.
+_UNREADABLE = {"iframe", "frame", "img", "image", "picture", "input", "template"}
 _VOID = {
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
     "track", "wbr",
@@ -68,6 +70,10 @@ class _Collector(HTMLParser):
         self.links: list[tuple[int, dict[str, str | None]]] = []
         self.texts: list[tuple[int, str]] = []  # each element's own visible text
         self.tables: list[tuple[int, int]] = []  # (line, numeric td cells)
+        self.unreadable: list[
+            tuple[int, str, dict[str, str | None]]
+        ] = []  # tags the scan can't read
+        self.style_attributes: list[tuple[int, str]] = []
         self._stack: list[_Element] = []
         self._script: _Script | None = None
         self._style: list[str] | None = None
@@ -77,6 +83,10 @@ class _Collector(HTMLParser):
         attributes = dict(attrs)
         if attributes.get("id"):
             self.ids.add(attributes["id"])
+        if tag in _UNREADABLE:
+            self.unreadable.append((line, tag, attributes))
+        if attributes.get("style"):
+            self.style_attributes.append((line, attributes["style"] or ""))
         if tag == "script":
             self._script = _Script(line, attributes)
         elif tag == "style":
@@ -159,6 +169,7 @@ def check_html(
     yield from _bindings(spec, page)
     yield from _block_references(spec, inline)
     yield from _network_calls(inline)
+    yield from _unreadable(page, inline)
     yield from _external_urls(page, hosts)
 
 
@@ -287,6 +298,63 @@ def _network_calls(scripts: list[_Script]) -> Iterator[Issue]:
             f"The page's scripts make network calls: {calls}. The dashboard frame blocks every "
             "network call; data only comes through prumi.on.",
             "Remove the calls and get the data from a block with prumi.on(...).",
+        )
+
+
+_CLOSED_SHADOW = re.compile(r"attachShadow\s*\(\s*\{[^}]*mode\s*:\s*[\"'`]closed[\"'`]")
+_CSS_IMAGE = re.compile(r"background(?:-image)?\s*:[^;}]*url\(", re.I)
+READ_HINT = "The number check reads the page's text; it can't read inside {what}."
+
+
+def _unreadable(page: _Collector, scripts: list[_Script]) -> Iterator[Issue]:
+    """Content the number check can't read: frames, closed shadow roots, images."""
+    frames = [line for line, tag, _ in page.unreadable if tag in ("iframe", "frame")]
+    if frames:
+        yield error(
+            "html.iframe",
+            "html",
+            f"The page has a frame on line {frames[0]}. The number check can't read inside "
+            "frames, so pages can't have them.",
+            "Put the content in the page itself.",
+        )
+    closed = [
+        line
+        for line, tag, attrs in page.unreadable
+        if tag == "template" and (attrs.get("shadowrootmode") or "").lower() == "closed"
+    ]
+    for script in scripts:
+        if match := _CLOSED_SHADOW.search(script.text):
+            closed.append(script.line + script.text.count("\n", 0, match.start()))
+    if closed:
+        yield error(
+            "html.closed_shadow_root",
+            "html",
+            f"The page makes a closed shadow root on line {min(closed)}. The number check can't "
+            "read inside it.",
+            'Use mode: "open", or no shadow root.',
+        )
+    images = [
+        (line, f"<{tag}>")
+        for line, tag, attrs in page.unreadable
+        if tag in ("img", "image", "picture")
+        or (tag == "input" and (attrs.get("type") or "").lower() == "image")
+    ]
+    images += [
+        (line, "a CSS background image") for line, css in page.styles if _CSS_IMAGE.search(css)
+    ]
+    images += [
+        (line, "a CSS background image")
+        for line, css in page.style_attributes
+        if _CSS_IMAGE.search(css)
+    ]
+    if images:
+        line, what = min(images)
+        yield error(
+            "html.image",
+            "html",
+            f"The page has {what} on line {line}. Numbers inside an image can't be checked, so "
+            "pages can't use images (the frame blocks them too).",
+            "Draw icons and charts as inline SVG, with text as text.",
         )
 
 

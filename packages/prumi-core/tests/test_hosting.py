@@ -18,7 +18,7 @@ CSP = (
     "style-src http://127.0.0.1:8484 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net "
     "cdnjs.cloudflare.com unpkg.com; "
     "font-src data: fonts.gstatic.com cdn.jsdelivr.net cdnjs.cloudflare.com unpkg.com; "
-    "img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; "
+    "img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; "
     "frame-ancestors http://127.0.0.1:8484"
 )
 

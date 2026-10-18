@@ -28,7 +28,6 @@ FLAGGED = {"html.image", "html.iframe", "html.closed_shadow_root", "html.canvas"
 # Must-fail pages for checks that don't exist yet.
 NOT_CHECKED_YET = {
     "coincident_average": "numbers aren't matched against their binding's blocks yet",
-    "image_numbers": "images aren't refused yet",
     "spaced_series_outside_svg": "unmarked ticks are still allowed outside <svg>",
 }
 
@@ -250,3 +249,35 @@ def test_copied_numbers(demo_services, body, script, copied):
     if copied:
         [issue] = [i for i in report.errors if i.code == "R8.copied_number"]
         assert issue.severity == "error" and re.search(r"\(on line \d+\)", issue.message)
+
+
+# Content the number check can't read
+
+
+@pytest.mark.parametrize(
+    ("script", "code"),
+    [
+        ('document.body.append(document.createElement("iframe"));', "html.iframe"),
+        ('document.body.attachShadow({ mode: ["clo", "sed"].join("") });',
+         "html.closed_shadow_root"),
+        ('document.body.append(new Image());', "html.image"),
+        (
+            'const svg = "http://www.w3.org/2000/svg";'
+            'document.body.append(document.createElementNS(svg, "image"));',
+            "html.image",
+        ),
+        ('document.body.style.backgroundImage = "url(data:image/png;base64,iVBORw0KGgo=)";',
+         "html.image"),
+    ],
+)  # fmt: skip
+def test_the_server_check_finds_what_it_cant_read(demo_services, script, code):
+    report = demo_services.validate(KPI_SPEC, kpi_page(SHOW_REVENUE + script))
+    assert [i.code for i in report.errors] == [code], report.issues
+
+
+def test_open_shadow_roots_are_read(demo_services):
+    script = """
+      const root = document.body.attachShadow({ mode: "open" });
+      root.innerHTML = "<p>$9,999,999.99</p><slot></slot>";"""
+    report = demo_services.validate(KPI_SPEC, kpi_page(SHOW_REVENUE + script))
+    assert [SHOWN.fullmatch(i.message)[1] for i in report.errors] == ["$9,999,999.99"]
