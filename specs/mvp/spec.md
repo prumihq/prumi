@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18 and 19 on 2026-10-18)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; 18 and 19.1–19.14 accepted 2026-10-18; 19.15 awaits acceptance)
 
 ## Goal
 
@@ -803,6 +803,23 @@ The third agent run (2026-10-18) followed the rules from the guide and never tri
 
 **Fixture:** the third-run dashboard (`~/test3/region-revenue-aov-weekly.html` and `.spec.json`) is added as the real must-pass fixture decided in question 3.
 
+#### 19.15 Layout report from validation (added 2026-10-18; status: draft)
+
+None of the three agent runs saw the page it built, and number checks don't catch overlapping labels, clipped text or a page wider than the screen. The server already renders the page during validation (19.1), so it measures the render and reports layout problems as warnings. **No image and no text from the page is returned:** only problem kinds, element paths and box geometry. No dashboard data reaches the agent.
+
+| Code | Severity | When |
+|---|---|---|
+| `layout.text_overlap` | warning | Two visible text elements overlap by more than 20% of the smaller one's area (an element and its own ancestors don't count) |
+| `layout.text_clipped` | warning | Text overflows its box and is cut off: `overflow: hidden`, an ellipsis, or outside an SVG's viewBox |
+| `layout.too_wide` | warning | The page is wider than the viewport (horizontal scrolling) |
+| `layout.small_text` | warning | Visible text smaller than 10 px |
+| `layout.empty_block` | warning | A bound element renders with zero size or no visible content |
+
+- Each issue gives the element path(s) (tag, id, classes) and their boxes (`x, y, width, height`). **Never** text content, numbers or attribute values.
+- At most 20 issues per check. The default render is desktop (1280×800). `validate_spec(..., layout_devices: ["desktop", "phone"])` adds a phone render (390×844).
+- The report runs for the default state and for each `check_states` entry (19.14). Warnings don't block publishing.
+- Guide: read the layout warnings after each validation and fix them with `html_edits`; ask the user to look at the draft link for anything a measurement can't judge.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -929,3 +946,6 @@ Each criterion has at least one automated test unless it says otherwise.
 62. `check_states` renders and checks each state; an issue that appears only in one state names it; publishing re-checks the stored states.
 63. The guide contains the 19.14 additions.
 64. The third-run dashboard passes as a must-pass fixture.
+65. A fixture page with overlapping labels, clipped text, a too-wide element, 8 px text and an empty bound element gets each `layout.*` warning once; a clean page gets none.
+66. No `layout.*` issue contains text content, numbers or attribute values from the page (a test with a sentinel value in every text node checks it).
+67. `layout_devices: ["phone"]` adds the phone render's issues; publishing isn't blocked by layout warnings.

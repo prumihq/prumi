@@ -86,3 +86,9 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [ ] 59. Evenly spaced ticks at any precision in SVG and axis-marked elements (AC 61)
 - [ ] 60. `check_states` in `validate_spec` and publish (AC 62)
 - [ ] 61. Guide additions (AC 63)
+
+## Layout report from validation (spec section 19.15; added 2026-10-18)
+
+- [ ] 62. Layout measurements in the server check: the five `layout.*` warnings, devices, no page text in issues (AC 65, 66, 67)
+- [ ] 63. Guide additions for the layout report
+
