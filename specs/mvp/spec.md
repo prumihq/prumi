@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18 and 19 on 2026-10-18)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: draft (sections 1–17 accepted 2026-10-17; 18 and 19 accepted 2026-10-18; 20 awaits acceptance)
 
 ## Goal
 
@@ -430,7 +430,7 @@ One Starlette app served by uvicorn: the MCP app (section 14) is mounted at `/mc
 
 | Route | Returns |
 |---|---|
-| `GET /` | A plain HTML list of dashboards with status (for the demo). |
+| `GET /` | The home page (section 20). |
 | `GET /runtime.js` | The runtime (runs in the frame). |
 | `GET /shell.js` | The shell's script (filter state, fetching, badge). |
 | `GET /d/<id>` | The shell for the current version. |
@@ -864,6 +864,30 @@ None of the three agent runs saw the page it built, and number checks don't catc
 
 **4. Wording.** The README's "Where your data goes", the guide and the server instructions say: *"Prumi never sends company data to your agent: `query` shows the shape of the data, and the numbers appear only in the dashboard."* Instruction step 2 becomes "Use `query` to learn the shape of the data (how many rows, empties, label lengths, magnitudes) while designing."
 
+### 20. Home page (added 2026-10-18; status: draft)
+
+`GET /` is the first thing a user sees, and today it's a bare table of links. It should look like a small product, not a debug page. It doesn't need to be elaborate.
+
+**Layout, top to bottom:**
+1. **Header:** the Prumi wordmark (text, no image), and the connected source in one line: adapter (`dbt`), project name from the manifest, connection type (`duckdb`), and "data through <date>" (the latest freshness of any metric, computed once at startup and refreshed at most every 10 minutes).
+2. **Dashboards**, as a responsive grid of cards (one column on a phone). Each card shows:
+   - the title, as a link to `/d/<id>`;
+   - the status as a badge: `Draft`, `Certified by <name>`, or `Needs attention` (19.13 rule 5), using the theme's colors;
+   - the current version and "updated <relative time>" (exact timestamp in a `title` attribute);
+   - the metric labels the dashboard uses (from its spec), at most 4, then "+N".
+
+   The cards are sorted by last update, newest first. A search box filters them by title, id or metric label, in the browser, over the page's own text.
+3. **Empty state** (no dashboards): a short explanation ("Ask your AI agent to build a dashboard; it appears here as a draft") and the connect command for Claude Code, with a copy button.
+4. **Metric requests**, a short list below the dashboards: the open requests' descriptions and dates, newest first, at most 10, then "and N more (`prumi requests`)". Hidden when there are none.
+5. **Footer:** the Prumi version and a link to the docs (the repository README for now).
+
+**Rules:**
+- **No metric values anywhere on this page.** Titles, labels, counts, dates and statuses only.
+- Uses the default theme variables (19.8), in light and dark mode; one small stylesheet `/home.css`. No external fonts or scripts.
+- The search box and copy button are one small script `/home.js`. The page's CSP is `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, with no inline script or style.
+- Every agent-written string (titles, metric request descriptions) is HTML-escaped.
+- Only dashboards the viewer may read appear (`can_read`, 19.6).
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -997,3 +1021,8 @@ Each criterion has at least one automated test unless it says otherwise.
 69. `magnitude`, `sign`, `decimals`, `distinct`, `nulls` and `label_length` are correct for the demo's revenue-by-region and revenue-by-region×week queries.
 70. A page showing an unverified number gets `R8.unverified_number` with the element path and no number in the message; a failing source query's error contains no database message text.
 71. The README, guide and instructions contain the 19.16 wording; nothing mentions the 200-row cap.
+72. The home page shows the header with source and freshness, one card per readable dashboard with title, status badge, version, relative update time and metric labels, sorted newest first, and the open metric requests.
+73. With no dashboards, the empty state and the connect command appear; with no open metric requests, that section is hidden.
+74. A dashboard title containing `<script>` and a metric request containing HTML are shown as text (escaping test); the page's CSP is as in section 20 and the page has no inline script or style.
+75. *(browser test)* The search box filters the cards; the copy button copies the connect command; at 390 px width the cards form one column with no horizontal scrolling; light and dark mode both apply the theme.
+76. The home page contains no metric values (the sentinel test of AC 68 covers `GET /`).
