@@ -320,7 +320,8 @@ Block fields: `id` (slug, unique across filters and blocks), `title?`, `metrics`
 | `query.failed` | error | The dry run of a block failed. |
 | `spec.invalid_interaction` | error | An interaction's `from` block doesn't have the filter's dimension, or it targets a time filter. |
 | `result.truncated` | warning | A block result hit the 5,000-row cap, or an agent result the 200-row cap. |
-| `filter.invalid_value` | error | A filter value of the wrong shape, or a string containing `{` or `}` (the block API's 400). |
+| `filter.invalid_value` | error | A filter value of the wrong shape, or a string containing `{` or `}` (the block API's 400; also checked statically on dimension-filter defaults). |
+| `filter.not_listed` | error | The block API received a filter the block doesn't list (400). |
 
 **R1 and R5 are enforced by structure, not by a check.** R1: the engine computes nothing except "Others" for additive metrics and comparison deltas, and the runtime has no aggregation helpers. R5: `filters` is required on every block, so scope is always explicit.
 
@@ -438,7 +439,7 @@ One Starlette app served by uvicorn: the MCP app (section 14) is mounted at `/mc
 | `POST /api/dashboards/<id>/versions/<n>/blocks/<block>` | Body `{"filters": {"<filter id>": <value>}}` → block result. |
 | `GET /api/dashboards/<id>/versions/<n>/filters/<filter>/values` | Distinct values of a dimension filter. |
 
-- **The browser only sends filter values.** The server loads the block from the stored version and builds the query itself. Unknown dashboard, version, block or filter: 404. A filter value of the wrong shape, a filter the block doesn't list, or a string with `{`/`}`: 400 with an issue list.
+- **The browser only sends filter values.** The server loads the block from the stored version and builds the query itself. Unknown dashboard, version, block or filter (or a time filter on the values route): 404. A filter value of the wrong shape or a string with `{`/`}` (`filter.invalid_value`), or a filter the block doesn't list (`filter.not_listed`): 400 with an issue list. A POST without `Content-Type: application/json`: 415. The source failing: 502 with a `query.failed` issue (the log records only the error type).
 
 **The shell** (`/d/<id>`) is Prumi's own page: a bar with the dashboard title, the **badge** (`Draft · not certified`, `Certified by <name> on <date>`, or `Version n of m · not current`), freshness (`Data through <earliest data_through among the dashboard's metrics>`, taken from the block results), and a details toggle listing block warnings (partial periods, snapped windows, stale data). Below the bar, the frame fills the page:
 
@@ -449,7 +450,7 @@ One Starlette app served by uvicorn: the MCP app (section 14) is mounted at `/mc
 **The frame** response has these headers:
 - `Content-Security-Policy: sandbox allow-scripts; default-src 'none'; script-src <server origin> 'unsafe-inline' <script_hosts>; style-src 'unsafe-inline' <style_hosts>; font-src data: <font_hosts>; img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors <server origin>`
 - The `sandbox` directive applies even if someone opens the frame URL directly.
-- The server's origin is listed explicitly (not `'self'`), because the sandboxed document has an opaque origin. Browser tests must confirm `runtime.js` loads.
+- The server's origin is listed explicitly (not `'self'`), because the sandboxed document has an opaque origin. It's taken from the request's `Host` header, which the Host check has already validated, so both `127.0.0.1:8484` and `localhost:8484` work. Browser tests must confirm `runtime.js` loads.
 - `connect-src 'none'`: the dashboard can't call any server, Prumi included. Data arrives only through the shell. Images are limited to `data:` and `blob:`, so `<img src="https://elsewhere/?data">` can't send data out either.
 
 The server injects `<script src="<server origin>/runtime.js"></script>` as the first child of `<head>` (creating `<head>` if missing). If the HTML loads `/runtime.js` itself, the runtime ignores the second load.
@@ -473,7 +474,7 @@ prumi.label(name)                               // a metric's or dimension's cat
 ```
 
 - `click`: for each interaction `from: blockId`, it sets `sets_filter` to `[row[<filter's dimension>]]`. Clicking the same value again clears the filter. The validator checks that the block has that dimension.
-- `format`: `Intl.NumberFormat` with the browser's locale. `number`: up to `decimals ?? 2` fraction digits. `integer`: 0. `currency`: `style: "currency"` with `unit`. `percent`: `style: "percent"` with `decimals ?? 1`. `null` → `"–"`.
+- `format`: `Intl.NumberFormat` with the browser's locale. `number`: up to `decimals ?? 2` fraction digits. `integer`: 0. `currency`: `style: "currency"` with `unit`. `percent`: `style: "percent"` with at most `decimals ?? 1` fraction digits (0.25 → "25%"). `currency` with `decimals` fixes both the minimum and maximum digits. `null` → `"–"`.
 - **No aggregation helpers.** The runtime never sums, averages or re-groups rows (R1). Cross-filtering re-queries the server; it never filters rows in the browser.
 - Outside a Prumi shell (no parent, or the parent doesn't answer the handshake within 2 s), the runtime shows a fixed notice "This dashboard only works inside Prumi" and calls no callbacks. A copied HTML file has no data and no badge.
 
