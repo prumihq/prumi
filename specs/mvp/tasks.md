@@ -101,6 +101,6 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 ## Home page (spec section 20; added 2026-10-18)
 
-- [ ] 68. Home page: header with source and freshness, dashboard cards with status, empty state, metric requests, footer; `/home.css`, CSP, escaping (AC 72, 73, 74, 76)
-- [ ] 69. `/home.js`: search and copy button; browser tests for search, copy, phone width and both themes (AC 75)
+- [x] 68. Home page: header with source and freshness, dashboard cards with status, empty state, metric requests, footer; `/home.css`, CSP, escaping (AC 72, 73, 74, 76)
+- [x] 69. `/home.js`: search and copy button; browser tests for search, copy, phone width and both themes (AC 75)
 

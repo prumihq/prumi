@@ -897,6 +897,18 @@ None of the three agent runs saw the page it built, and number checks don't catc
 - Every agent-written string (titles, metric request descriptions) is HTML-escaped.
 - Only dashboards the viewer may read appear (`can_read`, 19.6).
 
+**Details settled during implementation (2026-10-18):**
+- "Open" metric requests are all of them: nothing in this milestone closes one.
+- Badge precedence: `Needs attention`, then `Certified by <name>`, then `Draft` (theme colors negative, positive, muted).
+- "Updated" is when the current version was created, from the registry's clock (`Registry.now()`). Relative times: "just now", "N minutes/hours ago", "yesterday", "N days/months/years ago".
+- Ties in the newest-first order are broken by id. Metric labels follow their first use in the spec; the labels behind "+N" go in its `title`, and search covers them.
+- "Data through" is the latest day with data across all catalog metrics, for the local viewer, computed in `serve()` before binding and cached for 10 minutes. A metric whose query fails is skipped and logged by error type only.
+- Each card shows the dashboard id (monospace), so search over the page's text can match ids.
+- The connect command uses the configured host and port: `claude mcp add --scope user --transport http prumi http://<host>:<port>/mcp`.
+- The docs link is `https://github.com/prumihq/prumi#readme`.
+- `home.css` and `home.js` live in `packages/prumi-runtime/src` next to `shell.js` and ship in the wheel; the page also loads `/theme.css` for the variables.
+- Without the clipboard API, the copy button selects the command and says "Selected".
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
