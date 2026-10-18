@@ -504,8 +504,9 @@ Built with the official Python SDK (`MCPServer`, called `FastMCP` before `mcp` 2
 | `describe_metric` | `name: str` | Everything in the catalog for the metric, its valid dimensions (name, label, description), time grains, the metric's own filter, and `caveats` (generated: "non-additive: never sum or average its rows", "no format declared"). Unknown name: error with suggestions. |
 | `query` | A block-shaped query: `metrics`, `dimensions`, `time_grain`, `window` (**required**), `where: [{dimension, op, values}]`, `sort`, `top_n`, `others`, `total`, `compare` | The block result through `for_agent` (≤ 200 rows), or validation issues. |
 | `validate_spec` | `spec`, `html: str \| None` | `{ok, errors, warnings}` |
-| `publish_dashboard` | `spec`, `html` | `{id, version, url, status, warnings}`; `status` is computed (`draft`, or `certified` when the content is identical to a certified version), or the errors that blocked publishing. `url` is `http://<host>:<port>/d/<id>`. |
+| `publish_dashboard` | `spec` + `html`, or `candidate_id` (section 18) | `{id, version, url, status, warnings}`; `status` is computed (`draft`, or `certified` when the content is identical to a certified version), or the errors that blocked publishing. `url` is `http://<host>:<port>/d/<id>`. |
 | `request_metric` | `description: str`, `reason: str`, `dashboard_id: str \| None` | `{id, message}`. The id can go in the spec's `metric_requests`. |
+| `authoring_guide` | none | The authoring guide (section 18). |
 
 - **`find_metrics` ranking:** lowercase, split on non-alphanumerics and `_`, drop a short English stopword list. Score = 2 × matches in name/label + 1 × matches in description. Ties broken by name. No synonyms and no embeddings. A catalog smaller than `limit` is returned whole.
 - `query` uses the same validation rules as a block (R2–R7, R10), and `where` uses the adapter filter ops.
@@ -582,7 +583,7 @@ The first real agent session (Claude Code on the demo) published a correct-looki
 
 Tests: the guide's spec and HTML pass `validate_spec`; the guide names every function the runtime defines on `window.prumi`; the inlined schema equals the committed one.
 
-**2. Publish by candidate.** When `validate_spec` gets both `spec` and `html` and finds no errors, its result adds `candidate_id` (the fingerprint, `v0:...`). The server keeps validated candidates in memory (up to 50, for 1 hour). `publish_dashboard` takes **either** `spec` + `html` **or** `candidate_id`. It always re-validates the stored content, since the catalog may have changed. An unknown or expired id gives `publish.unknown_candidate` (error), with the hint "call `validate_spec` again with the spec and HTML". Candidates are lost on restart; that's fine.
+**2. Publish by candidate.** When `validate_spec` gets both `spec` and `html` and finds no errors, its result adds `candidate_id` (the fingerprint, `v0:...`). The server keeps validated candidates in memory (up to 50, for 1 hour). `publish_dashboard` takes **either** `spec` + `html` **or** `candidate_id`. It always re-validates the stored content, since the catalog may have changed. An unknown or expired id gives `publish.unknown_candidate` (error), with the hint "call `validate_spec` again with the spec and HTML". A call with neither `candidate_id` nor `spec` + `html`, or with both, gives `publish.invalid_arguments` (error). Candidates are lost on restart; that's fine.
 
 **3. Plain validation messages.** `spec.invalid` messages never use pydantic's words ("tuple", "model", "union", "tagged-union", "dict", "Input should be"). Each says what the field must be, in the spec's terms:
 - missing field: "`dashboard.id` is required";
@@ -679,7 +680,7 @@ Each criterion has at least one automated test unless it says otherwise.
 25. Logs from a full test run contain no row values or filter values (a test runs blocks and agent queries with a sentinel filter value and asserts it never appears in captured logs).
 
 **MCP**
-26. An MCP client over Streamable HTTP lists exactly the six tools, and the server instructions match section 14.
+26. An MCP client over Streamable HTTP lists exactly the seven tools (the six of section 14 plus `authoring_guide` from section 18), and the server instructions match section 14 as amended by section 18.
 27. `find_metrics("average order value")` ranks `average_order_value` first; `describe_metric("customers")` includes the non-additive caveat.
 28. `query` for revenue by day over two years returns 200 rows, `truncated: true`, `row_count`, and a `total` equal to a source query.
 29. **End to end:** a scripted MCP session runs `find_metrics` → `query` → `validate_spec` (with an error, then fixed) → `publish_dashboard`; a browser opens the URL and the bound numbers equal hand-written SQL; `prumi certify` makes the badge certified; publishing an HTML edit makes it a draft again.
