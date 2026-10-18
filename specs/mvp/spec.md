@@ -186,7 +186,7 @@ LOCAL_VIEWER = Viewer(id="local", security_context={})
 
 Grains: `day`, `week` (ISO: Monday to Sunday), `month`, `quarter`, `year`. Standard calendar only.
 
-**Today and partial periods.** `as_of` is "today". A period is **complete** if its last day is before `as_of`; the period containing `as_of` is the **current, partial** period.
+**Today and partial periods.** `as_of` is "today". A period is **complete** if its last day is before `as_of`; the period containing `as_of` is the **current, partial** period. Wherever the current period is included (`include_current`, `to_date`, explicit dates), it runs through `as_of − 1 day`: `as_of` itself has no complete data, and including it would raise `R3.stale_data` on every block.
 
 **Window forms** (used by time filters, fixed block windows and `query`):
 
@@ -293,7 +293,7 @@ Block fields: `id` (slug, unique across filters and blocks), `title?`, `metrics`
  "path": "data[1].others", "message": "...", "hint": "..."}
 ```
 
-`path` uses the spec's field names and list indexes. Messages are written for the agent: say what's wrong and how to fix it. Static checks run first; if they pass, the validator **dry-runs every block** with the filters' default values and reports failures as `query.failed`.
+`path` uses the spec's field names and list indexes. Messages are written for the agent: say what's wrong and how to fix it. Static checks run first; if they pass, the validator **dry-runs every block** with the filters' default values and reports failures as `query.failed`. **Warnings in the dry-run block results** (`R3.window_snapped`, `R3.empty_window`, `R3.stale_data`, `result.truncated`) are reported too, at `data[i]`, so the agent sees them before publishing.
 
 | Code | Severity | Rule |
 |---|---|---|
@@ -318,6 +318,9 @@ Block fields: `id` (slug, unique across filters and blocks), `title?`, `metrics`
 | `R10.mixed_units` | warning | A block's metrics have different units (e.g. USD and orders). |
 | `html.*` | see below | HTML checks. |
 | `query.failed` | error | The dry run of a block failed. |
+| `spec.invalid_interaction` | error | An interaction's `from` block doesn't have the filter's dimension, or it targets a time filter. |
+| `result.truncated` | warning | A block result hit the 5,000-row cap, or an agent result the 200-row cap. |
+| `filter.invalid_value` | error | A filter value of the wrong shape, or a string containing `{` or `}` (the block API's 400). |
 
 **R1 and R5 are enforced by structure, not by a check.** R1: the engine computes nothing except "Others" for additive metrics and comparison deltas, and the runtime has no aggregation helpers. R5: `filters` is required on every block, so scope is always explicit.
 
@@ -326,7 +329,7 @@ Block fields: `id` (slug, unique across filters and blocks), `title?`, `metrics`
 Run when `html` is given (always at publish). The HTML is parsed with the standard library's `html.parser`.
 
 - `html.too_large` (error): over 2 MB.
-- **`R8.embedded_numbers` (error):** inline `<script>` content (including `type="application/json"`) holding a literal dataset. Starting heuristic: a single array or object literal (nested ones included) with **12 or more numeric literals**, where numeric literals are at least 40% of its value tokens. The heuristic may be tuned, as long as the fixtures in `packages/prumi-core/tests/fixtures/r8/` keep their expected result:
+- **`R8.embedded_numbers` (error):** inline `<script>` content (including `type="application/json"`) holding a literal dataset. Starting heuristic: a single array or object literal (nested ones included) with **12 or more numeric literals**, where numeric literals are at least 40% of its value tokens; or an array of **6 or more records** holding 6 or more numbers at that share (an array of 10 `{month, revenue}` objects holds only 10 numbers). Object keys, comments and strings don't count. The heuristic may be tuned, as long as the fixtures in `packages/prumi-core/tests/fixtures/r8/` keep their expected result:
   - flagged: an array of 12 numbers; an array of 10 objects like `{month: "Jan", revenue: 1234.5}`; a JSON script with chart data;
   - not flagged: a typical chart config (margins, sizes, colors, `[0, 100]` domains); a page with no inline script.
 - `R8.numbers_in_text` (warning): visible text with 5 or more numbers that look like data (`1,234`, `12.5%`, `$3.4M`) in one element. `R8.numbers_in_table` (warning): a `<table>` with 5 or more numeric `<td>` cells.
@@ -344,13 +347,13 @@ Executes **blocks**, never free queries from the browser: `run_block(dashboard_v
 
 1. Resolve the block's window from its time filter's value (or the default, or the fixed `window`) and `as_of` ([Time](#5-time-prumitime)).
 2. Build the `SemanticQuery` from the block plus the values of the filters the block lists. Filters the block doesn't list are ignored (R5).
-3. Run the main query. Rows are capped at **5,000**; past that, `truncated: true` plus a warning.
-4. `top_n`: the main query is ordered by the sort metric with `limit = top_n`.
+3. Run the main query. Rows are capped at **5,000**; past that, `truncated: true` plus a `result.truncated` warning. Without a `sort`, rows are ordered by time, then dimensions, so output and the cut are deterministic.
+4. `top_n`: the main query is ordered by the sort metric with `limit = top_n + 1`; the extra row only tells whether more groups exist. If none do, `others` is `null`.
 5. `others` (R6), per metric:
    - additive: `total − sum(top N)`;
    - non-additive: a separate query with `not_in(top N values)` on the dimension (NULL rows included, per the filter semantics). If any metric is non-additive, one such query runs for all the non-additive ones.
 6. `total`: always a separate query without the block's dimensions and `time_grain` (same window and filters). Never a sum of rows.
-7. `compare`: a second query for the previous window; matching and deltas as in [Time](#5-time-prumitime).
+7. `compare`: a second query for the previous window; matching and deltas as in [Time](#5-time-prumitime). `total` and `others` get no previous values in this milestone.
 8. Freshness for each metric in the block.
 
 **Block result (JSON):**
