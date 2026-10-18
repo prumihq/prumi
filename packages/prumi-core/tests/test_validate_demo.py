@@ -89,3 +89,26 @@ def test_r10_discount_rate_has_no_format(demo_source):
     block = {"id": "kpi", "metrics": ["discount_rate"], "filters": ["period"]}
     report = validate(spec(block), None, demo_source, set(), as_of=AS_OF)
     assert codes(report) == [("R10.no_format", "data[0].metrics[0]")]
+
+
+def test_the_dry_run_on_the_demo(demo_source):
+    from prumi.engine import Engine
+
+    blocks = (
+        {
+            "id": "kpi",
+            "metrics": ["revenue", "average_order_value"],
+            "filters": ["period", "region"],
+        },
+        {
+            "id": "trend",
+            "metrics": ["revenue"],
+            "time_grain": "month",
+            "dimensions": ["order__channel"],
+            "filters": ["period"],
+        },
+    )
+    report = validate(
+        spec(*blocks), None, demo_source, set(), as_of=AS_OF, engine=Engine(demo_source, AS_OF)
+    )
+    assert codes(report) == []

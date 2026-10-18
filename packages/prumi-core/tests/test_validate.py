@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from prumi.engine import Engine
 from prumi.spec import load_spec_file
 from prumi.validate import validate
 
@@ -41,6 +42,7 @@ CODES = {
     "html.unbound_block",
     "html.script_host",
     "html.unpinned_script",
+    "query.failed",
 }
 
 
@@ -60,7 +62,8 @@ FIXTURE_FILES = sorted(p for p in FIXTURES.glob("*.yaml") if not p.name.startswi
 def run(path: Path, source, as_of):
     html_path = path.with_suffix(".html")
     html = html_path.read_text() if html_path.exists() else None
-    return validate(load_spec_file(path), html, source, METRIC_REQUESTS, as_of=as_of)
+    engine = Engine(source, as_of)  # static checks, then the dry run
+    return validate(load_spec_file(path), html, source, METRIC_REQUESTS, as_of=as_of, engine=engine)
 
 
 def test_the_base_spec_and_page_are_valid(fake_source, as_of):
@@ -126,3 +129,22 @@ def test_a_time_filter_is_not_an_interaction_target(fake_source, as_of):
     assert [(i.code, i.path) for i in report.errors] == [
         ("spec.invalid_interaction", "interactions[0].sets_filter")
     ]
+
+
+def test_the_dry_run_uses_the_filter_defaults(fake_source, fake_adapter, as_of):
+    report = run(FIXTURES / "_base.yaml", fake_source, as_of)
+    assert report.ok
+    windows = {q.window for q in fake_adapter.queries if q.window is not None}
+    assert {(w.start.isoformat(), w.end.isoformat()) for w in windows} >= {
+        ("2026-07-20", "2026-10-11")  # {last: 12, grain: week} on 2026-10-15
+    }
+
+
+def test_no_dry_run_when_static_checks_fail(fake_source, fake_adapter, as_of):
+    report = run(FIXTURES / "R6.others_requires_top_n.yaml", fake_source, as_of)
+    assert not report.ok and fake_adapter.queries == []
+
+
+def test_query_failed_says_why(fake_source, as_of):
+    [issue] = run(FIXTURES / "query.failed.yaml", fake_source, as_of).errors
+    assert "'trend'" in issue.message and "the warehouse refused the query" in issue.message

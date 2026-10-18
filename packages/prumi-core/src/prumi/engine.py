@@ -211,6 +211,10 @@ class Engine:
     def resolve(self, block: Block, window: WindowForm) -> ResolvedWindow:
         return self._windows(block, window)[0]
 
+    def total_for(self, block: Block, inputs: BlockInputs, viewer: Viewer) -> dict[str, Any] | None:
+        """The block's total with these inputs, e.g. for an agent result past its row cap."""
+        return self.total(block, self.resolve(block, inputs.window), inputs.filters, viewer)
+
     def total(
         self,
         block: Block,
