@@ -146,6 +146,7 @@ def test_status(client, published):
         "certified_by": None,
         "certified_at": None,
         "fingerprint": published.registry.version("sales", 1).fingerprint,
+        "needs_attention": False,
     }
     published.registry.certify("sales", 1, by="ana")
     certified = client.get(f"{BASE}/status").json()  # read on every request

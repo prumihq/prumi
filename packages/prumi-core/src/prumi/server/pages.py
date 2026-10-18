@@ -164,6 +164,11 @@ def shell(version: Version, status: VersionStatus, source: Source) -> str:
   #prumi-details ul {{ position: absolute; right: 0; z-index: 1; background: var(--prumi-surface);
                       border: 1px solid var(--prumi-border); border-radius: var(--prumi-radius);
                       margin: 4px 0 0; padding: 8px 24px; width: 28em; }}
+  #prumi-unverified {{ padding: 6px 16px; border-bottom: 1px solid var(--prumi-border);
+                       color: var(--prumi-negative); background: var(--prumi-surface);
+                       font-size: 14px; }}
+  #prumi-unverified summary {{ cursor: pointer; font-weight: 600; }}
+  #prumi-unverified ul {{ margin: 4px 0; color: var(--prumi-text); }}
   #prumi-frame {{ flex: 1; border: 0; width: 100%; }}
 </style>
 </head>
@@ -176,6 +181,10 @@ def shell(version: Version, status: VersionStatus, source: Source) -> str:
     <summary>Details</summary><ul id="prumi-warnings"></ul>
   </details>
 </div>
+<details id="prumi-unverified" hidden>
+  <summary>This page shows numbers Prumi didn't deliver.</summary>
+  <ul id="prumi-unverified-list"></ul>
+</details>
 <iframe id="prumi-frame" src="{frame}" sandbox="allow-scripts"
         title="{escape(spec.dashboard.title)}"></iframe>
 <script type="application/json" id="prumi-dashboard">{config}</script>

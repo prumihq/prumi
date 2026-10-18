@@ -96,6 +96,10 @@ class VersionStatus:
     certified_by: str | None
     certified_at: str | None
     fingerprint: str
+    # A viewer's browser flagged numbers on the current version: shown after publishing, for
+    # new data or a filter state the server didn't check. Cleared by a new version, or by a
+    # clean report for the same filter state (reports are kept per filter state).
+    needs_attention: bool = False
 
     def to_json(self) -> dict:
         return dict(self.__dict__)
@@ -254,7 +258,12 @@ class Registry:
             row = conn.execute(
                 """
                 SELECT v.version, v.fingerprint, d.current_version,
-                       c.certified_by, c.certified_at
+                       c.certified_by, c.certified_at,
+                       v.version = d.current_version AND EXISTS (
+                           SELECT 1 FROM page_checks p
+                           WHERE p.dashboard_id = v.dashboard_id AND p.version = v.version
+                             AND p.flagged_json != '[]'
+                       ) AS needs_attention
                 FROM versions v
                 JOIN dashboards d ON d.id = v.dashboard_id
                 LEFT JOIN certifications c
@@ -275,6 +284,7 @@ class Registry:
             certified_by=row["certified_by"],
             certified_at=row["certified_at"],
             fingerprint=row["fingerprint"],
+            needs_attention=bool(row["needs_attention"]),
         )
 
     # Certification

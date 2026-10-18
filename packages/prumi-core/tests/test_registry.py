@@ -203,3 +203,22 @@ def test_the_latest_check_per_filter_state_is_kept(registry):
     assert registry.checks("sales", 2) == []
     registry.delete("sales")
     assert registry.checks("sales", 1) == []
+
+
+def test_a_flagged_current_version_needs_attention(registry):
+    from prumi.registry import PageCheck
+
+    registry.save(spec(), HTML)
+    flagged = [{"text": "$1,234.56", "path": "p#extra", "code": "R8.unverified_number"}]
+    registry.record_check("sales", 1, PageCheck({"region": []}, [], False, ["boom"]))
+    assert not registry.status("sales", 1).needs_attention  # errors alone don't count
+    registry.record_check("sales", 1, PageCheck({"region": ["North"]}, flagged, False, []))
+    assert registry.status("sales", 1).needs_attention
+    # A clean report for the same filter state clears it.
+    registry.record_check("sales", 1, PageCheck({"region": ["North"]}, [], False, []))
+    assert not registry.status("sales", 1).needs_attention
+    # So does a new version: only the current one can need attention.
+    registry.record_check("sales", 1, PageCheck({"region": ["North"]}, flagged, False, []))
+    registry.save(spec(), HTML + "<!-- 2 -->")
+    assert not registry.status("sales", 1).needs_attention
+    assert not registry.status("sales", 2).needs_attention

@@ -80,8 +80,9 @@
   // The in-browser number check. After each render settles, every number shown is matched
   // against the values delivered since the page loaded (a block still loading may show its
   // previous values). Findings add up per filter state, so a tooltip that shows a number and
-  // goes away still counts; the shell stores each new report. Viewers see nothing of it: the
-  // server's own check is the guarantee, this one covers filter states it didn't render.
+  // goes away still counts. The shell stores each new report and, when it flags numbers, tells
+  // the viewer: the server's check at publish covers the default filters with that day's data,
+  // this one covers what changes after.
   var CHECK_DEBOUNCE_MS = 300;
   var check = {
     values: {}, // block id -> every value it delivered since the page loaded

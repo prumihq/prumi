@@ -137,6 +137,9 @@ class DashboardSummary(BaseModel):
     status: str
     updated_at: str = Field(description="When the current version was published")
     url: str
+    needs_attention: bool = Field(
+        description="A viewer's browser found numbers Prumi didn't deliver on the current version"
+    )
 
 
 class DashboardsOut(BaseModel):
@@ -150,6 +153,7 @@ class DashboardOut(BaseModel):
     html: str | None
     status: str
     url: str
+    needs_attention: bool
     checks: list[dict[str, Any]] = Field(
         description="What viewers' browsers found, per filter state: numbers Prumi didn't "
         "deliver, canvas, runtime errors"
@@ -456,14 +460,16 @@ def create_mcp(services: Services) -> MCPServer:
             if not registry.can_read(LOCAL_VIEWER, d):
                 continue
             current = registry.version(d.id, d.current_version)
+            status = registry.status(d.id, d.current_version)
             found.append(
                 DashboardSummary(
                     id=d.id,
                     title=d.title,
                     current_version=d.current_version,
-                    status=registry.status(d.id, d.current_version).status,
+                    status=status.status,
                     updated_at=current.created_at,
                     url=_dashboard_url(services, d.id),
+                    needs_attention=status.needs_attention,
                 )
             )
         return DashboardsOut(dashboards=found)
@@ -487,8 +493,9 @@ def create_mcp(services: Services) -> MCPServer:
             version=number,
             spec=json.loads(stored.spec_json),
             html=stored.html if include_html else None,
-            status=registry.status(id, number).status,
+            status=(status := registry.status(id, number)).status,
             url=_dashboard_url(services, id, None if version is None else number),
+            needs_attention=status.needs_attention,
             checks=[c.to_json() for c in registry.checks(id, number)],
         )
 

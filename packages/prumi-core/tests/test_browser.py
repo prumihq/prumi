@@ -379,8 +379,17 @@ def test_the_browser_reports_numbers_prumi_didnt_deliver(page, server, services,
     assert chosen.flagged == [
         {"text": "$1,234.56", "path": "p#extra", "code": "R8.unverified_number", "blocks": ["kpi"]}
     ]
-    # Viewers see nothing of it, and the version can't be certified.
-    assert page.locator("#prumi-bar").text_content().count("1,234.56") == 0
+    # The viewer is told, the version needs attention, and it can't be certified.
+    bar = page.locator("#prumi-unverified")
+    bar.wait_for()
+    assert bar.locator("summary").text_content() == "This page shows numbers Prumi didn't deliver."
+    assert not bar.locator("li").first.is_visible()
+    bar.locator("summary").click()
+    assert bar.locator("li").all_text_contents() == ["$1,234.56 in p#extra"]
+    assert services.registry.status("unverified", 1).needs_attention
+    # Back on a filter state whose numbers check out, the bar goes away.
+    frame.locator("body").evaluate("() => prumi.setFilter('region', [])")
+    bar.wait_for(state="hidden")
     config = str(services.config.path)
     assert main(["certify", "unverified", "1", "--config", config]) == 1
     out = capsys.readouterr().out

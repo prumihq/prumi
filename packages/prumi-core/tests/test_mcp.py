@@ -464,10 +464,11 @@ def test_list_and_get_dashboards(server, services):
         "status": "draft",
         "updated_at": created,
         "url": f"http://127.0.0.1:{port}/d/read-back",
+        "needs_attention": True,  # the check recorded above flags a number
     }
 
     current = ok(call(server, "get_dashboard", id="read-back"))
-    assert current["version"] == 2 and current["status"] == "draft"
+    assert current["version"] == 2 and current["status"] == "draft" and current["needs_attention"]
     assert current["spec"] == DashboardSpec.model_validate(spec).model_dump(
         mode="json", by_alias=True
     )
@@ -478,6 +479,7 @@ def test_list_and_get_dashboards(server, services):
 
     first = ok(call(server, "get_dashboard", id="read-back", version=1, include_html=False))
     assert (first["version"], first["html"], first["checks"]) == (1, None, [])
+    assert not first["needs_attention"]
     assert first["url"] == f"http://127.0.0.1:{port}/d/read-back/v/1"
 
     for arguments in ({"id": "nope"}, {"id": "read-back", "version": 9}):

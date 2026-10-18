@@ -72,11 +72,12 @@
         break;
       case "check":
         sendCheck(message.report);
+        showUnverified(message.report);
         break;
     }
   });
 
-  // The frame's number check for one filter state: stored for the data team, never shown.
+  // The frame's number check for one filter state, stored for the data team.
   function sendCheck(report) {
     if (!report || typeof report !== "object") return;
     fetch(config.api + "/check", {
@@ -85,6 +86,23 @@
       body: JSON.stringify(report),
     }).catch(function () {});
   }
+  // The server checked the default filters at publish; this viewer's browser found numbers
+  // Prumi didn't deliver (new data, or another filter state), so the viewer is told.
+  function showUnverified(report) {
+    var flagged = (report && Array.isArray(report.flagged) ? report.flagged : []).slice(0, 20);
+    var bar = document.getElementById("prumi-unverified");
+    var list = document.getElementById("prumi-unverified-list");
+    list.replaceChildren.apply(
+      list,
+      flagged.map(function (item) {
+        var entry = document.createElement("li");
+        entry.textContent = String(item.text) + " in " + String(item.path);
+        return entry;
+      })
+    );
+    bar.hidden = flagged.length === 0;
+  }
+
 
   function fetchBlock(id) {
     var sequence = (latest[id] || 0) + 1;
