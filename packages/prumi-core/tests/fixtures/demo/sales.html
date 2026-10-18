@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sales</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    .kpi { font-size: 32px; } button { display: block; margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <div id="kpi"><span class="kpi" id="revenue"></span> <span id="aov"></span></div>
+  <div id="regions"></div>
+  <ol id="trend"></ol>
+  <script>
+    prumi.on("kpi", (result) => {
+      const row = result.rows[0] || {};
+      document.getElementById("revenue").textContent = prumi.format(row.revenue, "revenue");
+      document.getElementById("aov").textContent = prumi.format(row.average_order_value, "average_order_value");
+    });
+    prumi.on("by_region", (result) => {
+      const list = document.getElementById("regions");
+      list.replaceChildren(...result.rows.map((row) => {
+        const button = document.createElement("button");
+        button.dataset.region = row.customer__region ?? "";
+        button.textContent = `${row.customer__region ?? "(none)"}: ${prumi.format(row.revenue, "revenue")}`;
+        button.onclick = () => prumi.click("by_region", row);
+        return button;
+      }));
+    });
+    prumi.on("trend", (result) => {
+      const list = document.getElementById("trend");
+      list.replaceChildren(...result.rows.map((row) => {
+        const item = document.createElement("li");
+        item.textContent = `${row.metric_time}: ${prumi.format(row.revenue, "revenue")}`;
+        return item;
+      }));
+    });
+  </script>
+</body>
+</html>

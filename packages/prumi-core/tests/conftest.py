@@ -1,6 +1,7 @@
 """Fixtures for core tests: a fake source with a demo-like catalog, no warehouse needed."""
 
 import datetime as dt
+from pathlib import Path
 
 import pytest
 from prumi.adapters import (
@@ -143,3 +144,53 @@ def demo_config(demo_project):
 def demo_source(demo_config):
     """The demo's dbt source, loaded through the adapter's entry point like the server does."""
     return Source.from_config(demo_config.sources["default"])
+
+
+DEMO_DASHBOARD = Path(__file__).parent / "fixtures" / "demo"
+
+
+def write_demo_config(directory: Path, demo_project, manifest: Path | None = None) -> Path:
+    """A prumi.toml for the demo source with its own data dir under `directory`."""
+    path = directory / "prumi.toml"
+    path.write_text(
+        f"""
+[server]
+port = 8484
+data_dir = "data"
+as_of = "2026-10-15"
+
+[source]
+adapter = "dbt"
+
+[source.dbt]
+semantic_manifest = "{(manifest or demo_project.manifest_path).as_posix()}"
+
+[source.dbt.connection]
+type = "duckdb"
+path = "{demo_project.db_path.as_posix()}"
+"""
+    )
+    return path
+
+
+@pytest.fixture
+def demo_services(tmp_path, demo_project):
+    from prumi.config import load_config
+    from prumi.services import Services
+
+    return Services(load_config(write_demo_config(tmp_path, demo_project)))
+
+
+@pytest.fixture
+def make_demo_config(demo_project):
+    return lambda directory, manifest=None: write_demo_config(directory, demo_project, manifest)
+
+
+@pytest.fixture
+def demo_dashboard():
+    """The demo dashboard's spec (as data) and HTML."""
+    from prumi.spec import load_spec_file
+
+    return load_spec_file(DEMO_DASHBOARD / "sales.yaml"), (
+        DEMO_DASHBOARD / "sales.html"
+    ).read_text()
