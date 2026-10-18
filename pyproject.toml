@@ -22,7 +22,7 @@ prumi-adapter-dbt = { workspace = true }
 [dependency-groups]
 dev = [
     "prumi-core",
-    "prumi-adapter-dbt",
+    "prumi-adapter-dbt[duckdb]",
     "pytest>=8",
     "ruff>=0.6",
 ]
@@ -35,5 +35,5 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages"]
+testpaths = ["packages", "examples/demo-dbt-project/tests"]
 addopts = "--import-mode=importlib"

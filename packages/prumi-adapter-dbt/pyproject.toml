@@ -5,7 +5,15 @@ description = "Prumi adapter for dbt semantic models: MetricFlow compiles, Prumi
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
-dependencies = ["prumi-core"]
+dependencies = [
+    "prumi-core",
+    # Exact pin: MetricFlow's engine API isn't stable (ADR 0002). Bumping it means rerunning
+    # the contract test and rechecking the license.
+    "metricflow==0.213.0",
+]
+
+[project.optional-dependencies]
+duckdb = ["duckdb"]
 
 [build-system]
 requires = ["hatchling"]

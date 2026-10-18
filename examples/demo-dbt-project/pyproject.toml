@@ -1,0 +1,13 @@
+[project]
+name = "prumi-demo-dbt-project"
+version = "0.0.0"
+description = "Stand-in customer dbt project for Prumi's tests and demo (not product code)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "dbt-core==1.12.6",
+    "dbt-duckdb==1.11.0",
+    "duckdb",
+]
+
+[tool.uv]
+package = false
