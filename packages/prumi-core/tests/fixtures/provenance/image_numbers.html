@@ -1,0 +1,14 @@
+<!doctype html>
+<!-- Numbers inside an image can't be read, so a page can't use images at all. -->
+<html>
+<head><meta charset="utf-8"><title>Revenue</title></head>
+<body>
+  <p id="kpi">Revenue, last 12 weeks: <b id="revenue"></b></p>
+  <img alt="Target" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='40'%3E%3Ctext x='0' y='30'%3ETarget $3,100,000%3C/text%3E%3C/svg%3E">
+  <script>
+    prumi.on("kpi", function (b) {
+      document.getElementById("revenue").textContent = prumi.format(b.rows[0].revenue, "revenue");
+    });
+  </script>
+</body>
+</html>

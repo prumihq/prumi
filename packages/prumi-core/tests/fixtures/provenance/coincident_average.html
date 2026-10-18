@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- A weekly average computed in JavaScript, shown at a precision where it equals one week's
+     revenue ($229K), so matching against every value on the page lets it through. -->
+<html>
+<head><meta charset="utf-8"><title>Weekly revenue</title></head>
+<body>
+  <p id="kpi">Last 12 weeks: <b id="total"></b>, about <b id="average"></b> a week</p>
+  <ol id="weeks"></ol>
+  <script>
+    prumi.on("kpi", function (b) {
+      var total = b.rows[0].revenue;
+      document.getElementById("total").textContent = prumi.format(total, "revenue", { compact: true });
+      document.getElementById("average").textContent = prumi.format(total / 12, "revenue", { compact: true });
+    });
+    prumi.on("weekly", function (b) {
+      document.getElementById("weeks").innerHTML = b.rows.map(function (row) {
+        return "<li>" + row.metric_time + ": " + prumi.format(row.revenue, "revenue", { compact: true }) + "</li>";
+      }).join("");
+    });
+  </script>
+</body>
+</html>

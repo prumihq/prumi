@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- Made-up targets that happen to be evenly spaced round numbers, in HTML, not in a chart. -->
+<html>
+<head><meta charset="utf-8"><title>Revenue by region</title></head>
+<body>
+  <div id="regions">
+    <ul id="list"></ul>
+    <p>Targets: <span>$100K</span> <span>$200K</span> <span>$300K</span> <span>$400K</span></p>
+  </div>
+  <script>
+    prumi.on("regions", function (b) {
+      document.getElementById("list").innerHTML = b.rows.map(function (row) {
+        return "<li>" + (row.customer__region || "No region") + ": " + prumi.format(row.revenue, "revenue") + "</li>";
+      }).join("");
+    });
+  </script>
+</body>
+</html>

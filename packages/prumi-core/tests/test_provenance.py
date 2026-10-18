@@ -1,8 +1,9 @@
 """Number provenance: every number a page shows must be a value Prumi delivered.
 
 The server check renders each page in headless Chromium with its blocks' results for the
-filters' default values, and reads what it shows. The numbers each fixture in
-fixtures/provenance/ must get flagged are in its expected.json; an empty list means it passes.
+filters' default values, and reads what it shows. What each fixture in fixtures/provenance/
+must get flagged ([code, text], text null for page-wide codes) is in expected.json; an empty
+list means it passes.
 """
 
 import json
@@ -21,6 +22,16 @@ FIXTURES = Path(__file__).parent / "fixtures" / "provenance"
 RUNTIME = Path(__file__).parents[2] / "prumi-runtime" / "src"
 EXPECTED = json.loads((FIXTURES / "expected.json").read_text())
 SHOWN = re.compile(r"The page shows (.+) \(in (.+)\), which isn't a value Prumi delivered\.")
+# The number an R8 issue is about, whatever the code.
+NUMBER = re.compile(r"(?:The page shows|The page's source has) (.+?) \((?:in|on) ")
+FLAGGED = {"html.image", "html.iframe", "html.closed_shadow_root", "html.canvas"}
+# Must-fail pages for checks that don't exist yet.
+NOT_CHECKED_YET = {
+    "copied_today": "numbers copied into the source aren't checked yet",
+    "coincident_average": "numbers aren't matched against their binding's blocks yet",
+    "image_numbers": "images aren't refused yet",
+    "spaced_series_outside_svg": "unmarked ticks are still allowed outside <svg>",
+}
 
 KPI_SPEC = {
     "spec_version": 0,
@@ -66,13 +77,28 @@ def chromium(demo_services):
         pytest.skip("Headless Chromium can't start; run `uv run playwright install chromium`.")
 
 
-@pytest.mark.parametrize("name", sorted(EXPECTED))
+def flagged(report) -> list[tuple[str, str | None]]:
+    found = []
+    for issue in report.issues:
+        if issue.code.startswith("R8.") or issue.code in FLAGGED:
+            number = NUMBER.match(issue.message)
+            found.append((issue.code, number[1] if number else None))
+    return sorted(found, key=str)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param(n, marks=pytest.mark.xfail(reason=NOT_CHECKED_YET[n], strict=True))
+        if n in NOT_CHECKED_YET
+        else n
+        for n in sorted(EXPECTED)
+    ],
+)
 def test_provenance_fixtures(name, demo_services):
     report = demo_services.validate(*fixture(name))
-    flagged = [
-        SHOWN.fullmatch(i.message) for i in report.issues if i.code == "R8.unverified_number"
-    ]
-    assert sorted(m[1] for m in flagged) == sorted(EXPECTED[name]), report.issues
+    expected = sorted(((code, text) for code, text in EXPECTED[name]), key=str)
+    assert flagged(report) == expected, report.issues
     if not EXPECTED[name]:
         assert report.ok, report.errors
 
