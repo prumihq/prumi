@@ -21,6 +21,8 @@ So the demo's semantic manifest has **twelve public metrics**: the nine in the t
 - **B. Prumi hides metrics marked in `config.meta`**, e.g. `meta: {prumi: {hidden: true}}`. That's a new catalog feature. The spec would also have to say whether a hidden metric can still be queried or put in a dashboard spec, and what `find_metrics` and R7 do with it.
 - **C. Redefine the two metrics without helpers.** Not possible for "revenue − cost" as a derived metric. `gross_margin` could become a simple sum of `revenue - cost` per line, but then it loses its trap ("conservative additivity": it would be additive).
 
+**Decision (2026-10-17): A.** The catalog shows all twelve metrics; section 15 lists the three helpers. Whether a metric is public is the source's decision, and a Prumi hidden flag would be a curation layer. Spec updated.
+
 ## 2. Two-hop dimension names for order-line metrics
 
 **Blocks:** task 9 (catalog dimensions and `relations`), AC 5 and AC 13.
@@ -36,3 +38,5 @@ But because `order_items → order → customer` is also a valid join path, Metr
 - **A. Expose only dimensions with a single entity link** (MetricFlow's `entity_links` has length 1). The demo then has exactly the five names in section 15. On real projects this hides dimensions that are only reachable through two hops.
 - **B. Expose every reachable categorical dimension, two-hop names included.** The catalog and `describe_metric` show near-duplicates (`customer__region` and `order__customer__region`), and section 15's list becomes "at least these".
 - **C. Change the demo models so no two-hop path exists.** Not possible without losing a dimension: `orders` needs `customer_id` (for `customers` and `orders` by region), and `order_items` needs `order_id` (for `order__channel`).
+
+**Decision (2026-10-17): none of A–C as written: one name per attribute, the shortest path.** For each metric, group dimension names by final entity and dimension and keep the one with the fewest entity links (ties both stay). The demo shows exactly the five names in section 15, and on projects where an attribute is only reachable through two hops, the two-hop name is still shown. Spec section 4 updated. A filter that follows each block's own join path is recorded as Later.

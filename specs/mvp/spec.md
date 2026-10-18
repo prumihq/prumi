@@ -107,7 +107,7 @@ class Adapter(Protocol):
   - `Metric`: `name`, `label`, `description`, `kind` (`simple | ratio | derived | cumulative | conversion`), `aggregation` (for simple metrics: MetricFlow's agg type; else `None`), `additive: bool`, `format: Format`, `owner: str | None`, `filter: str | None` (the metric's own filter, display only).
   - `Dimension`: `name` (the query name, e.g. `customer__region`), `label`, `description`.
   - The only time dimension is `metric_time` (each metric's aggregation time dimension). Other time dimensions aren't exposed in this milestone.
-- **`relations(metrics)`**: the names of the categorical dimensions valid for **all** the given metrics together (MetricFlow only follows declared entity relationships, which is what R2 relies on).
+- **`relations(metrics)`**: the names of the categorical dimensions valid for **all** the given metrics together, using the same names as the catalog (MetricFlow only follows declared entity relationships, which is what R2 relies on).
 - **`execute(query, viewer)`**: compiles and runs one `SemanticQuery` as `viewer`. Synchronous; the server calls it in a worker thread.
 
 ```python
@@ -140,7 +140,7 @@ LOCAL_VIEWER = Viewer(id="local", security_context={})
 - Filter semantics, defined here so every adapter behaves the same:
   - `eq` / `in` with `None` among the values also match NULL. `ne` / `not_in` **keep** NULL rows unless `None` is among the values. (Needed for "Others" in R6: a NULL region must land in Others, not disappear.)
   - `in` / `not_in` need at least one value; the others need exactly one.
-- Adapters are discovered through the `prumi.adapters` entry point group; core selects one by `source.adapter`.
+- Adapters are discovered through the `prumi.adapters` entry point group; core selects one by `source.adapter`. The entry point is a factory `(config: Mapping[str, Any], config_dir: Path) -> Adapter`, called with the adapter's own table (`[source.<name>]`) and the folder that relative paths resolve against.
 
 ### 4. dbt adapter
 
@@ -176,6 +176,7 @@ LOCAL_VIEWER = Viewer(id="local", security_context={})
     `percent` means the value is a fraction (0.25 shows as 25%). If `format` is missing or invalid, or `currency` has no 3-letter unit, the format is `number` with no unit and the catalog records a warning.
   - **Owner:** `config.meta.owner` if it's a string.
   - Dimensions: categorical dimensions reachable from at least one metric, plus `metric_time`.
+  - **One name per attribute: the shortest join path.** MetricFlow lists a dimension once per valid join path (`customer__region` directly, and `order__customer__region` through orders, for a metric on order lines). The adapter groups names by their final entity and dimension (`customer` + `region`) and keeps only the name with the fewest entity links for each metric. Names of equal length both stay, because Prumi can't tell which route is meant. Nothing reachable is lost: if region is only reachable through two hops, the two-hop name is the one shown. The catalog, `relations()` and `describe_metric` use the same rule, and names it drops are rejected like any unknown dimension (R2).
 - **Manifest changes need a restart.** No reload in this milestone.
 
 ### 5. Time (`prumi.time`)
@@ -537,7 +538,12 @@ A stand-in "customer" project: not product code, outside the uv workspace, with 
 | `gross_margin` | derived revenue − cost | currency USD | no | Conservative additivity |
 | `gross_margin_pct` | ratio gross_margin / revenue | percent | no | Ratio at grain |
 | `units_on_hand` | simple, sum with `non_additive_dimension` on `snapshot_date` (last value) | integer | no | Semi-additive balance |
-| `discount_rate` | ratio | **none declared** | no | R10 warning |
+| `discount_rate` | ratio discounts / gross_sales | **none declared** | no | R10 warning |
+| `cost` | simple, sum | currency USD | yes | Input of `gross_margin` |
+| `gross_sales` | simple, sum | currency USD | yes | Input of `discount_rate` |
+| `discounts` | simple, sum | currency USD | yes | Input of `discount_rate` |
+
+The last three exist because MetricFlow builds ratio and derived metrics only from other metrics, and this YAML form can't hide a metric. The catalog shows all twelve: whether a metric is public is the source's decision.
 
 - Dimensions: `customer__region`, `customer__country`, `customer__segment`, `order__channel`, `product__category`. The fact models carry the foreign keys they need (e.g. `customer_id` on order items), so every dimension is one entity hop away and has these names. `units_on_hand` isn't joinable to customer dimensions (R2 test case).
 - `as_of = 2026-10-15` in the demo config, so October 2026 is a partial month and data ends the day before.
@@ -570,6 +576,7 @@ README: quick start (build the demo, `prumi serve`, connect an agent), "Connect 
 | Time dimensions other than `metric_time`; grains below a day | Later |
 | Comparison series on time-grain blocks | Later |
 | Filters on metric values (HAVING) | Later |
+| A shared filter that targets an attribute (e.g. customer → region) and uses each block's own join path | Later |
 | A results cache | Later, when needed |
 | Reloading the manifest without a restart | Later |
 | Accepting presentation-only changes without re-certification; a review UI | Later |

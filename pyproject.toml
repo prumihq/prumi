@@ -34,6 +34,10 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.format]
+# Code blocks in specs are illustrations; `ruff format` must never rewrite an accepted spec.
+exclude = ["specs/**"]
+
 [tool.pytest.ini_options]
 testpaths = ["packages", "examples/demo-dbt-project/tests"]
 addopts = "--import-mode=importlib"
