@@ -1,6 +1,9 @@
 """Fixtures for core tests: a fake source with a demo-like catalog, no warehouse needed."""
 
 import datetime as dt
+import socket
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -213,3 +216,63 @@ def client(published):
     from starlette.testclient import TestClient
 
     return TestClient(create_app(published), base_url="http://127.0.0.1:8484")
+
+
+# A live server in a thread, for browser and MCP tests
+
+
+def free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+class LiveServer:
+    """uvicorn on the services' port, in a thread."""
+
+    def __init__(self, services) -> None:
+        import uvicorn
+        from prumi.server.app import create_app
+
+        port = services.config.server.port
+        self.url = f"http://127.0.0.1:{port}"
+        config = uvicorn.Config(
+            create_app(services), host="127.0.0.1", port=port, log_level="warning"
+        )
+        self.server = uvicorn.Server(config)
+        self.thread = threading.Thread(target=self.server.run, daemon=True)
+
+    def __enter__(self):
+        self.thread.start()
+        deadline = time.monotonic() + 10
+        while not self.server.started:
+            if time.monotonic() > deadline:
+                raise RuntimeError("the test server didn't start")
+            time.sleep(0.02)
+        return self
+
+    def __exit__(self, *exc):
+        self.server.should_exit = True
+        self.thread.join(5)
+
+
+@pytest.fixture(scope="module")
+def live_services(tmp_path_factory, demo_project, demo_source):
+    """Builds demo services on a free port, with their own data dir."""
+    from prumi.config import load_config
+    from prumi.services import Services
+
+    def make():
+        directory = tmp_path_factory.mktemp("live")
+        path = write_demo_config(directory, demo_project)
+        path.write_text(path.read_text().replace("port = 8484", f"port = {free_port()}"))
+        services = Services(load_config(path))
+        services.source = demo_source
+        return services
+
+    return make
+
+
+@pytest.fixture(scope="module")
+def live_server():
+    return LiveServer

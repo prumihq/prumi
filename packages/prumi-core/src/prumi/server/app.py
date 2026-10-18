@@ -15,6 +15,7 @@ from starlette.routing import Route
 from prumi.adapters import LOCAL_VIEWER
 from prumi.engine import BlockRequestError, UnknownBlockError
 from prumi.issues import Issue, error
+from prumi.mcp import mcp_routes
 from prumi.registry import Version
 from prumi.server import pages
 from prumi.server.assets import read_asset
@@ -154,7 +155,9 @@ def create_app(services: Services) -> HostCheck:
         return JSONResponse({"values": values})
 
     base = "/api/dashboards/{id}/versions/{n:int}"
+    mcp, mcp_lifespan = mcp_routes(services)
     app = Starlette(
+        lifespan=lambda app: mcp_lifespan(app),
         routes=[
             Route("/", index),
             Route("/runtime.js", asset),
@@ -165,7 +168,8 @@ def create_app(services: Services) -> HostCheck:
             Route(f"{base}/status", status),
             Route(f"{base}/blocks/{{block}}", block, methods=["POST"]),
             Route(f"{base}/filters/{{filter}}/values", filter_values),
-        ]
+            *mcp,  # /mcp: stateless Streamable HTTP
+        ],
     )
     app.state.services = services
     return HostCheck(app, allowed_hosts(server.host, server.port))

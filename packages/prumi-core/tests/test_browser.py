@@ -6,16 +6,10 @@ Headless Chromium through Playwright. Skipped when Chromium isn't installed
 
 import os
 import re
-import socket
-import threading
 import time
 from pathlib import Path
 
 import pytest
-import uvicorn
-from prumi.config import load_config
-from prumi.server.app import create_app
-from prumi.services import Services
 from prumi.spec import load_spec_file
 
 pytestmark = pytest.mark.browser
@@ -24,60 +18,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 TIMEOUT = 10_000  # ms
 
 
-def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-class LiveServer:
-    def __init__(self, services: Services) -> None:
-        port = services.config.server.port
-        self.url = f"http://127.0.0.1:{port}"
-        config = uvicorn.Config(
-            create_app(services), host="127.0.0.1", port=port, log_level="warning"
-        )
-        self.server = uvicorn.Server(config)
-        self.thread = threading.Thread(target=self.server.run, daemon=True)
-
-    def __enter__(self):
-        self.thread.start()
-        deadline = time.monotonic() + 10
-        while not self.server.started:
-            if time.monotonic() > deadline:
-                raise RuntimeError("the test server didn't start")
-            time.sleep(0.02)
-        return self
-
-    def __exit__(self, *exc):
-        self.server.should_exit = True
-        self.thread.join(5)
-
-
 @pytest.fixture(scope="module")
-def services(tmp_path_factory, demo_project, demo_source):
-    directory = tmp_path_factory.mktemp("browser")
-    config = directory / "prumi.toml"
-    config.write_text(
-        f"""
-[server]
-port = {free_port()}
-data_dir = "data"
-as_of = "2026-10-15"
-
-[source]
-adapter = "dbt"
-
-[source.dbt]
-semantic_manifest = "{demo_project.manifest_path.as_posix()}"
-
-[source.dbt.connection]
-type = "duckdb"
-path = "{demo_project.db_path.as_posix()}"
-"""
-    )
-    services = Services(load_config(config))
-    services.source = demo_source
+def services(live_services):
+    services = live_services()
     for spec, html in (
         (FIXTURES / "demo" / "sales.yaml", FIXTURES / "demo" / "sales.html"),
         (FIXTURES / "browser" / "probe.yaml", FIXTURES / "browser" / "probe.html"),
@@ -88,8 +31,8 @@ path = "{demo_project.db_path.as_posix()}"
 
 
 @pytest.fixture(scope="module")
-def server(services):
-    with LiveServer(services) as live:
+def server(services, live_server):
+    with live_server(services) as live:
         yield live
 
 
