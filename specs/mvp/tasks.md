@@ -87,3 +87,8 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [ ] 60. `check_states` in `validate_spec` and publish (AC 62)
 - [ ] 61. Guide additions (AC 63)
 
+## Screenshots from validation (spec section 19.15; added 2026-10-18)
+
+- [ ] 62. `screenshot` in `validate_spec`: devices, `full_page` limits, image content, also for failed pages that rendered; not stored or logged (AC 65, 66, 67)
+- [ ] 63. README data-flow sentence and guide additions (AC 68)
+
