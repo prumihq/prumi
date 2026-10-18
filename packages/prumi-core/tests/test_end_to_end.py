@@ -1,4 +1,4 @@
-"""End to end: an agent session over MCP, a browser on the URL, certification (AC 29)."""
+"""End to end: an agent session over MCP, a browser on the URL, certification."""
 
 import asyncio
 import concurrent.futures

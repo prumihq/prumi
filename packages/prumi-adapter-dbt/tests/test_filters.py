@@ -1,4 +1,4 @@
-"""Filter rendering: quoting, `{`/`}` rejection, literals and NULL semantics (AC 6)."""
+"""Filter rendering: quoting, `{`/`}` rejection, literals and NULL semantics."""
 
 import duckdb
 import pytest

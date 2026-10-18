@@ -1,4 +1,4 @@
-"""The `prumi` command (spec section 11). Exit codes: 0 done, 1 refused, 2 usage error."""
+"""The `prumi` command. Exit codes: 0 done, 1 refused, 2 usage error."""
 
 from __future__ import annotations
 

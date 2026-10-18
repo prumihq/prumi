@@ -1,4 +1,4 @@
-"""Startup fails with a message naming the problem (spec section 4, AC 4)."""
+"""Startup fails with a message naming the problem."""
 
 import shutil
 

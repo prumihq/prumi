@@ -1,4 +1,4 @@
-"""for_agent: the 200-row cap and the separate total (spec section 9, AC 28)."""
+"""for_agent: the 200-row cap and the separate total."""
 
 import datetime as dt
 
@@ -51,7 +51,7 @@ def test_the_policy_sets_the_cap():
 
 
 def test_revenue_by_day_over_two_years(demo_source, demo_project):
-    """AC 28's numbers, through the engine (the MCP query tool comes later)."""
+    """The cap and the total through the engine (the MCP query tool is tested in test_mcp)."""
     engine = Engine(demo_source, AS_OF)
     block = Block(id="query", metrics=("revenue",), time_grain="day", filters=())
     inputs = BlockInputs(LastWindow(last=2, grain="year"), ())

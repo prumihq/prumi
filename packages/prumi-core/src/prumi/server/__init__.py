@@ -1,4 +1,4 @@
-"""The HTTP server: one Starlette app on uvicorn (spec section 12)."""
+"""The HTTP server: one Starlette app on uvicorn."""
 
 from __future__ import annotations
 

@@ -30,7 +30,7 @@ _LITERAL = re.compile(r"'(?:[^']|'')*'|(?<![\w.])\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(
 
 def redact(sql: str) -> str:
     """The SQL with every literal replaced by ?: filter values and window dates are literals,
-    and logs never hold values (spec section 16)."""
+    and logs never hold row or filter values."""
     return _LITERAL.sub("?", sql)
 
 
@@ -44,7 +44,8 @@ class DbtAdapter:
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any], config_dir: Path) -> DbtAdapter:
-        """Load the manifest, open the connection and run the startup checks (spec section 4)."""
+        """Load the manifest, open the connection and run the startup checks: anything wrong
+        stops the server before it binds, with a message naming the problem."""
         manifest = config.get("semantic_manifest")
         if not isinstance(manifest, str):
             raise AdapterStartupError(

@@ -31,7 +31,7 @@ N_CUSTOMERS = 3000
 NULL_REGION_SHARE = 0.02  # customers whose region mapping is missing
 
 # region -> (weight, countries). "Côte d'Ivoire" has a quote on purpose: filter values with
-# a `'` must be escaped (spec section 4).
+# a `'` must be escaped, and the tests filter on it.
 REGIONS = {
     "North America": (30, ["United States", "Canada"]),
     "Western Europe": (20, ["France", "Germany", "Netherlands", "Belgium"]),

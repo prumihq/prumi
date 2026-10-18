@@ -1,4 +1,4 @@
-"""prumi.toml (spec section 2)."""
+"""prumi.toml: the server, the allowed CDN hosts and the source."""
 
 from __future__ import annotations
 

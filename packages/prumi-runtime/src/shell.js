@@ -1,4 +1,4 @@
-// Prumi shell: runs on Prumi's own page around the dashboard frame (spec sections 12, 13).
+// Prumi shell: runs on Prumi's own page around the dashboard frame.
 //
 // It holds the filter state, fetches block results from the server (the frame can't), pushes
 // them into the frame, and shows freshness and block warnings in the bar. The badge is

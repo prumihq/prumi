@@ -1,4 +1,4 @@
-"""Dashboard spec models, loading and the committed JSON Schema (spec section 6, AC 16)."""
+"""Dashboard spec models, loading and the committed JSON Schema."""
 
 import json
 from pathlib import Path
@@ -10,7 +10,7 @@ from prumi.time import LastWindow
 from pydantic import ValidationError
 
 FIXTURES = Path(__file__).parent / "fixtures" / "specs"
-EXAMPLE = FIXTURES / "spec-example.yaml"  # the example in spec section 6, verbatim
+EXAMPLE = FIXTURES / "spec-example.yaml"  # a full spec using every field
 
 
 def minimal(**changes) -> dict:

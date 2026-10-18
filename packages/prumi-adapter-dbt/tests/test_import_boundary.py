@@ -1,4 +1,4 @@
-"""Only `_metricflow.py` imports MetricFlow (spec section 4, AC 2)."""
+"""Only `_metricflow.py` imports MetricFlow (ADR 0002)."""
 
 import ast
 from pathlib import Path

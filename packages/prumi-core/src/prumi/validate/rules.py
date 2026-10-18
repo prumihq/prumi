@@ -1,4 +1,4 @@
-"""Static rules: spec.*, R2, R3, R4, R5, R6, R7 and R10 (spec section 7)."""
+"""Static rules: spec.*, R2, R3, R4, R5, R6, R7 and R10."""
 
 from __future__ import annotations
 

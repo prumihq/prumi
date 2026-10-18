@@ -1,4 +1,4 @@
-"""SemanticQuery -> MetricFlow request, and MetricFlow's rows -> Result (spec section 4)."""
+"""SemanticQuery -> MetricFlow request, and MetricFlow's rows -> Result."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ _COMPARISONS = {"lt": "<", "le": "<=", "gt": ">", "ge": ">="}
 
 
 def render_filter(f: Filter) -> str:
-    """A where clause for MetricFlow, with the filter semantics of spec section 3.
+    """A where clause for MetricFlow, with the filter semantics of the adapter protocol.
 
     `eq` / `in` with None also match NULL; `ne` / `not_in` keep NULL rows unless None is among
     the values. MetricFlow renders where clauses as Jinja, so values can't contain `{` or `}`.

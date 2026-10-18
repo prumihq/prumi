@@ -1,7 +1,7 @@
 """Spec data -> DashboardSpec, with one `spec.invalid` issue per problem.
 
 Messages say what each field must be, in the spec's terms, never in pydantic's ("tuple",
-"model", "union", "dict", "Input should be"): agents read them to fix the spec (spec 18).
+"model", "union", "dict", "Input should be"): agents read them to fix the spec.
 """
 
 from __future__ import annotations

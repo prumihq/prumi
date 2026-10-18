@@ -1,4 +1,4 @@
-"""Release: versions are 0.1.0 and `uv build` makes wheels with the runtime in them (AC 31)."""
+"""Release: versions are 0.1.0 and `uv build` makes wheels with the runtime in them."""
 
 import json
 import os

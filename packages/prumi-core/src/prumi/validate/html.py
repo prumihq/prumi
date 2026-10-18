@@ -1,4 +1,4 @@
-"""HTML checks: R8 (no data in the page), bindings, block references, scripts (spec section 8).
+"""HTML checks: R8 (no data in the page), bindings, block references, scripts.
 
 R8 can't be fully enforced: an agent can still write numbers into SVG or text. These checks
 catch the snapshot pattern; the badge says "certified" only after a human review.

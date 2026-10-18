@@ -1,4 +1,4 @@
-"""Request guards on every route (spec section 12)."""
+"""Request guards on every route: only loopback Host headers, against DNS rebinding."""
 
 from __future__ import annotations
 

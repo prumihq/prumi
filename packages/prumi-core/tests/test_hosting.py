@@ -1,4 +1,4 @@
-"""Frame serving and the shell page (spec section 12, AC 22's server side)."""
+"""Frame serving and the shell page (the server side of the sandbox)."""
 
 import json
 import re

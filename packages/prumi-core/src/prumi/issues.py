@@ -1,4 +1,4 @@
-"""Issues: what the validator, the engine and the APIs report back (spec section 7)."""
+"""Issues: what the validator, the engine and the APIs report back (codes: docs/bi-rules.md)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""The engine against the demo warehouse: every number equals hand-written SQL (AC 9, 10, 11)."""
+"""The engine against the demo warehouse: every number equals hand-written SQL."""
 
 import datetime as dt
 
@@ -74,7 +74,7 @@ def hand_sales(sql, key: str | None, where: str = IN_WINDOW) -> dict:
     return result
 
 
-# R1: non-additive metrics at the grain they're shown (AC 10)
+# R1: non-additive metrics at the grain they're shown
 
 R1_METRICS = ["average_order_value", "customers", "gross_margin_pct", "revenue"]
 
@@ -144,7 +144,7 @@ def test_r1_summing_rows_would_be_wrong(engine):
     assert mean_aov != pytest.approx(total["average_order_value"], abs=0.01)
 
 
-# R6: total and Others (AC 11)
+# R6: total and Others
 
 
 @pytest.fixture(scope="module")
@@ -207,7 +207,7 @@ def test_no_others_when_every_group_is_in_the_top(engine):
     assert len(result.rows) == 3 and result.others is None
 
 
-# Time: partial periods and stale data (AC 9)
+# Time: partial periods and stale data (R3)
 
 
 def test_include_current_marks_the_partial_month(engine):

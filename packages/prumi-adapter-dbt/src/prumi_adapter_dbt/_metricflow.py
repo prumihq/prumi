@@ -27,7 +27,7 @@ from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifest
 from prumi.adapters import AdapterStartupError
 
 # MetricFlow's DEBUG logs print query specs with their where clauses, i.e. filter values.
-# Prumi's logs never hold values at any level (spec section 16), so its loggers stay quiet.
+# Prumi's logs never hold row or filter values, at any level, so its loggers stay quiet.
 for _name in ("metricflow", "metricflow_semantics", "metricflow_semantic_interfaces"):
     logging.getLogger(_name).setLevel(logging.WARNING)
 

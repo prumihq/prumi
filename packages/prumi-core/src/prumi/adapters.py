@@ -1,4 +1,4 @@
-"""The adapter protocol (spec section 3).
+"""The adapter protocol.
 
 An adapter connects Prumi to one kind of source. It describes the source's metrics, compiles
 and runs semantic queries as a viewer, and leaves metric definitions and access rules to the

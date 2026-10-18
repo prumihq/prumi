@@ -1,4 +1,4 @@
-"""Catalog extraction: kinds, additivity, formats, owners, dimensions, relations (AC 5)."""
+"""Catalog extraction: kinds, additivity, formats, owners, dimensions, relations."""
 
 import pytest
 from prumi.adapters import LOCAL_VIEWER, AdapterStartupError, Filter, Format, SemanticQuery
@@ -7,7 +7,7 @@ from prumi_adapter_dbt.catalog import build_catalog, parse_format, shortest_path
 
 USD = Format("currency", "USD", 2)
 
-# Spec section 15: name -> (kind, aggregation, additive, format, owner)
+# The demo's metrics: name -> (kind, aggregation, additive, format, owner)
 DEMO_METRICS = {
     "revenue": ("simple", "sum", True, USD, "sales-analytics"),
     "orders": ("simple", "count", True, Format("integer", "orders"), "sales-analytics"),

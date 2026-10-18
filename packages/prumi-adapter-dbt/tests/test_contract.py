@@ -1,7 +1,7 @@
 """Contract test: what the dbt adapter relies on from MetricFlow (pinned at 0.213.0).
 
-The `metricflow-compile` spike's checks, ported onto the demo project, plus the behaviors spec
-section 4 relies on that the spike didn't test. Each query is compiled by MetricFlow, run over
+The `metricflow-compile` spike's checks, ported onto the demo project, plus the behaviors the
+adapter relies on that the spike didn't test. Each query is compiled by MetricFlow, run over
 our own read-only DuckDB connection, and compared with hand-written SQL over the demo warehouse.
 The compile-only client must never be called. Rerun this on every MetricFlow bump.
 """
@@ -20,7 +20,7 @@ REGION = "{{ Dimension('customer__region') }}"
 
 
 def window(start: str, end: str) -> tuple[str, ...]:
-    """The adapter's window form: inclusive bounds on metric_time at day grain (spec 4)."""
+    """The adapter's window form: inclusive bounds on metric_time at day grain."""
     return (f"{METRIC_TIME_DAY} >= '{start}'", f"{METRIC_TIME_DAY} <= '{end}'")
 
 
@@ -198,7 +198,7 @@ def test_day_grain_by_region_with_window(mf, conn):
     assert min(days) == dt.date(2026, 9, 10) and max(days) == dt.date(2026, 9, 20)
 
 
-# What spec section 4 relies on beyond the spike
+# What the adapter relies on beyond the spike
 
 
 def test_window_without_a_time_group_by(mf, conn):

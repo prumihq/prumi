@@ -1,4 +1,4 @@
-"""Core never imports an adapter package or MetricFlow (AGENTS.md, AC 2)."""
+"""Core never imports an adapter package or MetricFlow (AGENTS.md)."""
 
 import ast
 import subprocess

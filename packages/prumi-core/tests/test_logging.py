@@ -1,4 +1,4 @@
-"""Logs hold query metadata, never row values or filter values, at any level (AC 25)."""
+"""Logs hold query metadata, never row values or filter values, at any level."""
 
 import asyncio
 import json

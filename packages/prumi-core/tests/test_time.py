@@ -1,4 +1,4 @@
-"""Window resolution, grain compatibility and comparison windows (spec section 5, AC 7, 8)."""
+"""Window resolution, grain compatibility and comparison windows (R3, R4)."""
 
 import datetime as dt
 
@@ -54,7 +54,7 @@ def test_periods(day, grain, start, end):
     assert period_end(d(day), grain) == d(end)
 
 
-# Window resolution (AC 7)
+# Window resolution
 
 
 @pytest.mark.parametrize(
@@ -263,7 +263,7 @@ def test_window_forms_parse_to_their_models():
     )
 
 
-# Grain compatibility (AC 7)
+# Grain compatibility
 
 FITS = {
     # time_grain: window grains it divides exactly
@@ -289,7 +289,7 @@ def test_grain_compatibility(time_grain, window_grain):
         assert error.value.code == "R4.grain_mismatch"
 
 
-# Comparison windows (AC 8)
+# Comparison windows
 
 
 @pytest.mark.parametrize(

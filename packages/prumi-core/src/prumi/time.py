@@ -1,4 +1,4 @@
-"""Time: grains, window forms, partial periods and comparison windows (spec section 5).
+"""Time: grains, window forms, partial periods and comparison windows (R3, R4).
 
 Prumi owns time windows (ADR 0002). Every window is resolved here against `as_of` ("today")
 and aligned to whole periods before a query is compiled, so MetricFlow never receives a window

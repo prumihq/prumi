@@ -1,4 +1,4 @@
-"""HTML checks: R8 fixtures, size limit, tokenizer and URL rules (spec section 8, AC 15)."""
+"""HTML checks: R8 fixtures, size limit, tokenizer and URL rules."""
 
 import json
 from pathlib import Path

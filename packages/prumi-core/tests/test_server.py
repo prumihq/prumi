@@ -1,4 +1,4 @@
-"""The HTTP app: Host check, routes and the block API (spec section 12, AC 20, 21)."""
+"""The HTTP app: Host check, routes, the block API and check reports."""
 
 import pytest
 from prumi.cli import main
@@ -11,7 +11,7 @@ def post(client, path, body, **kwargs):
     return client.post(path, json=body, **kwargs)
 
 
-# Guards (AC 20)
+# Guards
 
 
 @pytest.mark.parametrize("host", ["127.0.0.1:8484", "localhost:8484"])
@@ -59,7 +59,7 @@ def test_serve_refuses_a_non_loopback_host(capsys, tmp_path):
     assert "isn't a loopback address" in capsys.readouterr().err
 
 
-# The block API (AC 21)
+# The block API
 
 
 def test_a_block_with_default_filters(client):

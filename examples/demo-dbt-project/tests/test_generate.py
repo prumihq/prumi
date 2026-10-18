@@ -1,4 +1,4 @@
-"""The demo data generator is deterministic and matches spec section 15."""
+"""The demo data generator is deterministic and plants the data the tests rely on."""
 
 import datetime as dt
 import importlib.util

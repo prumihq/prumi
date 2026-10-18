@@ -1,4 +1,4 @@
-"""The validator against the demo catalog (AC 13, 14)."""
+"""The validator against the demo catalog."""
 
 import datetime as dt
 

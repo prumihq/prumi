@@ -1,4 +1,4 @@
-"""The validator (spec section 7): static rules first, then a dry run of every block."""
+"""The validator: static rules first, then a dry run of every block, then the page check."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""The registry: versions, fingerprints, computed status, delete (spec section 10, AC 17, 18)."""
+"""The registry: versions, fingerprints, computed status, delete, browser checks."""
 
 import datetime as dt
 import sqlite3
@@ -56,7 +56,7 @@ def test_canonical_json_includes_defaults_and_sorts_keys():
     assert canonical_spec_json(explicit) == text
 
 
-# Publishing (AC 17)
+# Publishing
 
 
 def test_versions(registry):
@@ -99,7 +99,7 @@ def test_publish_validates_first(registry):
     assert report.ok and (published.version, published.created) == (1, True)
 
 
-# Status and certification (AC 18)
+# Status and certification
 
 
 def test_status_is_computed_from_certifications(registry):

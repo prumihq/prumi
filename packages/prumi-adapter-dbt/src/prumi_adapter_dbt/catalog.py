@@ -1,4 +1,4 @@
-"""Catalog extraction: MetricFlow's metrics and dimensions -> Prumi's catalog (spec section 4)."""
+"""Catalog extraction: MetricFlow's metrics and dimensions -> Prumi's catalog."""
 
 from __future__ import annotations
 

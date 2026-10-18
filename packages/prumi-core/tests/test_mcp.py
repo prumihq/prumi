@@ -1,18 +1,16 @@
-"""The MCP server over Streamable HTTP: tools, instructions, ranking, query (AC 26, 27, 28)."""
+"""The MCP server over Streamable HTTP: tools, instructions, ranking, query, publishing."""
 
 import asyncio
 import json
 import re
-from pathlib import Path
 
 import duckdb
 import pytest
 from mcp import Client
-from prumi.mcp import rank, tokens
+from prumi.mcp import INSTRUCTIONS, rank, tokens
 from prumi.registry import Content
 from prumi.spec import DashboardSpec
 
-SPEC_MD = Path(__file__).parents[3] / "specs" / "mvp" / "spec.md"
 TOOLS = {
     "authoring_guide",
     "find_metrics",
@@ -35,23 +33,6 @@ def services(live_services):
 def server(services, live_server):
     with live_server(services) as live:
         yield live
-
-
-def expected_instructions() -> str:
-    """Section 14's instructions, with steps 3 and 5 as section 18 rewrote them, and section
-    19's step 0 and addition to step 3."""
-    spec = SPEC_MD.read_text()
-    quote = re.search(r"\*\*Server instructions\*\*.*?\n\n((?:> .*\n)+)", spec)
-    lines = [line[2:] for line in quote.group(1).splitlines()]
-    section_18 = spec.split("### 18.", 1)[1].split("\n## ", 1)[0]
-    for line in re.findall(r"^> (\d\. .*)$", section_18, re.M):
-        lines = [line if old.startswith(line[:3]) else old for old in lines]
-    section_19 = spec.split("#### 19.9", 1)[1].split("\n#### ", 1)[0]
-    step_3 = re.search(r'in step 3: "(.*)"$', section_19, re.M)[1]
-    step_0 = re.search(r'a step 0: "(.*)"$', section_19, re.M)[1]
-    lines = [f"{line} {step_3}" if line.startswith("3. ") else line for line in lines]
-    lines.insert(1, f"0. {step_0}")
-    return "\n".join(lines)
 
 
 def session(server, work):
@@ -79,7 +60,7 @@ def issues(result) -> list[dict]:
     return json.loads(result.content[0].text)
 
 
-# AC 26
+# Tools and instructions
 
 
 def test_exactly_the_tools_and_the_instructions(server):
@@ -90,13 +71,13 @@ def test_exactly_the_tools_and_the_instructions(server):
     tools, instructions, info = session(server, work)
     assert {t.name for t in tools} == TOOLS
     assert info.name == "prumi"
-    # The instructions are section 14's text, verbatim.
-    assert instructions == expected_instructions()
+    # The text the package ships, verbatim.
+    assert instructions == INSTRUCTIONS
     query = next(t for t in tools if t.name == "query")
     assert set(query.input_schema["required"]) == {"metrics", "window"}
 
 
-# AC 27
+# Finding and describing metrics
 
 
 def test_find_metrics_ranks_by_name_label_and_description(server):
@@ -145,7 +126,7 @@ def test_describe_metric(server):
     assert "request_metric" in issue["hint"]
 
 
-# AC 28 and the query tool
+# The query tool
 
 
 def test_query_revenue_by_day_over_two_years(server, demo_project):
@@ -312,7 +293,7 @@ def test_mcp_rejects_other_origins(server):
     assert other_host.status_code == 403
 
 
-# Publishing by candidate (AC 33)
+# Publishing by candidate
 
 
 def test_validate_returns_a_candidate_only_for_valid_spec_and_html(server, demo_dashboard):
@@ -420,13 +401,28 @@ def test_authoring_guide_returns_the_guide(server):
     assert result.content[0].text == AUTHORING_GUIDE.read_text(encoding="utf-8")
 
 
-def test_the_instructions_follow_section_18():
-    from prumi.mcp import INSTRUCTIONS
-
-    assert "\n0. When the user wants a dashboard or chart about company metrics" in INSTRUCTIONS
-    assert "3. Call `authoring_guide` once before writing anything" in INSTRUCTIONS
-    assert "with the `candidate_id` from the last successful validation" in INSTRUCTIONS
-    assert INSTRUCTIONS == expected_instructions()
+def test_the_instructions_give_every_step():
+    steps = re.findall(r"^(\d)\. ", INSTRUCTIONS, re.M)
+    assert steps == ["0", "1", "2", "3", "4", "5"]
+    for text in (
+        # 0: Prumi for company metrics, and how to change an existing dashboard
+        "use Prumi; don't copy its data into other tools",
+        "use `list_dashboards` and `get_dashboard`, then edit it with `validate_spec(base=...)`",
+        # 1: catalog metrics only
+        "call `request_metric` and tell the user; never compute or approximate a metric",
+        # 2: query is for exploring
+        "they're for exploring, not for copying into the page",
+        # 3: the guide first; numbers only from prumi.on; the HTML straight to validation
+        "Call `authoring_guide` once before writing anything",
+        "Every number on the page must come from `prumi.on(...)`",
+        "Send the HTML straight to `validate_spec`; don't write it to a local file first.",
+        # 4: explicit filters
+        "Every data block must list its `filters` explicitly",
+        # 5: validate, then publish the candidate
+        "with the `candidate_id` from the last successful validation (don't resend",
+        "only the data team can certify it",
+    ):  # fmt: skip
+        assert text in INSTRUCTIONS, text
 
 
 # Reading dashboards back

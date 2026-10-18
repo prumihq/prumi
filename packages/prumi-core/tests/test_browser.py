@@ -1,4 +1,4 @@
-"""Browser tests: the shell, the sandboxed frame and the runtime (AC 22, 23, 24).
+"""Browser tests: the shell, the sandboxed frame and the runtime.
 
 Headless Chromium through Playwright. Skipped when Chromium isn't installed
 (`uv run playwright install chromium`); with PRUMI_REQUIRE_BROWSER=1 (CI) that's a failure.
@@ -106,7 +106,7 @@ def block_requests(page):
     return seen
 
 
-# AC 22: the shell and the sandbox
+# The shell and the sandbox
 
 
 def test_the_badge_and_freshness_come_from_the_server(page, server, services):
@@ -151,7 +151,7 @@ def test_the_frame_is_sandboxed_when_opened_directly(page, server):
     assert page.evaluate("window.__calls") == {}
 
 
-# AC 23: the runtime
+# The runtime
 
 
 def test_on_delivers_block_results_on_load(page, server):
@@ -304,7 +304,7 @@ def test_a_bad_filter_value_reaches_on_error(page, server):
     ]
 
 
-# AC 24: outside Prumi
+# Outside Prumi
 
 
 def test_the_frame_html_as_a_standalone_file(page, server, tmp_path):

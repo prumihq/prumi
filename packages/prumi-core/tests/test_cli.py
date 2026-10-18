@@ -1,4 +1,4 @@
-"""The prumi CLI (spec section 11, AC 18, 19)."""
+"""The prumi CLI."""
 
 import copy
 import getpass

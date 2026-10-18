@@ -1,4 +1,4 @@
-"""Loading prumi.toml (spec section 2, AC 20)."""
+"""Loading prumi.toml."""
 
 import datetime as dt
 from pathlib import Path

@@ -1,4 +1,4 @@
-// Prumi runtime: runs inside a dashboard's sandboxed frame (spec section 13).
+// Prumi runtime: runs inside a dashboard's sandboxed frame.
 //
 // Every number on a dashboard arrives here from the shell, by postMessage. The frame can't
 // call any server itself (connect-src 'none'). There are no aggregation helpers on purpose:

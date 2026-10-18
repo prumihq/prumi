@@ -1,4 +1,4 @@
-"""The engine: executes dashboard blocks, never free queries (spec section 9).
+"""The engine: executes dashboard blocks, never free queries.
 
 Every number comes from the source at the grain it's shown. The engine computes only two
 things itself: "Others" for additive metrics (total minus the top N) and comparison deltas.
@@ -66,7 +66,7 @@ class ColumnInfo(BaseModel):
 
 
 class BlockResult(BaseModel):
-    """A block's data, as the browser and agents receive it (spec section 9)."""
+    """A block's data, as the browser and agents receive it."""
 
     block: str
     columns: list[ColumnInfo]

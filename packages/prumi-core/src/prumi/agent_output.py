@@ -1,4 +1,4 @@
-"""What agents may see of a result (spec section 9).
+"""What agents may see of a result.
 
 Agent results go to the agent's LLM provider, so every result returned to an agent passes
 through `for_agent`. The only policy in this milestone caps rows; later policies (masked

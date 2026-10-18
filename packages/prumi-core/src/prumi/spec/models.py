@@ -1,4 +1,4 @@
-"""Dashboard spec, format version 0 (spec section 6).
+"""Dashboard spec, format version 0.
 
 These models check shape only: types, ranges and patterns. Rules that relate fields to each
 other or to the catalog are the validator's, so the agent gets one coded issue per problem.

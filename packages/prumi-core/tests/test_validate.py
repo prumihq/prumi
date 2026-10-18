@@ -1,4 +1,4 @@
-"""The validator: one fixture per code, each producing that code and only it (AC 12, 14)."""
+"""The validator: one fixture per code, each producing that code and only it."""
 
 import datetime as dt
 from pathlib import Path
@@ -11,7 +11,7 @@ from prumi.validate import validate
 FIXTURES = Path(__file__).parent / "fixtures" / "validator"
 METRIC_REQUESTS = {1, 2}
 
-# Section 7's codes, plus spec.invalid_interaction (section 13's interaction check).
+# Every validator code (docs/bi-rules.md lists them).
 # html.too_large is tested in test_html.py, with a generated page.
 CODES = {
     "spec.invalid",
@@ -171,7 +171,7 @@ MESSAGE_KINDS = {"missing_field", "unknown_field", "wrong_container", "wrong_val
 
 
 def test_spec_invalid_messages_use_the_specs_words(fake_source, as_of):
-    """AC 34: plain messages, and a fixture for each kind of message in spec section 18."""
+    """Plain messages, in the spec's terms, and a fixture for each kind of message."""
     fixtures = [p for p in FIXTURE_FILES if fixture_header(p)["code"] == "spec.invalid"]
     kinds = {p.stem.removeprefix("spec.invalid.") for p in fixtures}
     assert MESSAGE_KINDS <= kinds

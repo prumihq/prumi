@@ -1,4 +1,4 @@
--- Registry schema, version 1 (spec section 10).
+-- Registry schema, version 1.
 
 CREATE TABLE dashboards (
     id TEXT PRIMARY KEY,

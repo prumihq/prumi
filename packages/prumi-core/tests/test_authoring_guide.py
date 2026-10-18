@@ -1,4 +1,4 @@
-"""The authoring guide agents read before writing a dashboard (spec section 18, AC 32)."""
+"""The authoring guide agents read before writing a dashboard."""
 
 import json
 import re
