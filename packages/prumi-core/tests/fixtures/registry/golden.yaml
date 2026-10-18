@@ -1,0 +1,9 @@
+# The golden fingerprint fixture: changing this file changes the pinned fingerprint.
+spec_version: 0
+dashboard: {id: golden, title: Golden}
+filters:
+  - {id: period, type: time, default: {last: 12, grain: week}}
+data:
+  - id: kpi
+    metrics: [revenue]
+    filters: [period]

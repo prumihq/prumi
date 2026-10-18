@@ -1,0 +1,2 @@
+# Kept byte for byte: the golden fingerprint test checks CRLF normalization.
+packages/prumi-core/tests/fixtures/registry/golden.html -text

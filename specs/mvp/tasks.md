@@ -26,7 +26,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 ## Registry, CLI, server
 
-- [ ] 17. Registry: SQLite schema and migrations, WAL, publish with versions, canonical spec and fingerprint (golden test), computed status, delete (AC 17, 18)
+- [x] 17. Registry: SQLite schema and migrations, WAL, publish with versions, canonical spec and fingerprint (golden test), computed status, delete (AC 17, 18)
 - [ ] 18. CLI: `serve`, `list`, `certify` (with re-validation), `uncertify`, `delete`, `requests`, `validate`, exit codes (AC 18, 19)
 - [ ] 19. HTTP app: Host check, routes, block/status/values APIs that accept only filter values, error codes (AC 20, 21)
 - [ ] 20. Frame serving: runtime injection, CSP and sandbox headers; shell page (bar, badge, freshness, warnings toggle) (AC 22)
