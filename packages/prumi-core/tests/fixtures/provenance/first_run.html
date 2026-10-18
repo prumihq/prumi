@@ -1,0 +1,448 @@
+<title>Weekly Revenue by Region</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #6f6d68;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --ring: rgba(11, 11, 11, 0.10);
+  --series: #2a78d6;
+  --series-soft: rgba(42, 120, 214, 0.12);
+  --up: #006300;
+  --down: #b42f2f;
+  --focus: #2a78d6;
+  --tip-bg: #0b0b0b;
+  --tip-ink: #f0efec;
+  --h0: #cde2fb; --h1: #b7d3f6; --h2: #9ec5f4; --h3: #86b6ef; --h4: #6da7ec;
+  --h5: #2a78d6; --h6: #1c5cab; --h7: #184f95; --h8: #0d366b;
+  --h-ink-lo: #0b0b0b; --h-ink-hi: #ffffff;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #9a988f;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255, 255, 255, 0.10);
+    --series: #3987e5; --series-soft: rgba(57, 135, 229, 0.16);
+    --up: #0ca30c; --down: #e66767; --focus: #6da7ec; --tip-bg: #f0efec; --tip-ink: #0b0b0b;
+    --h0: #0d366b; --h1: #104281; --h2: #184f95; --h3: #1c5cab; --h4: #256abf;
+    --h5: #3987e5; --h6: #6da7ec; --h7: #9ec5f4; --h8: #cde2fb;
+    --h-ink-lo: #f0efec; --h-ink-hi: #0b0b0b;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #9a988f;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255, 255, 255, 0.10);
+  --series: #3987e5; --series-soft: rgba(57, 135, 229, 0.16);
+  --up: #0ca30c; --down: #e66767; --focus: #6da7ec; --tip-bg: #f0efec; --tip-ink: #0b0b0b;
+  --h0: #0d366b; --h1: #104281; --h2: #184f95; --h3: #1c5cab; --h4: #256abf;
+  --h5: #3987e5; --h6: #6da7ec; --h7: #9ec5f4; --h8: #cde2fb;
+  --h-ink-lo: #f0efec; --h-ink-hi: #0b0b0b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 var(--sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1160px; margin: 0 auto; padding-block: 28px 48px; display: grid; gap: 20px; }
+header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 8px 24px; }
+h1 { font-size: 24px; line-height: 1.2; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 15px; margin: 0; }
+.sub { color: var(--ink-2); margin: 4px 0 0; }
+.meta { color: var(--muted); font-size: 12px; text-align: right; }
+.panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 18px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 16px; margin-bottom: 12px; }
+.panel-head p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpi { display: grid; gap: 4px; align-content: start; }
+.kpi .label { font-size: 12px; color: var(--ink-2); letter-spacing: 0.02em; }
+.kpi .value { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; }
+.kpi .foot { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.delta { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.delta.up { color: var(--up); }
+.delta.down { color: var(--down); }
+.delta.flat { color: var(--muted); font-weight: 400; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.charts { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
+.chart { position: relative; width: 100%; min-height: 220px; }
+.chart svg { display: block; overflow: visible; }
+.grid-line { stroke: var(--grid); stroke-width: 1; }
+.base-line { stroke: var(--axis); stroke-width: 1; }
+.tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bar { fill: var(--series); }
+.bar.dim { opacity: 0.45; }
+.line { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.area { fill: var(--series-soft); }
+.dot { fill: var(--series); stroke: var(--surface); stroke-width: 2; }
+.guide { stroke: var(--axis); stroke-width: 1; }
+.hit { fill: transparent; cursor: crosshair; }
+.loading { color: var(--muted); font-size: 13px; padding: 24px 0; }
+
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th { font-size: 12px; font-weight: 500; color: var(--ink-2); text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+td { padding: 9px 10px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+tr.total td { font-weight: 600; border-bottom: 0; border-top: 1px solid var(--axis); }
+td.region { font-weight: 500; }
+td.unset { color: var(--ink-2); font-style: italic; }
+td.spark { width: 120px; padding-block: 4px; }
+.spark svg { display: block; margin-left: auto; }
+
+.toggle { display: inline-flex; border: 1px solid var(--ring); border-radius: 8px; padding: 2px; gap: 2px; }
+.toggle button {
+  font: inherit; font-size: 12px; border: 0; border-radius: 6px; padding: 5px 10px; cursor: pointer;
+  background: transparent; color: var(--ink-2);
+}
+.toggle button[aria-pressed="true"] { background: var(--series); color: #fff; }
+.toggle button:focus-visible, .hit:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.heat { border-collapse: separate; border-spacing: 2px; width: 100%; }
+.heat th { border: 0; padding: 4px 6px; font-weight: 500; }
+.heat th.row { text-align: left; color: var(--ink); }
+.heat td { border: 0; border-radius: 4px; padding: 7px 6px; font-size: 12px; text-align: center; min-width: 58px; }
+.heat td.h0 { background: var(--h0); color: var(--h-ink-lo); }
+.heat td.h1 { background: var(--h1); color: var(--h-ink-lo); }
+.heat td.h2 { background: var(--h2); color: var(--h-ink-lo); }
+.heat td.h3 { background: var(--h3); color: var(--h-ink-lo); }
+.heat td.h4 { background: var(--h4); color: var(--h-ink-lo); }
+.heat td.h5 { background: var(--h5); color: var(--h-ink-hi); }
+.heat td.h6 { background: var(--h6); color: var(--h-ink-hi); }
+.heat td.h7 { background: var(--h7); color: var(--h-ink-hi); }
+.heat td.h8 { background: var(--h8); color: var(--h-ink-hi); }
+.legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.legend .ramp { display: flex; gap: 2px; }
+.legend .ramp span { width: 16px; height: 10px; border-radius: 2px; }
+
+.note { color: var(--muted); font-size: 12px; margin: 0; }
+#tip {
+  position: fixed; z-index: 20; pointer-events: none; background: var(--tip-bg); color: var(--tip-ink);
+  padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 1.4; max-width: 240px;
+  font-variant-numeric: tabular-nums; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+#tip b { display: block; margin-bottom: 2px; }
+
+@media (max-width: 900px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .charts { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 440px) {
+  .kpis { grid-template-columns: minmax(0, 1fr); }
+  .meta { text-align: left; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bar, .dot { transition: opacity 120ms ease; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Weekly Revenue by Region</h1>
+      <p class="sub" id="window-label">Last 12 complete weeks</p>
+    </div>
+    <div class="meta" id="fresh"></div>
+  </header>
+
+  <section class="kpis" aria-label="Headline figures">
+    <div class="panel kpi" id="kpi-week-rev"><span class="label">Revenue, last week</span><span class="value">…</span><span class="foot"></span></div>
+    <div class="panel kpi" id="kpi-week-aov"><span class="label">Avg order value, last week</span><span class="value">…</span><span class="foot"></span></div>
+    <div class="panel kpi" id="kpi-12-rev"><span class="label">Revenue, last 12 weeks</span><span class="value">…</span><span class="foot"></span></div>
+    <div class="panel kpi" id="kpi-12-aov"><span class="label">Avg order value, last 12 weeks</span><span class="value">…</span><span class="foot"></span></div>
+  </section>
+
+  <section class="charts">
+    <div class="panel">
+      <div class="panel-head"><div><h2>Weekly revenue</h2><p>All regions, net of discounts</p></div></div>
+      <div class="chart" id="chart-rev"><div class="loading">Loading weekly revenue…</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div><h2>Weekly average order value</h2><p>All regions</p></div></div>
+      <div class="chart" id="chart-aov"><div class="loading">Loading average order value…</div></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div><h2>Regions</h2><p>Last 12 weeks compared with the 12 weeks before</p></div>
+    </div>
+    <div class="table-scroll">
+      <table id="region-table">
+        <thead><tr><th scope="col">Region</th><th scope="col">Revenue</th><th scope="col">vs prior 12 wk</th><th scope="col">Avg order value</th><th scope="col">vs prior 12 wk</th><th scope="col">Weekly revenue</th></tr></thead>
+        <tbody><tr><td colspan="6" class="loading">Loading regions…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div><h2 id="heat-title">Revenue by region and week</h2><p>Week starting Monday. Darker cells are higher.</p></div>
+      <div class="toggle" role="group" aria-label="Metric shown in the grid">
+        <button type="button" id="heat-rev" aria-pressed="true">Revenue</button>
+        <button type="button" id="heat-aov" aria-pressed="false">Avg order value</button>
+      </div>
+    </div>
+    <div class="table-scroll"><table class="heat" id="heat"><tbody><tr><td class="loading">Loading…</td></tr></tbody></table></div>
+    <div class="legend" style="margin-top:10px"><span>Lower</span><span class="ramp" id="ramp"></span><span>Higher</span></div>
+  </section>
+
+  <p class="note">“Region not set” covers customers with no sales region on file. Their orders count in every total. Revenue is net sales after discounts, in USD. Average order value is revenue divided by orders.</p>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+(function () {
+  var USD0 = { type: "currency", unit: "USD", decimals: 0 };
+  var PCT1 = { type: "percent", unit: null, decimals: 1 };
+  var state = { weekly: null, regions: null, regionWeeks: null, heatMetric: "revenue" };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function fmt(v, f) { return v == null ? "—" : prumi.format(v, f); }
+  function colFormat(block, name) {
+    var c = (block.columns || []).filter(function (c) { return c.name === name; })[0];
+    return c && c.format ? c.format : USD0;
+  }
+  function regionName(r) { return r == null ? "Region not set" : r; }
+  function day(iso, withYear) {
+    var d = new Date(iso + "T00:00:00Z");
+    var o = { month: "short", day: "numeric", timeZone: "UTC" };
+    if (withYear) o.year = "numeric";
+    return d.toLocaleDateString("en-US", o);
+  }
+  function delta(p) {
+    if (p == null || !isFinite(p)) return '<span class="delta flat">no prior data</span>';
+    var cls = p > 0 ? "up" : p < 0 ? "down" : "flat";
+    var icon = p > 0 ? "▲" : p < 0 ? "▼" : "■";
+    var word = p > 0 ? "up " : p < 0 ? "down " : "flat ";
+    return '<span class="delta ' + cls + '"><span aria-hidden="true">' + icon + '</span> <span class="sr">' + word + '</span>' + fmt(Math.abs(p), PCT1) + "</span>";
+  }
+
+  // Tooltip
+  var tip = $("tip");
+  function showTip(html, x, y) {
+    tip.innerHTML = html; tip.hidden = false;
+    var r = tip.getBoundingClientRect();
+    var left = Math.min(x + 14, window.innerWidth - r.width - 8);
+    var top = y - r.height - 12; if (top < 8) top = y + 16;
+    tip.style.left = Math.max(8, left) + "px"; tip.style.top = top + "px";
+  }
+  function hideTip() { tip.hidden = true; }
+
+  function niceTicks(lo, hi, n) {
+    var span = hi - lo || Math.abs(hi) || 1;
+    var raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), e = raw / mag;
+    var step = (e >= 7.5 ? 10 : e >= 3.5 ? 5 : e >= 1.5 ? 2 : 1) * mag;
+    var out = [], a = Math.floor(lo / step) * step, b = Math.ceil(hi / step) * step;
+    for (var v = a; v <= b + step / 2; v += step) out.push(Math.round(v * 1e6) / 1e6);
+    return out;
+  }
+
+  // Single-series chart: kind "bar" (zero baseline) or "line" (fitted range)
+  function drawChart(host, pts, opt) {
+    if (!pts.length) { host.innerHTML = '<div class="loading">No data for this window.</div>'; return; }
+    var W = Math.max(280, host.clientWidth), H = 220, m = { t: 10, r: 10, b: 26, l: 62 };
+    var vals = pts.map(function (p) { return p.value; });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    if (opt.kind === "bar") lo = 0; else { var pad = (hi - lo) * 0.25 || hi * 0.05; lo -= pad; hi += pad; }
+    var ticks = niceTicks(lo, hi, 4); lo = ticks[0]; hi = ticks[ticks.length - 1];
+    var iw = W - m.l - m.r, ih = H - m.t - m.b, band = iw / pts.length;
+    function y(v) { return m.t + ih - (v - lo) / (hi - lo) * ih; }
+    function x(i) { return m.l + band * i + band / 2; }
+    var s = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(opt.label) + '">';
+    ticks.forEach(function (t) {
+      s += '<line class="grid-line" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y(t) + '" y2="' + y(t) + '"/>';
+      s += '<text class="tick" x="' + (m.l - 8) + '" y="' + y(t) + '" dy="0.32em" text-anchor="end">' + esc(fmt(t, opt.tickFormat)) + "</text>";
+    });
+    var every = band < 34 ? 3 : band < 48 ? 2 : 1;
+    pts.forEach(function (p, i) {
+      if ((pts.length - 1 - i) % every === 0) s += '<text class="tick" x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(day(p.time)) + "</text>";
+    });
+    if (opt.kind === "bar") {
+      var bw = Math.max(4, Math.min(34, band - 6)), base = y(0);
+      pts.forEach(function (p, i) {
+        var x0 = x(i) - bw / 2, x1 = x0 + bw, top = y(p.value), r = Math.min(4, (base - top) / 2, bw / 2);
+        s += '<path class="bar" data-i="' + i + '" d="M' + x0 + " " + base + "V" + (top + r) + "Q" + x0 + " " + top + " " + (x0 + r) + " " + top +
+             "H" + (x1 - r) + "Q" + x1 + " " + top + " " + x1 + " " + (top + r) + "V" + base + 'Z"/>';
+      });
+      s += '<line class="base-line" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + base + '" y2="' + base + '"/>';
+    } else {
+      var line = pts.map(function (p, i) { return (i ? "L" : "M") + x(i) + " " + y(p.value); }).join("");
+      s += '<path class="area" d="' + line + "L" + x(pts.length - 1) + " " + (m.t + ih) + "L" + x(0) + " " + (m.t + ih) + 'Z"/>';
+      s += '<path class="line" d="' + line + '"/>';
+      s += '<line class="guide" id="' + host.id + '-guide" x1="0" x2="0" y1="' + m.t + '" y2="' + (m.t + ih) + '" visibility="hidden"/>';
+      var last = pts.length - 1;
+      s += '<circle class="dot" cx="' + x(last) + '" cy="' + y(pts[last].value) + '" r="4"/>';
+      s += '<circle class="dot" id="' + host.id + '-hover" r="4" cx="0" cy="0" visibility="hidden"/>';
+    }
+    pts.forEach(function (p, i) {
+      s += '<rect class="hit" tabindex="0" data-i="' + i + '" x="' + (m.l + band * i) + '" y="' + m.t + '" width="' + band + '" height="' + ih + '"><title>' + esc(opt.tip(p, true)) + "</title></rect>";
+    });
+    s += "</svg>";
+    host.innerHTML = s;
+
+    var svg = host.querySelector("svg");
+    function on(i, ev) {
+      if (opt.kind === "bar") {
+        svg.querySelectorAll(".bar").forEach(function (b) { b.classList.toggle("dim", +b.dataset.i !== i); });
+      } else {
+        var g = $(host.id + "-guide"), d = $(host.id + "-hover");
+        g.setAttribute("x1", x(i)); g.setAttribute("x2", x(i)); g.setAttribute("visibility", "visible");
+        d.setAttribute("cx", x(i)); d.setAttribute("cy", y(pts[i].value)); d.setAttribute("visibility", "visible");
+      }
+      var r = ev.target.getBoundingClientRect();
+      var cx = ev.clientX != null && ev.type !== "focus" ? ev.clientX : r.left + r.width / 2;
+      var cy = ev.clientY != null && ev.type !== "focus" ? ev.clientY : r.top + r.height / 3;
+      showTip(opt.tip(pts[i], false), cx, cy);
+    }
+    function off() {
+      svg.querySelectorAll(".bar").forEach(function (b) { b.classList.remove("dim"); });
+      var g = $(host.id + "-guide"), d = $(host.id + "-hover");
+      if (g) g.setAttribute("visibility", "hidden");
+      if (d) d.setAttribute("visibility", "hidden");
+      hideTip();
+    }
+    svg.querySelectorAll(".hit").forEach(function (h) {
+      var i = +h.dataset.i;
+      h.addEventListener("mousemove", function (e) { on(i, e); });
+      h.addEventListener("focus", function (e) { on(i, e); });
+      h.addEventListener("mouseleave", off);
+      h.addEventListener("blur", off);
+    });
+  }
+
+  function spark(values) {
+    var W = 104, H = 26, p = 3;
+    var v = values.filter(function (x) { return x != null; });
+    if (v.length < 2) return "";
+    var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v), span = hi - lo || 1;
+    var step = (W - 2 * p) / (values.length - 1);
+    var d = "", lx = 0, ly = 0;
+    values.forEach(function (val, i) {
+      if (val == null) return;
+      lx = p + i * step; ly = p + (H - 2 * p) * (1 - (val - lo) / span);
+      d += (d ? "L" : "M") + lx.toFixed(1) + " " + ly.toFixed(1);
+    });
+    return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" aria-hidden="true"><path class="line" style="stroke-width:1.5" d="' + d +
+      '"/><circle class="dot" style="stroke-width:1.5" r="3" cx="' + lx.toFixed(1) + '" cy="' + ly.toFixed(1) + '"/></svg>';
+  }
+
+  // Rows of the region×week block, grouped by region, ordered by the region table when available
+  function regionOrder() {
+    if (state.regions) return state.regions.rows.map(function (r) { return r.customer__region; });
+    var seen = [];
+    (state.regionWeeks ? state.regionWeeks.rows : []).forEach(function (r) { if (seen.indexOf(r.customer__region) < 0) seen.push(r.customer__region); });
+    return seen.sort(function (a, b) { return a == null ? 1 : b == null ? -1 : a.localeCompare(b); });
+  }
+  function weeksOf(block) {
+    var w = [];
+    block.rows.forEach(function (r) { if (w.indexOf(r.metric_time) < 0) w.push(r.metric_time); });
+    return w.sort();
+  }
+  function cell(block, region, week, metric) {
+    var r = block.rows.filter(function (r) { return r.customer__region === region && r.metric_time === week; })[0];
+    return r ? r[metric] : null;
+  }
+
+  function kpiTile(id, block, metric, compareLabel) {
+    var el = $(id), row = block.rows && block.rows[0];
+    if (!row) { el.querySelector(".value").textContent = "—"; return; }
+    el.querySelector(".value").textContent = fmt(row[metric], colFormat(block, metric));
+    var p = row._delta_pct ? row._delta_pct[metric] : null;
+    var prev = row._previous ? row._previous[metric] : null;
+    el.querySelector(".foot").innerHTML = delta(p) + "<span>" + compareLabel + " (" + esc(fmt(prev, colFormat(block, metric))) + ")</span>";
+  }
+
+  function renderWeekly() {
+    var b = state.weekly; if (!b) return;
+    var rf = colFormat(b, "revenue"), af = colFormat(b, "average_order_value");
+    var pts = b.rows.slice().sort(function (a, c) { return a.metric_time < c.metric_time ? -1 : 1; });
+    function tip(p, plain) {
+      var head = "Week of " + day(p.row.metric_time, true);
+      var lines = ["Revenue " + fmt(p.row.revenue, rf), "Avg order value " + fmt(p.row.average_order_value, af)];
+      return plain ? head + ": " + lines.join(", ") : "<b>" + esc(head) + "</b>" + lines.map(esc).join("<br>");
+    }
+    drawChart($("chart-rev"), pts.map(function (r) { return { time: r.metric_time, value: r.revenue, row: r }; }),
+      { kind: "bar", label: "Weekly revenue, all regions", tickFormat: USD0, tip: tip });
+    drawChart($("chart-aov"), pts.map(function (r) { return { time: r.metric_time, value: r.average_order_value, row: r }; }),
+      { kind: "line", label: "Weekly average order value, all regions", tickFormat: USD0, tip: tip });
+  }
+
+  function renderRegions() {
+    var b = state.regions; if (!b) return;
+    var rf = colFormat(b, "revenue"), af = colFormat(b, "average_order_value");
+    var weeks = state.regionWeeks ? weeksOf(state.regionWeeks) : [];
+    var html = b.rows.map(function (r) {
+      var reg = r.customer__region;
+      var series = weeks.map(function (w) { return cell(state.regionWeeks, reg, w, "revenue"); });
+      return "<tr><td class=\"region" + (reg == null ? " unset" : "") + "\">" + esc(regionName(reg)) + "</td>" +
+        "<td>" + esc(fmt(r.revenue, rf)) + "</td><td>" + delta(r._delta_pct && r._delta_pct.revenue) + "</td>" +
+        "<td>" + esc(fmt(r.average_order_value, af)) + "</td><td>" + delta(r._delta_pct && r._delta_pct.average_order_value) + "</td>" +
+        '<td class="spark">' + spark(series) + "</td></tr>";
+    }).join("");
+    if (b.total) {
+      html += '<tr class="total"><td>All regions</td><td>' + esc(fmt(b.total.revenue, rf)) + "</td><td></td><td>" +
+        esc(fmt(b.total.average_order_value, af)) + "</td><td></td><td></td></tr>";
+    }
+    $("region-table").tBodies[0].innerHTML = html;
+  }
+
+  function renderHeat() {
+    var b = state.regionWeeks; if (!b) return;
+    var metric = state.heatMetric, f = colFormat(b, metric);
+    var weeks = weeksOf(b), regions = regionOrder();
+    var vals = b.rows.map(function (r) { return r[metric]; }).filter(function (v) { return v != null; });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = hi - lo || 1;
+    var head = '<thead><tr><th scope="col"></th>' + weeks.map(function (w) { return '<th scope="col">' + esc(day(w)) + "</th>"; }).join("") + "</tr></thead>";
+    var body = regions.map(function (reg) {
+      return '<tr><th scope="row" class="row">' + esc(regionName(reg)) + "</th>" + weeks.map(function (w) {
+        var v = cell(b, reg, w, metric);
+        if (v == null) return "<td>—</td>";
+        var bin = Math.max(0, Math.min(8, Math.round((v - lo) / span * 8)));
+        var label = regionName(reg) + ", week of " + day(w, true) + ": " + fmt(v, f);
+        return '<td class="h' + bin + '" title="' + esc(label) + '">' + esc(fmt(v, USD0)) + "</td>";
+      }).join("") + "</tr>";
+    }).join("");
+    $("heat").innerHTML = head + "<tbody>" + body + "</tbody>";
+    $("heat-title").textContent = (metric === "revenue" ? "Revenue" : "Average order value") + " by region and week";
+  }
+
+  function setHeat(metric) {
+    state.heatMetric = metric;
+    $("heat-rev").setAttribute("aria-pressed", String(metric === "revenue"));
+    $("heat-aov").setAttribute("aria-pressed", String(metric === "average_order_value"));
+    renderHeat();
+  }
+  $("heat-rev").addEventListener("click", function () { setHeat("revenue"); });
+  $("heat-aov").addEventListener("click", function () { setHeat("average_order_value"); });
+  $("ramp").innerHTML = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return '<span style="background:var(--h' + i + ')"></span>'; }).join("");
+
+  prumi.on("last_week", function (b) {
+    kpiTile("kpi-week-rev", b, "revenue", "vs week before");
+    kpiTile("kpi-week-aov", b, "average_order_value", "vs week before");
+    if (b.window) $("kpi-week-rev").querySelector(".label").textContent = "Revenue, week of " + day(b.window.start);
+    if (b.window) $("kpi-week-aov").querySelector(".label").textContent = "Avg order value, week of " + day(b.window.start);
+  });
+  prumi.on("twelve_weeks", function (b) {
+    kpiTile("kpi-12-rev", b, "revenue", "vs prior 12 weeks");
+    kpiTile("kpi-12-aov", b, "average_order_value", "vs prior 12 weeks");
+    if (b.window) $("window-label").textContent = "Last 12 complete weeks, " + day(b.window.start) + " – " + day(b.window.end, true);
+    if (b.freshness && b.freshness.revenue) $("fresh").textContent = "Data through " + day(b.freshness.revenue, true);
+  });
+  prumi.on("weekly", function (b) { state.weekly = b; renderWeekly(); });
+  prumi.on("regions", function (b) { state.regions = b; renderRegions(); renderHeat(); });
+  prumi.on("region_weeks", function (b) { state.regionWeeks = b; renderRegions(); renderHeat(); });
+
+  var t;
+  window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(renderWeekly, 120); });
+})();
+</script>

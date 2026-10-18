@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Dates in common formats, years, period counts and row counts: none of them is data. -->
+<html>
+<head><meta charset="utf-8"><title>Weekly revenue</title></head>
+<body>
+  <h1>Weekly revenue, Q3 2026</h1>
+  <p>Last 12 weeks · <span id="span"></span> · <span id="count"></span> weeks shown</p>
+  <select><option>Last 4 weeks</option><option selected>Last 12 weeks</option><option>Last 26 weeks</option></select>
+  <p>Fiscal year 2026, week 42, updated at 06:30. Compared with 2025.</p>
+  <table id="weeks"></table>
+  <script>
+    function day(iso) {
+      return new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+    }
+    prumi.on("weekly", function (b) {
+      document.getElementById("span").textContent = day(b.window.start) + " – " + b.window.end;
+      document.getElementById("count").textContent = b.rows.length;
+      document.getElementById("weeks").innerHTML = b.rows.map(function (row) {
+        var d = new Date(row.metric_time + "T00:00:00Z");
+        return "<tr><td>" + row.metric_time + "</td><td>" + (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + "/" + d.getUTCFullYear() +
+          "</td><td>" + d.getUTCDate() + " " + d.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" }) +
+          "</td><td>" + prumi.format(row.revenue, "revenue") + "</td></tr>";
+      }).join("");
+    });
+  </script>
+</body>
+</html>

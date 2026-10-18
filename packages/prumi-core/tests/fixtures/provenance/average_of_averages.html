@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- An average of averages: the regions' order values, averaged in JavaScript. -->
+<html>
+<head><meta charset="utf-8"><title>Average order value by region</title></head>
+<body>
+  <h1>Average order value by region</h1>
+  <p>All regions: <b id="all"></b></p>
+  <ul id="regions"></ul>
+  <script>
+    prumi.on("regions", function (b) {
+      var values = b.rows.map(function (row) { return row.average_order_value; });
+      var mean = values.reduce(function (a, v) { return a + v; }, 0) / values.length;
+      document.getElementById("all").textContent = prumi.format(mean, "average_order_value");
+      document.getElementById("regions").innerHTML = b.rows.map(function (row) {
+        return "<li>" + (row.customer__region || "No region") + ": " +
+          prumi.format(row.average_order_value, "average_order_value") + "</li>";
+      }).join("");
+    });
+  </script>
+</body>
+</html>

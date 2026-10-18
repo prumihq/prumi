@@ -1,0 +1,11 @@
+{
+  "spec_version": 0,
+  "dashboard": {"id": "weekly-revenue-by-region", "title": "Weekly Revenue by Region"},
+  "data": [
+    {"id": "last_week", "metrics": ["revenue", "average_order_value"], "window": {"last": 1, "grain": "week"}, "filters": [], "compare": "previous_period"},
+    {"id": "twelve_weeks", "metrics": ["revenue", "average_order_value"], "window": {"last": 12, "grain": "week"}, "filters": [], "compare": "previous_period"},
+    {"id": "weekly", "metrics": ["revenue", "average_order_value"], "time_grain": "week", "window": {"last": 12, "grain": "week"}, "filters": []},
+    {"id": "regions", "metrics": ["revenue", "average_order_value"], "dimensions": ["customer__region"], "window": {"last": 12, "grain": "week"}, "filters": [], "compare": "previous_period", "total": true, "sort": {"by": "revenue", "descending": true}},
+    {"id": "region_weeks", "metrics": ["revenue", "average_order_value"], "dimensions": ["customer__region"], "time_grain": "week", "window": {"last": 12, "grain": "week"}, "filters": []}
+  ]
+}

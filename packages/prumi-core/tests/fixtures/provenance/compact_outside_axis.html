@@ -1,0 +1,14 @@
+<!doctype html>
+<!-- A round number outside an axis: tick-like, but a target Prumi didn't deliver. -->
+<html>
+<head><meta charset="utf-8"><title>Revenue against target</title></head>
+<body>
+  <h1>Revenue, last 12 weeks</h1>
+  <p><b id="revenue"></b> of a <span>$5M</span> target</p>
+  <script>
+    prumi.on("kpi", function (b) {
+      document.getElementById("revenue").textContent = prumi.format(b.rows[0].revenue, "revenue");
+    });
+  </script>
+</body>
+</html>

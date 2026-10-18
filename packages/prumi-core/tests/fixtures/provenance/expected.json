@@ -1,0 +1,11 @@
+{
+  "first_run": [],
+  "second_run": [],
+  "guide_example": [],
+  "axis_ticks": [],
+  "dates_and_periods": [],
+  "probe": ["$228,534.11", "$25,951.3", "$30,521.91", "$25,677.39"],
+  "js_total": ["6,983"],
+  "average_of_averages": ["$283.68"],
+  "compact_outside_axis": ["$5M"]
+}

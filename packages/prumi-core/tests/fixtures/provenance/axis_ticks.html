@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- A bar chart on a log scale: its marked axis has ticks that aren't evenly spaced. -->
+<html>
+<head><meta charset="utf-8"><title>Revenue by region</title></head>
+<body>
+  <h1>Revenue by region</h1>
+  <svg id="chart" width="640" height="300"></svg>
+  <script>
+    var NS = "http://www.w3.org/2000/svg";
+    function add(parent, tag, attrs, text) {
+      var el = document.createElementNS(NS, tag);
+      for (var k in attrs) el.setAttribute(k, attrs[k]);
+      if (text !== undefined) el.textContent = text;
+      parent.appendChild(el);
+      return el;
+    }
+    prumi.on("regions", function (b) {
+      var svg = document.getElementById("chart");
+      svg.replaceChildren();
+      var x = function (v) { return 120 + (Math.log10(v) - 3) / 4 * 500; };
+      var axis = add(svg, "g", { "data-prumi-role": "axis" });
+      [1e3, 1e4, 1e5, 1e6, 1e7].forEach(function (t) {
+        add(axis, "text", { x: x(t), y: 290, "text-anchor": "middle" },
+          prumi.format(t, "revenue", { compact: true }));
+      });
+      b.rows.forEach(function (row, i) {
+        var y = 10 + i * 32;
+        add(svg, "text", { x: 0, y: y + 16 }, row.customer__region || "No region");
+        add(svg, "rect", { x: 120, y: y, width: x(row.revenue) - 120, height: 24 });
+        add(svg, "text", { x: x(row.revenue) + 4, y: y + 16 }, prumi.format(row.revenue, "revenue"));
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "spec_version": 0,
+  "dashboard": {
+    "id": "js-total",
+    "title": "Customers"
+  },
+  "data": [
+    {
+      "id": "weekly",
+      "metrics": [
+        "customers"
+      ],
+      "time_grain": "week",
+      "window": {
+        "last": 12,
+        "grain": "week"
+      },
+      "filters": []
+    }
+  ]
+}

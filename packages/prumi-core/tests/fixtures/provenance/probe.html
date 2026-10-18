@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- The probe page from the second review: every way a wrong number can reach the page. -->
+<html>
+<head><meta charset="utf-8"><title>Probe</title></head>
+<body>
+  <h1>Revenue</h1>
+  <p>Revenue last quarter: $2,742,409</p>
+  <p>Monthly average: <span id="monthly"></span></p>
+  <p>Average order value: <span id="aov"></span></p>
+  <ul id="weeks"></ul>
+  <script>
+    var DATA = [25951.30, 30521.91, 25677.39];
+    document.getElementById("weeks").innerHTML = DATA.map(function (v) {
+      return "<li>$" + v.toLocaleString("en-US") + "</li>";
+    }).join("");
+    prumi.on("kpi", function (b) {
+      var row = b.rows[0];
+      document.getElementById("monthly").textContent = prumi.format(row.revenue / 12, "revenue");
+      document.getElementById("aov").textContent = prumi.format(row.average_order_value, 42);
+    });
+    fetch("https://example.com/data.json").catch(function () {});
+  </script>
+</body>
+</html>

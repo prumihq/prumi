@@ -1,0 +1,6 @@
+{
+  "spec_version": 0,
+  "dashboard": {"id": "probe", "title": "Probe"},
+  "filters": [{"id": "period", "type": "time", "default": {"last": 12, "grain": "week"}}],
+  "data": [{"id": "kpi", "metrics": ["revenue", "average_order_value"], "filters": ["period"]}]
+}

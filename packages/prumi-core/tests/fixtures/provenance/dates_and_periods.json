@@ -1,0 +1,6 @@
+{
+  "spec_version": 0,
+  "dashboard": {"id": "dates", "title": "Weekly revenue"},
+  "filters": [{"id": "period", "type": "time", "default": {"last": 12, "grain": "week"}}],
+  "data": [{"id": "weekly", "metrics": ["revenue"], "time_grain": "week", "filters": ["period"]}]
+}

@@ -1,0 +1,27 @@
+{
+  "spec_version": 0,
+  "dashboard": {
+    "id": "average-of-averages",
+    "title": "Average order value by region"
+  },
+  "data": [
+    {
+      "id": "regions",
+      "metrics": [
+        "average_order_value"
+      ],
+      "dimensions": [
+        "customer__region"
+      ],
+      "window": {
+        "last": 12,
+        "grain": "week"
+      },
+      "sort": {
+        "by": "average_order_value",
+        "descending": true
+      },
+      "filters": []
+    }
+  ]
+}
