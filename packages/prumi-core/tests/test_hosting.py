@@ -7,7 +7,9 @@ import pytest
 from prumi.server.pages import frame_html
 
 ORIGIN = "http://127.0.0.1:8484"
-RUNTIME = f'<script src="{ORIGIN}/runtime.js"></script>'
+RUNTIME = (
+    f'<script src="{ORIGIN}/provenance.js"></script><script src="{ORIGIN}/runtime.js"></script>'
+)
 CSP = (
     "sandbox allow-scripts; default-src 'none'; "
     "script-src http://127.0.0.1:8484 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com "

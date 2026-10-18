@@ -47,7 +47,9 @@ _DOCTYPE = re.compile(r"\A\s*<!doctype[^>]*>", re.IGNORECASE)
 
 def frame_html(html: str, origin: str) -> str:
     """The stored HTML with the runtime as the first child of <head> (added if missing)."""
-    script = f'<script src="{origin}/runtime.js"></script>'
+    script = (
+        f'<script src="{origin}/provenance.js"></script><script src="{origin}/runtime.js"></script>'
+    )
     if match := _HEAD.search(html):
         return html[: match.end()] + script + html[match.end() :]
     if match := _HTML.search(html):
@@ -122,6 +124,7 @@ def shell_config(version: Version, source: Source) -> dict[str, Any]:
         "interactions": [i.model_dump(mode="json", by_alias=True) for i in spec.interactions],
         "labels": labels,
         "formats": formats,
+        "spec": spec.model_dump(mode="json", by_alias=True),
     }
 
 

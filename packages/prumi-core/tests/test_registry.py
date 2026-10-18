@@ -161,12 +161,12 @@ def test_delete_keeps_metric_requests(registry):
 def test_schema_version_wal_and_reopening(registry, tmp_path):
     registry.save(spec(), HTML)
     with sqlite3.connect(registry.path) as conn:
-        assert conn.execute("SELECT version FROM schema_version").fetchall() == [(1,)]
+        assert conn.execute("SELECT version FROM schema_version").fetchall() == [(1,), (2,)]
         assert conn.execute("PRAGMA journal_mode").fetchone() == ("wal",)
     again = Registry(tmp_path / "data")  # migrations don't run twice
     assert again.dashboard("sales").current_version == 1
     with sqlite3.connect(registry.path) as conn:
-        assert conn.execute("SELECT count(*) FROM schema_version").fetchone() == (1,)
+        assert conn.execute("SELECT count(*) FROM schema_version").fetchone() == (2,)
 
 
 def test_two_registries_on_one_file_see_each_other(registry, tmp_path):
@@ -174,3 +174,32 @@ def test_two_registries_on_one_file_see_each_other(registry, tmp_path):
     registry.save(spec(), HTML)
     cli.certify("sales", 1, by="admin")
     assert registry.status("sales", 1).status == "certified"
+
+
+# In-browser checks
+
+
+def test_the_latest_check_per_filter_state_is_kept(registry):
+    from prumi.registry import PageCheck
+
+    registry.save(spec(), HTML)
+    clean = PageCheck(filters={"region": []}, flagged=[], canvas=False, errors=[])
+    flagged = PageCheck(
+        filters={"region": ["North"]},
+        flagged=[{"text": "$1,234.56", "path": "p#extra"}],
+        canvas=False,
+        errors=[],
+    )
+    registry.record_check("sales", 1, clean)
+    registry.record_check("sales", 1, flagged)
+    registry.record_check("sales", 1, PageCheck({"region": ["North"]}, [], False, ["boom"]))
+    checks = registry.checks("sales", 1)
+    assert [(c.filters, c.flagged, c.errors) for c in checks] == [
+        ({"region": []}, [], []),
+        ({"region": ["North"]}, [], ["boom"]),
+    ]
+    assert checks[0].clean and not checks[1].clean
+    assert checks[0].reported_at.startswith("2026-10-15T09:00:")
+    assert registry.checks("sales", 2) == []
+    registry.delete("sales")
+    assert registry.checks("sales", 1) == []

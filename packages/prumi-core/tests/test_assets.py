@@ -8,7 +8,7 @@ from prumi.server import assets
 RUNTIME_SRC = Path(__file__).parents[2] / "prumi-runtime" / "src"
 
 
-@pytest.mark.parametrize("name", ["runtime.js", "shell.js"])
+@pytest.mark.parametrize("name", ["runtime.js", "shell.js", "provenance.js"])
 def test_served_from_the_runtime_package(client, name):
     response = client.get(f"/{name}")
     assert response.status_code == 200

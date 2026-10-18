@@ -56,6 +56,7 @@
           values: copy(values),
           labels: config.labels,
           formats: config.formats,
+          spec: config.spec,
         });
         subscribed.forEach(fetchBlock);
         break;
@@ -68,8 +69,21 @@
       case "filterValues":
         fetchValues(message.id, message.request);
         break;
+      case "check":
+        sendCheck(message.report);
+        break;
     }
   });
+
+  // The frame's number check for one filter state: stored for the data team, never shown.
+  function sendCheck(report) {
+    if (!report || typeof report !== "object") return;
+    fetch(config.api + "/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(report),
+    }).catch(function () {});
+  }
 
   function fetchBlock(id) {
     var sequence = (latest[id] || 0) + 1;

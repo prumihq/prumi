@@ -24,6 +24,7 @@ def services(live_services):
     for spec, html in (
         (FIXTURES / "demo" / "sales.yaml", FIXTURES / "demo" / "sales.html"),
         (FIXTURES / "browser" / "probe.yaml", FIXTURES / "browser" / "probe.html"),
+        (FIXTURES / "browser" / "unverified.yaml", FIXTURES / "browser" / "unverified.html"),
     ):
         report, published = services.publish(load_spec_file(spec), html.read_text())
         assert report.ok, report.issues
@@ -343,3 +344,30 @@ def test_the_authoring_guide_example_renders(page, server, services):
     frame.locator("#regions button").first.click()
     page.wait_for_timeout(500)
     assert not console, console
+
+
+# The in-browser number check
+
+
+def wait_for_checks(services, dashboard, count):
+    deadline = time.monotonic() + TIMEOUT / 1000
+    while time.monotonic() < deadline:
+        checks = services.registry.checks(dashboard, 1)
+        if len(checks) >= count:
+            return checks
+        time.sleep(0.05)
+    raise AssertionError(f"expected {count} check reports, got {checks}")
+
+
+def test_the_browser_reports_numbers_prumi_didnt_deliver(page, server, services):
+    frame, _ = open_dashboard(page, server, "unverified")
+    frame.locator("#revenue").filter(has_text="$").wait_for()
+    [default] = wait_for_checks(services, "unverified", 1)
+    assert default.filters == {"region": []} and default.clean
+    frame.locator("body").evaluate("() => prumi.setFilter('region', ['North America'])")
+    frame.locator("#extra").filter(has_text="1,234.56").wait_for()
+    checks = wait_for_checks(services, "unverified", 2)
+    [chosen] = [c for c in checks if c.filters == {"region": ["North America"]}]
+    assert chosen.flagged == [{"text": "$1,234.56", "path": "p#extra"}]
+    # Viewers see nothing of it.
+    assert page.locator("#prumi-bar").text_content().count("1,234.56") == 0

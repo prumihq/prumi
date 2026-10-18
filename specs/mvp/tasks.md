@@ -54,7 +54,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 - [x] 34. **Provenance proof, first:** the number matcher and the fixtures of 19.1 (copy the two earlier dashboards from `~/test` and `~/test2`, write the probe page from the second review), run in a test browser. **If the must-pass pages can't pass without letting a must-fail page through, record it in `questions.md` and stop** (AC 38)
 - [x] 35. Server check: Chromium lifecycle, rendering the candidate with dry-run results, isolated-world scan, the five codes, publish refusal; Chromium as a dependency with the startup check (AC 38, 39, 40, 49)
-- [ ] 36. Browser check: the runtime's matching after render, reports to the shell, the check endpoint and registry table (AC 41)
+- [x] 36. Browser check: the runtime's matching after render, reports to the shell, the check endpoint and registry table (AC 41)
 - [ ] 37. Certification refuses on server-check errors and on flagged browser reports (AC 41)
 - [ ] 38. `prumi.format(value, metric, options)` (AC 42)
 - [ ] 39. Visible errors in bound elements (AC 43)

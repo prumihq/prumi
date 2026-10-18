@@ -196,7 +196,9 @@ class PageChecker:
         from prumi.server.assets import read_asset  # prumi.server imports the validator
 
         setup_json = json.dumps(setup, ensure_ascii=False).replace("<", "\\u003c")
-        assets = {name: read_asset(name).decode("utf-8") for name in ("runtime.js",)}
+        assets = {
+            name: read_asset(name).decode("utf-8") for name in ("provenance.js", "runtime.js")
+        }
         provenance = read_asset("provenance.js").decode("utf-8")
         errors: list[str] = []
         blocked: list[str] = []

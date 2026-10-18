@@ -165,3 +165,43 @@ def test_filter_values(client):
 def test_index_lists_dashboards(client):
     page = client.get("/").text
     assert '<a href="/d/sales">Sales</a>' in page and "draft" in page
+
+
+# The in-browser number check's reports
+
+
+REPORT = {
+    "filters": {"region": ["North"]},
+    "flagged": [{"text": "$1,234.56", "path": "p#extra"}],
+    "canvas": False,
+    "errors": [],
+}
+
+
+def test_a_check_report_is_stored(client, published):
+    assert post(client, f"{BASE}/check", REPORT).status_code == 204
+    [check] = published.registry.checks("sales", 1)
+    assert (check.filters, check.flagged, check.canvas) == (
+        REPORT["filters"],
+        REPORT["flagged"],
+        False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "status"),
+    [
+        ({**REPORT, "filters": {"nope": 1}}, 400),
+        ({**REPORT, "flagged": "x"}, 400),
+        ({**REPORT, "flagged": [{"text": "1", "path": "p"}] * 21}, 400),
+        ({**REPORT, "extra": True}, 400),
+        ({**REPORT, "errors": ["x" * 70_000]}, 413),
+    ],
+)
+def test_bad_check_reports_are_refused(client, published, body, status):
+    assert post(client, f"{BASE}/check", body).status_code == status
+    assert published.registry.checks("sales", 1) == []
+
+
+def test_a_check_report_for_an_unknown_version_is_404(client):
+    assert post(client, "/api/dashboards/sales/versions/9/check", REPORT).status_code == 404

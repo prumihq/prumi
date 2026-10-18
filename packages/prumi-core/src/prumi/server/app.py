@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 from html import escape
-from typing import Any
+from typing import Annotated, Any
 
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
@@ -16,7 +17,7 @@ from prumi.adapters import LOCAL_VIEWER
 from prumi.engine import BlockRequestError, UnknownBlockError
 from prumi.issues import Issue, error
 from prumi.mcp import mcp_routes
-from prumi.registry import Version
+from prumi.registry import PageCheck, Version
 from prumi.server import pages
 from prumi.server.assets import read_asset
 from prumi.server.guards import HostCheck, allowed_hosts
@@ -162,6 +163,33 @@ def create_app(services: Services) -> HostCheck:
             return JSONResponse({"issues": []}, status_code=502)
         return JSONResponse({"values": values})
 
+    async def page_check(request: Request) -> Response:
+        """A viewer's browser reports what its number check found for one filter state."""
+        try:
+            stored = _version(services, request)
+        except NotFound as exc:
+            return _not_found(str(exc))
+        body = await request.body()
+        if len(body) > MAX_CHECK_BYTES:
+            return JSONResponse({"error": "The report is too large."}, status_code=413)
+        try:
+            report = CheckReport.model_validate_json(body)
+        except ValidationError:
+            return JSONResponse({"error": "The body isn't a check report."}, status_code=400)
+        known = {f.id for f in stored.spec.filters}
+        if not set(report.filters) <= known:
+            return JSONResponse({"error": "The report names unknown filters."}, status_code=400)
+        check = PageCheck(
+            filters=report.filters,
+            flagged=[f.model_dump() for f in report.flagged],
+            canvas=report.canvas,
+            errors=report.errors,
+        )
+        await run_in_threadpool(
+            services.registry.record_check, stored.dashboard_id, stored.version, check
+        )
+        return Response(status_code=204)
+
     base = "/api/dashboards/{id}/versions/{n:int}"
     mcp, mcp_lifespan = mcp_routes(services)
     app = Starlette(
@@ -170,17 +198,40 @@ def create_app(services: Services) -> HostCheck:
             Route("/", index),
             Route("/runtime.js", asset),
             Route("/shell.js", asset),
+            Route("/provenance.js", asset),
             Route("/d/{id}", shell),
             Route("/d/{id}/v/{n:int}", shell),
             Route("/d/{id}/v/{n:int}/frame", frame),
             Route(f"{base}/status", status),
             Route(f"{base}/blocks/{{block}}", block, methods=["POST"]),
             Route(f"{base}/filters/{{filter}}/values", filter_values),
+            Route(f"{base}/check", page_check, methods=["POST"]),
             *mcp,  # /mcp: stateless Streamable HTTP
         ],
     )
     app.state.services = services
     return HostCheck(app, allowed_hosts(server.host, server.port))
+
+
+MAX_CHECK_BYTES = 64 * 1024
+
+
+class _Flagged(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(max_length=200)
+    path: str = Field(max_length=500)
+
+
+class CheckReport(BaseModel):
+    """The body of POST .../check, as the runtime sends it through the shell."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    filters: dict[str, Any]
+    flagged: list[_Flagged] = Field(max_length=20)
+    canvas: bool
+    errors: list[Annotated[str, Field(max_length=300)]] = Field(max_length=20)
 
 
 def _version(services: Services, request: Request) -> Version:

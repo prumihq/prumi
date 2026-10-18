@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Unverified</title></head>
+<body>
+  <p>Revenue <b id="revenue"></b></p>
+  <p id="extra"></p>
+  <script>
+    prumi.on("kpi", function (b) {
+      document.getElementById("revenue").textContent = prumi.format(b.rows[0].revenue, "revenue");
+      var region = prumi.getFilter("region") || [];
+      document.getElementById("extra").textContent = region.length ? "Target $1,234.56" : "";
+    });
+  </script>
+</body>
+</html>

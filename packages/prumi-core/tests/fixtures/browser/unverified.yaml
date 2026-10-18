@@ -1,0 +1,11 @@
+# Shows a number Prumi didn't deliver, but only once a region is chosen: the server check
+# (default filters) passes it, the viewer's browser catches it.
+spec_version: 0
+dashboard: {id: unverified, title: Unverified}
+filters:
+  - {id: region, type: dimension, dimension: customer__region, default: []}
+data:
+  - id: kpi
+    metrics: [revenue]
+    window: {last: 12, grain: week}
+    filters: [region]

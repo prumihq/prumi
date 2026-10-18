@@ -24,6 +24,8 @@
   var formats = {};
   var pending = {};
   var nextRequest = 1;
+  // The number matcher, loaded just before this file, taken before page scripts run.
+  var provenance = window.prumiProvenance;
 
   function send(type, payload) {
     var message = { prumi: PROTOCOL, type: type };
@@ -48,10 +50,114 @@
       try {
         callback(value);
       } catch (error) {
+        noteError(error);
         reportError(error);
       }
     });
   }
+
+  // The in-browser number check. After each render settles, every number shown is matched
+  // against the values delivered since the page loaded (a block still loading may show its
+  // previous values). Findings add up per filter state, so a tooltip that shows a number and
+  // goes away still counts; the shell stores each new report. Viewers see nothing of it: the
+  // server's own check is the guarantee, this one covers filter states it didn't render.
+  var CHECK_DEBOUNCE_MS = 300;
+  var check = {
+    values: [],
+    allowed: [],
+    spec: null,
+    state: null,
+    flagged: [],
+    errors: [],
+    canvas: false,
+    sent: "",
+    timer: null,
+  };
+
+  function stateKey() {
+    return JSON.stringify(
+      Object.keys(filters)
+        .sort()
+        .map(function (id) {
+          return [id, filters[id]];
+        })
+    );
+  }
+
+  function checkState() {
+    var key = stateKey();
+    if (check.state !== key) {
+      check.state = key;
+      check.flagged = [];
+      check.errors = [];
+      check.canvas = false;
+      check.sent = "";
+    }
+  }
+
+  function noteError(error) {
+    if (!connected) return;
+    checkState();
+    var message = String((error && error.message) || error).slice(0, 300);
+    if (check.errors.indexOf(message) < 0 && check.errors.length < 20) check.errors.push(message);
+    scheduleCheck();
+  }
+
+  function scheduleCheck() {
+    if (!provenance || !connected || dead) return;
+    clearTimeout(check.timer);
+    check.timer = setTimeout(runCheck, CHECK_DEBOUNCE_MS);
+  }
+
+  function runCheck() {
+    checkState();
+    var found;
+    try {
+      found = provenance.scan(document, {
+        values: check.values,
+        allowed: check.allowed.concat(provenance.fromData([check.spec, labels])),
+      });
+    } catch (error) {
+      return;
+    }
+    found.flagged.forEach(function (item) {
+      var known = check.flagged.some(function (f) {
+        return f.text === item.text && f.path === item.path;
+      });
+      if (!known && check.flagged.length < 20) check.flagged.push(item);
+    });
+    check.canvas = check.canvas || found.canvas;
+    var report = {
+      filters: copy(filters),
+      flagged: check.flagged,
+      canvas: check.canvas,
+      errors: check.errors,
+    };
+    var text = JSON.stringify(report);
+    if (text !== check.sent) {
+      check.sent = text;
+      send("check", { report: report });
+    }
+  }
+
+  function delivered(result) {
+    var found = provenance ? provenance.fromResults({ block: result }) : null;
+    if (!found) return;
+    Array.prototype.push.apply(check.values, found.values);
+    Array.prototype.push.apply(check.allowed, found.allowed);
+  }
+
+  if (typeof MutationObserver === "function") {
+    new MutationObserver(scheduleCheck).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+    });
+  }
+  window.addEventListener("error", function (event) {
+    noteError(event.error || event.message);
+  });
 
   function copy(value) {
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
@@ -84,17 +190,25 @@
         filters = message.values || {};
         labels = message.labels || {};
         formats = message.formats || {};
+        check.spec = message.spec || null;
         call(onFilters, copy(filters));
+        scheduleCheck();
         break;
       case "data":
+        delivered(message.result);
         call(onData[message.block], message.result);
+        scheduleCheck();
         break;
       case "error":
+        if (!(onError[message.block] || []).length) {
+          noteError("Block " + message.block + ": " + ((message.issue || {}).message || "failed"));
+        }
         call(onError[message.block], message.issue);
         break;
       case "filters":
         filters = message.filters || {};
         call(onFilters, copy(filters));
+        scheduleCheck();
         break;
       case "filterValues":
         var request = pending[message.request];

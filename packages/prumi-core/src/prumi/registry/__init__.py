@@ -1,4 +1,5 @@
-"""The registry: dashboards, immutable versions, certifications, metric requests (spec 10).
+"""The registry: dashboards, immutable versions, certifications, metric requests, and the
+in-browser number checks.
 
 SQLite in WAL mode, so the CLI and the server can use it at the same time. Status is computed
 from certifications on every read, never stored: a version is certified while a non-revoked
@@ -16,7 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from prumi.issues import Report
 from prumi.spec import DashboardSpec
@@ -107,6 +108,24 @@ class MetricRequest:
     dashboard_id: str | None
     requested_by: str
     created_at: str
+
+
+@dataclass(frozen=True)
+class PageCheck:
+    """What a viewer's browser found on one version, for one filter state."""
+
+    filters: dict[str, Any]
+    flagged: list[dict[str, str]]  # [{text, path}]: numbers Prumi didn't deliver
+    canvas: bool
+    errors: list[str]
+    reported_at: str = ""
+
+    @property
+    def clean(self) -> bool:
+        return not (self.flagged or self.canvas or self.errors)
+
+    def to_json(self) -> dict[str, Any]:
+        return dict(self.__dict__)
 
 
 @dataclass(frozen=True)
@@ -274,6 +293,7 @@ class Registry:
     def delete(self, dashboard_id: str) -> bool:
         """Remove the dashboard, its versions and certifications; keep its metric requests."""
         with self._transaction() as conn:
+            conn.execute("DELETE FROM page_checks WHERE dashboard_id = ?", (dashboard_id,))
             conn.execute("DELETE FROM certifications WHERE dashboard_id = ?", (dashboard_id,))
             conn.execute("DELETE FROM versions WHERE dashboard_id = ?", (dashboard_id,))
             deleted = conn.execute("DELETE FROM dashboards WHERE id = ?", (dashboard_id,)).rowcount
@@ -282,6 +302,44 @@ class Registry:
                 (dashboard_id,),
             )
         return bool(deleted)
+
+    # In-browser checks
+
+    def record_check(self, dashboard_id: str, version: int, check: PageCheck) -> None:
+        """Keep the latest report for the version and its filter state."""
+        filters = json.dumps(check.filters, sort_keys=True, separators=(",", ":"))
+        with self._transaction() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO page_checks (dashboard_id, version, filters_json,"
+                " flagged_json, canvas, errors_json, reported_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    dashboard_id,
+                    version,
+                    filters,
+                    json.dumps(check.flagged),
+                    int(check.canvas),
+                    json.dumps(check.errors),
+                    self._timestamp(),
+                ),
+            )
+
+    def checks(self, dashboard_id: str, version: int) -> list[PageCheck]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM page_checks WHERE dashboard_id = ? AND version = ?"
+                " ORDER BY reported_at, filters_json",
+                (dashboard_id, version),
+            ).fetchall()
+        return [
+            PageCheck(
+                filters=json.loads(r["filters_json"]),
+                flagged=json.loads(r["flagged_json"]),
+                canvas=bool(r["canvas"]),
+                errors=json.loads(r["errors_json"]),
+                reported_at=r["reported_at"],
+            )
+            for r in rows
+        ]
 
     # Metric requests
 
