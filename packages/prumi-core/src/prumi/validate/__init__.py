@@ -52,7 +52,8 @@ def validate(
 def _dry_run(spec: DashboardSpec, engine: Engine, viewer: Viewer) -> Iterator[Issue]:
     for i, block in enumerate(spec.data):
         try:
-            result = engine.run_block(spec, block.id, {}, viewer)
+            origin = f"dry run {spec.dashboard.id}/{block.id}"
+            result = engine.run_block(spec, block.id, {}, viewer, origin)
         except Exception as exc:  # any failure of the source counts; report it, don't crash
             if isinstance(exc, BlockRequestError):
                 reason = " ".join(issue.message for issue in exc.issues)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,17 @@ from prumi_adapter_dbt import _query
 from prumi_adapter_dbt._metricflow import MetricFlowCompiler
 from prumi_adapter_dbt.catalog import SourceCatalog, build_catalog
 from prumi_adapter_dbt.connections import Connection, open_connection
+
+log = logging.getLogger("prumi_adapter_dbt")
+
+# Literals in compiled SQL: quoted strings (with '' inside) and numbers outside identifiers.
+_LITERAL = re.compile(r"'(?:[^']|'')*'|(?<![\w.])\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(?![\w.])")
+
+
+def redact(sql: str) -> str:
+    """The SQL with every literal replaced by ?: filter values and window dates are literals,
+    and logs never hold values (spec section 16)."""
+    return _LITERAL.sub("?", sql)
 
 
 class DbtAdapter:
@@ -90,6 +103,8 @@ class DbtAdapter:
                 f"{', '.join(unknown)}"
             )
         sql = self._compiler.compile(_query.compile_request(query))
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("compiled SQL (literals redacted):\n%s", redact(sql))
         names, rows = self._connection.query(sql, viewer)
         return _query.to_result(query, names, rows)
 

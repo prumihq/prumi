@@ -268,7 +268,7 @@ def create_mcp(services: Services) -> MCPServer:
         engine = services.engine
         inputs = BlockInputs(window, filters)
         try:
-            result = engine.run(block, inputs, LOCAL_VIEWER)
+            result = engine.run(block, inputs, LOCAL_VIEWER, "agent query")
         except BlockRequestError as exc:
             return _fail(exc.issues)
         except Exception as exc:
@@ -277,7 +277,7 @@ def create_mcp(services: Services) -> MCPServer:
             )
         agent = for_agent(
             result,
-            fetch_total=lambda: engine.total_for(block, inputs, LOCAL_VIEWER),
+            fetch_total=lambda: engine.total_for(block, inputs, LOCAL_VIEWER, "agent query"),
         )
         agent.warnings[:0] = issues  # the validator's warnings first
         return agent

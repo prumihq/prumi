@@ -120,7 +120,12 @@ def create_app(services: Services) -> HostCheck:
             )
         try:
             result = await run_in_threadpool(
-                services.engine.run_block, spec, block.id, filters, LOCAL_VIEWER
+                services.engine.run_block,
+                spec,
+                block.id,
+                filters,
+                LOCAL_VIEWER,
+                f"block {stored.dashboard_id}/{stored.version}/{block.id}",
             )
         except BlockRequestError as exc:
             return _bad_request(exc.issues)
@@ -147,7 +152,10 @@ def create_app(services: Services) -> HostCheck:
             return _not_found(f"There's no dimension filter {request.path_params['filter']!r}.")
         try:
             values = await run_in_threadpool(
-                services.engine.dimension_values, definition.dimension, LOCAL_VIEWER
+                services.engine.dimension_values,
+                definition.dimension,
+                LOCAL_VIEWER,
+                f"filter values {stored.dashboard_id}/{stored.version}/{definition.id}",
             )
         except Exception as exc:
             log.error("filter values %s failed: %s", definition.id, type(exc).__name__)

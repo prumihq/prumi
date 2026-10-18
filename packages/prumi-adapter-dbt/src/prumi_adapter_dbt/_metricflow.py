@@ -7,6 +7,7 @@ receives provides the dialect and refuses to run anything.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,6 +25,11 @@ from metricflow_semantic_interfaces.implementations.semantic_manifest import (
 from metricflow_semantics.model.dbt_manifest_parser import transform_dbt_generated_manifest
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 from prumi.adapters import AdapterStartupError
+
+# MetricFlow's DEBUG logs print query specs with their where clauses, i.e. filter values.
+# Prumi's logs never hold values at any level (spec section 16), so its loggers stay quiet.
+for _name in ("metricflow", "metricflow_semantics", "metricflow_semantic_interfaces"):
+    logging.getLogger(_name).setLevel(logging.WARNING)
 
 # Connection type -> MetricFlow's dialect for it.
 _DIALECTS: dict[str, tuple[SqlEngine, type[SqlPlanRenderer]]] = {

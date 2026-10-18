@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from prumi.adapters import METRIC_TIME, Filter, OrderBy, Result, SemanticQuery, Viewer
 from prumi.issues import Issue, error, warning
-from prumi.source import Source
+from prumi.source import Source, query_origin
 from prumi.spec import Block, DashboardSpec, DimensionFilter, FilterScalar, TimeFilter
 from prumi.time import (
     LastWindow,
@@ -109,15 +109,18 @@ class Engine:
         block_id: str,
         filter_values: Mapping[str, Any],
         viewer: Viewer,
+        origin: str | None = None,
     ) -> BlockResult:
         """Run one block of a stored spec with the viewer's filter values.
 
-        Only the filters the block lists apply (R5); other values are ignored here.
+        Only the filters the block lists apply (R5); other values are ignored here. `origin`
+        labels the block's queries in the log, e.g. "block sales/3/kpi".
         """
         block = spec.block(block_id)
         if block is None:
             raise UnknownBlockError(block_id)
-        return self.run(block, self.inputs(spec, block, filter_values), viewer)
+        inputs = self.inputs(spec, block, filter_values)
+        return self.run(block, inputs, viewer, origin or f"block {spec.dashboard.id}/{block_id}")
 
     def inputs(
         self, spec: DashboardSpec, block: Block, filter_values: Mapping[str, Any]
@@ -159,7 +162,13 @@ class Engine:
 
     # Any block, including the agent's block-shaped queries
 
-    def run(self, block: Block, inputs: BlockInputs, viewer: Viewer) -> BlockResult:
+    def run(
+        self, block: Block, inputs: BlockInputs, viewer: Viewer, origin: str | None = None
+    ) -> BlockResult:
+        with query_origin(origin):
+            return self._run(block, inputs, viewer)
+
+    def _run(self, block: Block, inputs: BlockInputs, viewer: Viewer) -> BlockResult:
         resolved, previous = self._windows(block, inputs.window)
         warnings = [
             warning(w.code, "window", w.message, _WINDOW_HINTS.get(w.code, ""))
@@ -179,7 +188,7 @@ class Engine:
         if resolved.empty:
             return result
 
-        main = self._execute(block, resolved, inputs.filters, viewer, main=True)
+        main = self._execute(block, resolved, inputs.filters, viewer, main=True, step="main")
         rows = _rows(main)
         if block.top_n is not None:
             has_others, rows = len(rows) > block.top_n, rows[: block.top_n]
@@ -219,9 +228,12 @@ class Engine:
     def resolve(self, block: Block, window: WindowForm) -> ResolvedWindow:
         return self._windows(block, window)[0]
 
-    def total_for(self, block: Block, inputs: BlockInputs, viewer: Viewer) -> dict[str, Any] | None:
+    def total_for(
+        self, block: Block, inputs: BlockInputs, viewer: Viewer, origin: str | None = None
+    ) -> dict[str, Any] | None:
         """The block's total with these inputs, e.g. for an agent result past its row cap."""
-        return self.total(block, self.resolve(block, inputs.window), inputs.filters, viewer)
+        with query_origin(origin):
+            return self.total(block, self.resolve(block, inputs.window), inputs.filters, viewer)
 
     def total(
         self,
@@ -234,12 +246,16 @@ class Engine:
         if resolved.empty:
             return None
         query = SemanticQuery(metrics=block.metrics, window=resolved.range, filters=filters)
-        [row] = _rows(self.source.execute(query, viewer)) or [{}]
+        [row] = _rows(self.source.execute(query, viewer, "total")) or [{}]
         return {m: row.get(m) for m in block.metrics}
 
-    def dimension_values(self, dimension: str, viewer: Viewer) -> list[Any]:
+    def dimension_values(
+        self, dimension: str, viewer: Viewer, origin: str | None = None
+    ) -> list[Any]:
         """A dimension's distinct values, as `viewer` (filter pickers). NULL comes last."""
-        result = self.source.execute(SemanticQuery(metrics=(), dimensions=(dimension,)), viewer)
+        query = SemanticQuery(metrics=(), dimensions=(dimension,))
+        with query_origin(origin):
+            result = self.source.execute(query, viewer, "values")
         values = [v.isoformat() if isinstance(v, dt.date) else v for (v,) in result.rows]
         return sorted(values, key=lambda v: (v is None, str(v)))
 
@@ -251,7 +267,7 @@ class Engine:
             order_by=(OrderBy(METRIC_TIME, descending=True),),
             limit=1,
         )
-        result = self.source.execute(query, viewer)
+        result = self.source.execute(query, viewer, "freshness")
         return result.rows[0][0] if result.rows else None
 
     # Steps
@@ -305,6 +321,7 @@ class Engine:
         viewer: Viewer,
         *,
         main: bool = False,
+        step: str,
     ) -> Result:
         order_by: tuple[OrderBy, ...] = ()
         if main and block.sort is not None:
@@ -326,7 +343,7 @@ class Engine:
             order_by=order_by,
             limit=limit,
         )
-        return self.source.execute(query, viewer)
+        return self.source.execute(query, viewer, step)
 
     def _others(
         self,
@@ -355,7 +372,7 @@ class Engine:
                 window=resolved.range,
                 filters=(*filters, Filter(dimension, "not_in", top)),
             )
-            [row] = _rows(self.source.execute(query, viewer)) or [{}]
+            [row] = _rows(self.source.execute(query, viewer, "others")) or [{}]
             others.update({m: row.get(m) for m in non_additive})
         return {m: others[m] for m in block.metrics}
 
@@ -370,7 +387,7 @@ class Engine:
         """Adds _previous, _delta and _delta_pct to each row, matched on dimension values."""
         matched: dict[tuple, dict[str, Any]] = {}
         if not previous.empty:
-            for row in _rows(self._execute(block, previous, filters, viewer)):
+            for row in _rows(self._execute(block, previous, filters, viewer, step="compare")):
                 matched[tuple(row[d] for d in block.dimensions)] = row
         for row in rows:
             before = matched.get(tuple(row[d] for d in block.dimensions), {})

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+import logging
+import time
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import lru_cache
 
 from prumi.adapters import (
@@ -17,6 +21,25 @@ from prumi.adapters import (
     load_adapter_factory,
 )
 from prumi.config import SourceConfig
+
+log = logging.getLogger("prumi.query")
+
+# Who a query runs for: "block <dashboard>/<v>/<block>", "agent query", ... Set by the caller
+# around the engine, read when each query is logged.
+_origin: ContextVar[str] = ContextVar("prumi_query_origin", default="query")
+
+
+@contextmanager
+def query_origin(label: str | None) -> Iterator[None]:
+    """Label the queries run inside the block (None keeps the current label)."""
+    if label is None:
+        yield
+        return
+    token = _origin.set(label)
+    try:
+        yield
+    finally:
+        _origin.reset(token)
 
 
 class Source:
@@ -54,5 +77,27 @@ class Source:
     def _compute_relations(self, metrics: tuple[str, ...]) -> frozenset[str]:
         return self.adapter.relations(metrics)
 
-    def execute(self, query: SemanticQuery, viewer: Viewer) -> Result:
-        return self.adapter.execute(query, viewer)
+    def execute(self, query: SemanticQuery, viewer: Viewer, step: str = "query") -> Result:
+        """Run a query and log its origin, step, viewer, rows and duration. Never values."""
+        started = time.perf_counter()
+        try:
+            result = self.adapter.execute(query, viewer)
+        except Exception as exc:
+            log.warning(
+                "%s %s failed: viewer=%s error=%s duration_ms=%.0f",
+                _origin.get(),
+                step,
+                viewer.id,
+                type(exc).__name__,
+                (time.perf_counter() - started) * 1000,
+            )
+            raise
+        log.info(
+            "%s %s: viewer=%s rows=%d duration_ms=%.0f",
+            _origin.get(),
+            step,
+            viewer.id,
+            result.row_count,
+            (time.perf_counter() - started) * 1000,
+        )
+        return result
