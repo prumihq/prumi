@@ -1,12 +1,13 @@
 [project]
 name = "prumi-adapter-dbt"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Prumi adapter for dbt semantic models: MetricFlow compiles, Prumi executes"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
 dependencies = [
-    "prumi-core",
+    # The adapter protocol may change between 0.x releases.
+    "prumi-core>=0.1.0,<0.2",
     # Exact pin: MetricFlow's engine API isn't stable (ADR 0002). Bumping it means rerunning
     # the contract test and rechecking the license.
     "metricflow==0.213.0",

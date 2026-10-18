@@ -657,7 +657,7 @@ wheels = [
 
 [[package]]
 name = "prumi-adapter-dbt"
-version = "0.1.0.dev0"
+version = "0.1.0"
 source = { editable = "packages/prumi-adapter-dbt" }
 dependencies = [
     { name = "metricflow" },
@@ -679,7 +679,7 @@ provides-extras = ["duckdb"]
 
 [[package]]
 name = "prumi-core"
-version = "0.1.0.dev0"
+version = "0.1.0"
 source = { editable = "packages/prumi-core" }
 dependencies = [
     { name = "mcp" },
