@@ -158,6 +158,7 @@ def check_html(
     yield from _numbers_in_text(page)
     yield from _bindings(spec, page)
     yield from _block_references(spec, inline)
+    yield from _network_calls(inline)
     yield from _external_urls(page, hosts)
 
 
@@ -266,6 +267,27 @@ def _block_references(spec: DashboardSpec, scripts: list[_Script]) -> Iterator[I
                 f"prumi.on({block.id!r}, ...), so the page never shows it.",
                 "Draw it with prumi.on, bind it in presentation.bindings, or remove it.",
             )
+
+
+_NETWORK_CALL = re.compile(r"\b(fetch)\s*\(|\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b")
+
+
+def _network_calls(scripts: list[_Script]) -> Iterator[Issue]:
+    found: dict[str, int] = {}  # call -> first line
+    for script in scripts:
+        for match in _NETWORK_CALL.finditer(script.text):
+            name = match[1] or match[2]
+            line = script.line + script.text.count("\n", 0, match.start())
+            found.setdefault(name, line)
+    if found:
+        calls = ", ".join(f"{name} (line {line})" for name, line in found.items())
+        yield warning(
+            "html.network_call",
+            "html",
+            f"The page's scripts make network calls: {calls}. The dashboard frame blocks every "
+            "network call; data only comes through prumi.on.",
+            "Remove the calls and get the data from a block with prumi.on(...).",
+        )
 
 
 _SEMVER = r"\d+\.\d+\.\d+(?:[-+][\w.]+)?"

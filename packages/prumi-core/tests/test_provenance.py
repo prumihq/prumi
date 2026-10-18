@@ -135,8 +135,10 @@ def test_a_blocked_request_is_a_warning(demo_services):
     page = kpi_page(SHOW_REVENUE + 'fetch("https://example.com/data.json").catch(() => {});')
     report = demo_services.validate(KPI_SPEC, page)
     assert report.ok
-    [issue] = report.warnings
-    assert issue.code == "html.blocked_request" and "https://example.com/data.json" in issue.message
+    static, blocked = report.warnings
+    assert static.code == "html.network_call"  # found in the source before the page ran
+    assert blocked.code == "html.blocked_request"
+    assert "https://example.com/data.json" in blocked.message
 
 
 def test_the_server_check_runs_no_extra_queries(demo_services, monkeypatch):

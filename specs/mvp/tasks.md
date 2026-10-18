@@ -58,7 +58,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 37. Certification refuses on server-check errors and on flagged browser reports (AC 41)
 - [x] 38. `prumi.format(value, metric, options)` (AC 42)
 - [x] 39. Visible errors in bound elements (AC 43)
-- [ ] 40. `html.network_call` and `html.blocked_request` (AC 44)
+- [x] 40. `html.network_call` and `html.blocked_request` (AC 44)
 - [ ] 41. `list_dashboards`, `get_dashboard`, `can_read`/`can_edit` and `dashboard.forbidden` (AC 45)
 - [ ] 42. Editing with `base` + `html_edits` (AC 46)
 - [ ] 43. Default theme: `/theme.css`, injection, CSP, contrast test (AC 47)

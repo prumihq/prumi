@@ -43,6 +43,7 @@ CODES = {
     "html.unbound_block",
     "html.script_host",
     "html.unpinned_script",
+    "html.network_call",
     "query.failed",
     "filter.invalid_value",
     # Warnings in the dry-run block results.

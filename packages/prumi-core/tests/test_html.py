@@ -136,3 +136,25 @@ def test_allowed_hosts_come_from_the_config():
     head = '<script src="https://cdn.internal.example/lib@1.0.0/lib.js"></script>'
     assert codes(page(head)) == ["html.script_host"]
     assert codes(page(head), AllowedHosts(script=("cdn.internal.example",))) == []
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        'fetch("https://example.com/data.json")',
+        "const r = new XMLHttpRequest();",
+        'new WebSocket("wss://example.com")',
+        'new EventSource("/events")',
+        'navigator.sendBeacon("/log", "x")',
+    ],
+)
+def test_network_calls_are_a_warning(script):
+    page = f'<div id="kpi"></div><script>\nprumi.on("kpi", () => {{}});\n{script}\n</script>'
+    [issue] = check_html(SPEC, page)
+    assert (issue.code, issue.severity) == ("html.network_call", "warning")
+    assert "line 3" in issue.message and "only comes through prumi.on" in issue.message
+
+
+def test_words_that_only_look_like_network_calls():
+    page = '<div id="kpi"></div><script>prumi.on("kpi", () => {}); const prefetch = 1;</script>'
+    assert codes(page) == []
