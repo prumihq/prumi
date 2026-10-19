@@ -344,6 +344,9 @@ def test_copied_numbers_in_another_locale(demo_services, body, script):
         # Not a date or a period: still a number.
         ("14 de abc.", "pt-BR", [14], [False]),
         ("14 sem", "en-US", [14], [False]),
+        # Narrow units aren't periods: "12m" usually means 12 million.
+        ("12m · 12d", "en-US", [12, 12], [False, False]),
+        ("12 T", "de-DE", [12], [False]),
     ],
 )
 def test_dates_and_periods_in_the_servers_locale(demo_services, text, locale, numbers, periods):
@@ -411,6 +414,17 @@ def test_dates_and_periods_in_the_locale_arent_data(demo_services, locale, shown
     assert demo_services.check_page(spec, kpi_page(DATES_PAGE % "", body), RESULTS) == []
     # A bare number no block delivered is still flagged.
     extra = 'document.getElementById("extra").textContent = "14";'
+    [issue] = demo_services.check_page(spec, kpi_page(DATES_PAGE % extra, body), RESULTS)
+    assert issue.code == "R8.unverified_number"
+    assert WHERE.match(issue.message)[1] == "p#extra"
+
+
+def test_a_narrow_unit_isnt_a_period(demo_services):
+    """In en-US the narrow month is "m", but "37m" usually means 37 million. (Not 12: the
+    spec's window has it, so it's allowed anyway.)"""
+    spec = DashboardSpec.model_validate(KPI_SPEC)
+    body = '<p id="revenue"></p><p id="dates"></p><p id="extra"></p>'
+    extra = 'document.getElementById("extra").textContent = "37m";'
     [issue] = demo_services.check_page(spec, kpi_page(DATES_PAGE % extra, body), RESULTS)
     assert issue.code == "R8.unverified_number"
     assert WHERE.match(issue.message)[1] == "p#extra"

@@ -141,15 +141,16 @@
   }
 
   // Counts of periods as the locale writes them ("12 sem.", "12 semanas", "12 Wo."): the unit
-  // words Intl gives for day, week, month and year, short, long and narrow, in each plural
-  // form (1, 2, 5 and 12 cover them). Words after the number are matched on the text after
+  // words Intl gives for day, week, month and year, short and long, in each plural form (1, 2,
+  // 5 and 12 cover them). Not narrow: its forms are single letters in many locales, and
+  // "12m" usually means 12 million. Words after the number are matched on the text after
   // it, words before on the text before it.
   function localePeriods(locale) {
     var after = [];
     var before = [];
     try {
       ["day", "week", "month", "year"].forEach(function (unit) {
-        ["short", "long", "narrow"].forEach(function (unitDisplay) {
+        ["short", "long"].forEach(function (unitDisplay) {
           var options = { style: "unit", unit: unit, unitDisplay: unitDisplay };
           var format = new Intl.NumberFormat(locale, options);
           [1, 2, 5, 12].forEach(function (n) {
