@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–20 on 2026-10-18); section 21 draft
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–21 on 2026-10-18)
 
 ## Goal
 
@@ -911,7 +911,7 @@ None of the three agent runs saw the page it built, and number checks don't catc
 - `home.css` and `home.js` live in `packages/prumi-runtime/src` next to `shell.js` and ship in the wheel; the page also loads `/theme.css` for the variables.
 - Without the clipboard API, the copy button selects the command and says "Selected".
 
-### 21. One display locale (added 2026-10-18, draft)
+### 21. One display locale (added and accepted 2026-10-18)
 
 The fourth agent run's page passed validation and was flagged `needs_attention` by its first viewer. `prumi.format` formats with the browser's language, the server check renders in `en-US`, and the number reader (19.1) knows only English separators and `K`/`M`/`B`. In a `pt-BR` browser, `$47K` becomes `US$ 47 mil` and `$2,742,409.35` becomes `US$ 2.742.409,35`; the browser check can't match them, so every dashboard is flagged by its first non-English viewer, certified ones too. Pages that format with the browser's language themselves (`toLocaleString()`, `Intl.NumberFormat(undefined, …)`) fail the same way: the second- and third-run pages did.
 
