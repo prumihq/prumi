@@ -33,7 +33,7 @@ from prumi.engine import BlockInputs, BlockRequestError
 from prumi.issues import Issue, error
 from prumi.registry import FINGERPRINT_VERSION, Content, PageCheck, normalize_html
 from prumi.services import Services
-from prumi.spec import Block, DashboardSpec, DimensionFilter, Sort
+from prumi.spec import Block, DashboardSpec, Sort
 from prumi.time import Compare, Grain, Window
 from prumi.validate import source_failed
 from prumi.validate._parse import plain_issues
@@ -219,22 +219,12 @@ def _dashboard_url(services: Services, dashboard_id: str, version: int | None = 
     return url if version is None else f"{url}/v/{version}"
 
 
-def _check_for_agent(check: PageCheck, spec: DashboardSpec) -> dict[str, Any]:
-    """A browser report without company data: no numbers found, no dimension values."""
-    dimensions = {f.id for f in spec.filters if isinstance(f, DimensionFilter)}
-    filters = {
-        fid: {"selected": len(value) if isinstance(value, list) else 1}
-        if fid in dimensions
-        else value
-        for fid, value in check.filters.items()
-    }
-    counts: dict[tuple[str, str], int] = {}
-    for item in check.flagged:
-        key = (item.get("code", "R8.unverified_number"), item["path"])
-        counts[key] = counts.get(key, 0) + 1
+def _check_for_agent(check: PageCheck) -> dict[str, Any]:
+    """A stored browser report, which holds no numbers or dimension values. Its errors are a
+    count: page code could spell data into its own messages."""
     return {
-        "filters": filters,
-        "flagged": [{"code": c, "path": p, "count": n} for (c, p), n in counts.items()],
+        "filters": check.filters,
+        "flagged": check.flagged,
         "canvas": check.canvas,
         "errors": len(check.errors),
         "reported_at": check.reported_at,
@@ -583,7 +573,7 @@ def create_mcp(services: Services) -> MCPServer:
             status=(status := registry.status(id, number)).status,
             url=_dashboard_url(services, id, None if version is None else number),
             needs_attention=status.needs_attention,
-            checks=[_check_for_agent(c, stored.spec) for c in registry.checks(id, number)],
+            checks=[_check_for_agent(c) for c in registry.checks(id, number)],
         )
 
     @mcp.tool()

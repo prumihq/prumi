@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 from html import escape
-from typing import Annotated, Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
@@ -18,7 +18,7 @@ from prumi.config import DEFAULT_SOURCE
 from prumi.engine import BlockRequestError, UnknownBlockError
 from prumi.issues import Issue, error
 from prumi.mcp import mcp_routes
-from prumi.registry import PageCheck, Version
+from prumi.registry import CheckReport, Version
 from prumi.server import pages
 from prumi.server.assets import read_asset
 from prumi.server.guards import HostCheck, allowed_hosts
@@ -192,14 +192,8 @@ def create_app(services: Services) -> HostCheck:
         known = {f.id for f in stored.spec.filters}
         if not set(report.filters) <= known:
             return JSONResponse({"error": "The report names unknown filters."}, status_code=400)
-        check = PageCheck(
-            filters=report.filters,
-            flagged=[f.model_dump() for f in report.flagged],
-            canvas=report.canvas,
-            errors=report.errors,
-        )
         await run_in_threadpool(
-            services.registry.record_check, stored.dashboard_id, stored.version, check
+            services.registry.record_check, stored.dashboard_id, stored.version, report
         )
         return Response(status_code=204)
 
@@ -230,26 +224,6 @@ def create_app(services: Services) -> HostCheck:
 
 
 MAX_CHECK_BYTES = 64 * 1024
-
-
-class _Flagged(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    text: str = Field(max_length=200)
-    path: str = Field(max_length=500)
-    code: Literal["R8.unverified_number", "R8.unbound_number"] = "R8.unverified_number"
-    blocks: list[Annotated[str, Field(max_length=100)]] = Field(default=[], max_length=50)
-
-
-class CheckReport(BaseModel):
-    """The body of POST .../check, as the runtime sends it through the shell."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    filters: dict[str, Any]
-    flagged: list[_Flagged] = Field(max_length=20)
-    canvas: bool
-    errors: list[Annotated[str, Field(max_length=300)]] = Field(max_length=20)
 
 
 def _version(services: Services, request: Request) -> Version:

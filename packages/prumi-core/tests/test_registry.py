@@ -1,6 +1,8 @@
 """The registry: versions, fingerprints, computed status, delete, browser checks."""
 
 import datetime as dt
+import hashlib
+import json
 import sqlite3
 from pathlib import Path
 
@@ -161,12 +163,57 @@ def test_delete_keeps_metric_requests(registry):
 def test_schema_version_wal_and_reopening(registry, tmp_path):
     registry.save(spec(), HTML)
     with sqlite3.connect(registry.path) as conn:
-        assert conn.execute("SELECT version FROM schema_version").fetchall() == [(1,), (2,)]
+        versions = conn.execute("SELECT version FROM schema_version").fetchall()
+        assert versions == [(1,), (2,), (3,)]
         assert conn.execute("PRAGMA journal_mode").fetchone() == ("wal",)
     again = Registry(tmp_path / "data")  # migrations don't run twice
     assert again.dashboard("sales").current_version == 1
     with sqlite3.connect(registry.path) as conn:
-        assert conn.execute("SELECT count(*) FROM schema_version").fetchone() == (2,)
+        assert conn.execute("SELECT count(*) FROM schema_version").fetchone() == (3,)
+
+
+def test_opening_an_older_registry_drops_the_reports_it_stored_with_data(tmp_path):
+    """Before migration 3, check reports kept the numbers flagged, the filters' values and the
+    browser's error messages as they came."""
+    from importlib.resources import files
+
+    path = tmp_path / "data" / "registry.sqlite3"
+    path.parent.mkdir()
+    content = Content.of(regional(), HTML)
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE schema_version (version INTEGER NOT NULL)")
+        for number, name in ((1, "0001_initial.sql"), (2, "0002_page_checks.sql")):
+            conn.executescript(files("prumi.registry").joinpath("migrations", name).read_text())
+            conn.execute("INSERT INTO schema_version (version) VALUES (?)", (number,))
+        conn.execute("INSERT INTO dashboards VALUES ('sales', 'Sales', 'local', '2026-10-14', 1)")
+        conn.execute(
+            "INSERT INTO versions VALUES ('sales', 1, ?, ?, ?, ?, ?, '2026-10-14')",
+            (content.spec_json, content.html, content.spec_hash, content.html_hash,
+             content.fingerprint),
+        )  # fmt: skip
+        conn.execute(
+            "INSERT INTO page_checks VALUES ('sales', 1, ?, ?, 0, ?, '2026-10-14T10:00:00+00:00')",
+            ('{"region":["North"]}', json.dumps(FLAGGED), '["North broke"]'),
+        )
+
+    registry = Registry(tmp_path / "data", now=lambda: dt.datetime(2026, 10, 15, 9, tzinfo=dt.UTC))
+    assert registry.checks("sales", 1) == []
+    assert registry.version("sales", 1).fingerprint == content.fingerprint
+    registry.record_check("sales", 1, report(["North"], FLAGGED, errors=["North broke"]))
+    with sqlite3.connect(path) as conn:
+        assert conn.execute("SELECT max(version) FROM schema_version").fetchone() == (3,)
+        conn.row_factory = sqlite3.Row
+        [row] = conn.execute("SELECT * FROM page_checks").fetchall()
+    assert dict(row) == {
+        "dashboard_id": "sales",
+        "version": 1,
+        "state_key": state_key({"period": WINDOW, "region": ["North"]}),
+        "filters_json": '{"period":{"grain":"week","last":12},"region":{"selected":1}}',
+        "flagged_json": '[{"code": "R8.unverified_number", "path": "p#extra", "count": 1}]',
+        "canvas": 0,
+        "errors_json": '["\\u2026 broke"]',
+        "reported_at": "2026-10-15T09:00:00+00:00",
+    }
 
 
 def test_two_registries_on_one_file_see_each_other(registry, tmp_path):
@@ -178,25 +225,44 @@ def test_two_registries_on_one_file_see_each_other(registry, tmp_path):
 
 # In-browser checks
 
+WINDOW = {"last": 12, "grain": "week"}
+FLAGGED = [{"text": "$1,234.56", "path": "p#extra", "code": "R8.unverified_number"}]
+
+
+def regional() -> DashboardSpec:
+    """The sales spec with a region filter too."""
+    data = spec().model_dump(mode="json", by_alias=True)
+    data["filters"].append(
+        {"id": "region", "type": "dimension", "dimension": "customer__region", "default": []}
+    )
+    return DashboardSpec.model_validate(data)
+
+
+def report(region, flagged=(), errors=(), canvas=False):
+    from prumi.registry import CheckReport
+
+    return CheckReport(
+        filters={"period": WINDOW, "region": region},
+        flagged=list(flagged),
+        canvas=canvas,
+        errors=list(errors),
+    )
+
+
+def state_key(filters) -> str:
+    canonical = json.dumps(filters, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
 
 def test_the_latest_check_per_filter_state_is_kept(registry):
-    from prumi.registry import PageCheck
-
-    registry.save(spec(), HTML)
-    clean = PageCheck(filters={"region": []}, flagged=[], canvas=False, errors=[])
-    flagged = PageCheck(
-        filters={"region": ["North"]},
-        flagged=[{"text": "$1,234.56", "path": "p#extra"}],
-        canvas=False,
-        errors=[],
-    )
-    registry.record_check("sales", 1, clean)
-    registry.record_check("sales", 1, flagged)
-    registry.record_check("sales", 1, PageCheck({"region": ["North"]}, [], False, ["boom"]))
+    registry.save(regional(), HTML)
+    registry.record_check("sales", 1, report([]))
+    registry.record_check("sales", 1, report(["North"], FLAGGED))
+    registry.record_check("sales", 1, report(["North"], errors=["boom"]))
     checks = registry.checks("sales", 1)
-    assert [(c.filters, c.flagged, c.errors) for c in checks] == [
-        ({"region": []}, [], []),
-        ({"region": ["North"]}, [], ["boom"]),
+    assert [(c.filters["region"], c.flagged, c.errors) for c in checks] == [
+        ({"selected": 0}, [], []),
+        ({"selected": 1}, [], ["boom"]),
     ]
     assert checks[0].clean and not checks[1].clean
     assert checks[0].reported_at.startswith("2026-10-15T09:00:")
@@ -205,20 +271,62 @@ def test_the_latest_check_per_filter_state_is_kept(registry):
     assert registry.checks("sales", 1) == []
 
 
-def test_a_flagged_current_version_needs_attention(registry):
-    from prumi.registry import PageCheck
+def test_a_stored_report_keeps_no_numbers_or_names_from_the_data(registry):
+    registry.save(regional(), HTML)
+    stored = registry.record_check(
+        "sales",
+        1,
+        report(
+            ["North America", "North", "N"],
+            [
+                {**FLAGGED[0], "blocks": ["kpi"]},
+                {"text": "$7.5", "path": "p#extra"},
+                {"text": "12%", "path": "p#extra", "code": "R8.unbound_number"},
+                {"path": "li#note"},  # as the shell sends it now: no text, no blocks
+            ],
+            errors=["North America, North and N: 1,234.56 of 12 (at 2742409)"],
+            canvas=True,
+        ),
+    )
+    assert registry.checks("sales", 1) == [stored]
+    # Kept apart by the full filter state, which isn't stored.
+    full = {"period": WINDOW, "region": ["North America", "North", "N"]}
+    assert stored.state_key == state_key(full)
+    assert stored.filters == {"period": WINDOW, "region": {"selected": 3}}
+    assert stored.flagged == [
+        {"code": "R8.unverified_number", "path": "p#extra", "count": 2},
+        {"code": "R8.unbound_number", "path": "p#extra", "count": 1},
+        {"code": "R8.unverified_number", "path": "li#note", "count": 1},
+    ]
+    # The report's own values, longest first (one-letter values would mangle the message),
+    # then any number with 3+ digits.
+    assert stored.errors == ["…, … and N: … of 12 (at …)"]
+    assert stored.canvas
+    for found in ("North", "1,234", "7.5", "12%", "2742409"):
+        assert found.encode() not in registry.path.read_bytes()
 
-    registry.save(spec(), HTML)
-    flagged = [{"text": "$1,234.56", "path": "p#extra", "code": "R8.unverified_number"}]
-    registry.record_check("sales", 1, PageCheck({"region": []}, [], False, ["boom"]))
+
+def test_reports_for_each_selection_of_a_filter_are_kept_apart(registry):
+    registry.save(regional(), HTML)
+    registry.record_check("sales", 1, report([], errors=["boom"]))
     assert not registry.status("sales", 1).needs_attention  # errors alone don't count
-    registry.record_check("sales", 1, PageCheck({"region": ["North"]}, flagged, False, []))
+    registry.record_check("sales", 1, report(["North"], FLAGGED))
     assert registry.status("sales", 1).needs_attention
-    # A clean report for the same filter state clears it.
-    registry.record_check("sales", 1, PageCheck({"region": ["North"]}, [], False, []))
+    # Both selections are stored as {"selected": 1}; a clean report for one of them leaves
+    # the other's flag.
+    registry.record_check("sales", 1, report(["South"]))
+    assert registry.status("sales", 1).needs_attention
+    assert len(registry.checks("sales", 1)) == 3
+    # A clean report for the same selection clears it.
+    registry.record_check("sales", 1, report(["North"]))
     assert not registry.status("sales", 1).needs_attention
     # So does a new version: only the current one can need attention.
-    registry.record_check("sales", 1, PageCheck({"region": ["North"]}, flagged, False, []))
-    registry.save(spec(), HTML + "<!-- 2 -->")
+    registry.record_check("sales", 1, report(["North"], FLAGGED))
+    registry.save(regional(), HTML + "<!-- 2 -->")
     assert not registry.status("sales", 1).needs_attention
     assert not registry.status("sales", 2).needs_attention
+
+
+def test_a_report_for_an_unknown_version_is_refused(registry):
+    with pytest.raises(KeyError):
+        registry.record_check("sales", 1, report([]))

@@ -1,9 +1,12 @@
 """No company data reaches the agent: a sentinel planted in the warehouse appears in no MCP
-tool output, whatever the agent asks and whatever its pages do."""
+tool output, whatever the agent asks and whatever its pages do. Nor in the registry, whatever
+viewers' browsers report."""
 
 import asyncio
 import json
 import shutil
+import sqlite3
+from contextlib import closing
 
 import duckdb
 import pytest
@@ -95,7 +98,7 @@ def page(script: str = "") -> str:
 
 def test_no_sentinel_reaches_the_agent(services, warehouse):
     from prumi.mcp import create_mcp
-    from prumi.registry import PageCheck
+    from prumi.registry import CheckReport
 
     services.checker.start()
     outputs = []
@@ -153,7 +156,10 @@ def test_no_sentinel_reaches_the_agent(services, warehouse):
 
             # A viewer's browser saw data on the page; the report reaches the agent scrubbed.
             flagged = [{"text": f"${REVENUE}", "path": "li", "code": "R8.unverified_number"}]
-            check = PageCheck({"region": [REGION]}, flagged, False, [f"{REGION} broke"])
+            check = CheckReport(
+                filters={"region": [REGION]}, flagged=flagged, canvas=False,
+                errors=[f"{REGION} broke"],
+            )  # fmt: skip
             services.registry.record_check("regions", 1, check)
             await call("list_dashboards")
             await call("get_dashboard", id="regions", include_html=False)
@@ -168,6 +174,61 @@ def test_no_sentinel_reaches_the_agent(services, warehouse):
         dumped = json.dumps(structured, ensure_ascii=False) + "\n".join(texts)
         for sentinel in SENTINELS:
             assert sentinel not in dumped, (tool, sentinel, dumped[:2000])
+
+
+def test_no_sentinel_reaches_the_registry(services, capsys):
+    """A viewer's browser reports a filter state that selects the sentinel region, a number it
+    flagged and an error message holding both; the registry keeps none of them, and neither
+    `prumi certify` nor `get_dashboard` shows them."""
+    from prumi.cli import main
+    from prumi.mcp import create_mcp
+    from prumi.server.app import create_app
+    from starlette.testclient import TestClient
+
+    report, published = services.publish(SPEC, page())
+    assert report.ok and published, report.issues
+    port = services.config.server.port
+    client = TestClient(create_app(services), base_url=f"http://127.0.0.1:{port}")
+    body = {
+        "filters": {"region": [REGION]},
+        "flagged": [
+            {"text": f"${REVENUE}", "path": "p#kpi", "code": "R8.unverified_number",
+             "blocks": ["kpi"]},
+        ],
+        "canvas": False,
+        "errors": [f"{REGION} broke at {REVENUE}"],
+    }  # fmt: skip
+    registry = services.registry.path
+    wal = registry.with_name(registry.name + "-wal")
+    # While another connection is open, the write stays in the -wal file, where it lands first.
+    with closing(sqlite3.connect(registry)) as reader:
+        reader.execute("SELECT count(*) FROM page_checks").fetchone()
+        response = client.post("/api/dashboards/regions/versions/1/check", json=body)
+        assert response.status_code == 204
+        logged = wal.read_bytes()
+        assert b'{"region":{"selected":1}}' in logged  # the report is in there
+        stored = registry.read_bytes() + logged
+    for sentinel in SENTINELS:
+        assert sentinel.encode() not in stored, sentinel
+
+    assert main(["certify", "regions", "1", "--config", str(services.config.path)]) == 1
+    out = capsys.readouterr().out
+    assert '{"region": {"selected": 1}}  (reported ' in out
+    assert "R8.unverified_number  p#kpi  (×1)" in out
+    assert "html.runtime_error  … broke at …" in out
+
+    async def get_dashboard():
+        async with Client(create_mcp(services)) as mcp:
+            return await mcp.call_tool("get_dashboard", {"id": "regions", "include_html": False})
+
+    result = asyncio.run(get_dashboard())
+    [check] = result.structured_content["checks"]
+    assert check["filters"] == {"region": {"selected": 1}}
+    assert check["flagged"] == [{"code": "R8.unverified_number", "path": "p#kpi", "count": 1}]
+    assert check["errors"] == 1  # page code could spell data into its messages: a count only
+    shown = out + json.dumps(result.structured_content, ensure_ascii=False)
+    for sentinel in SENTINELS:
+        assert sentinel not in shown, sentinel
 
 
 def test_no_sentinel_on_the_home_page(services):

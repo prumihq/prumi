@@ -190,8 +190,7 @@ def _print_check(check: PageCheck) -> None:
     state = json.dumps(check.filters, ensure_ascii=False, sort_keys=True)
     print(f"  {state}  (reported {check.reported_at})")
     for item in check.flagged:
-        code = item.get("code", "R8.unverified_number")
-        print(f"    {code}  {item['text']} in {item['path']}")
+        print(f"    {item['code']}  {item['path']}  (×{item['count']})")
     if check.canvas:
         print("    html.canvas  the page uses <canvas>")
     for message in check.errors:

@@ -466,13 +466,14 @@ READBACK_HTML = (
 
 
 def test_list_and_get_dashboards(server, services):
-    from prumi.registry import PageCheck
+    from prumi.registry import CheckReport
 
     spec = readback_spec("read-back")
     assert services.publish(spec, READBACK_HTML)[1].version == 1
     assert services.publish(spec, READBACK_HTML + "<!-- 2 -->")[1].version == 2
-    flagged = [{"text": "$5", "path": "p#kpi"}]
-    services.registry.record_check("read-back", 2, PageCheck({}, flagged, False, []))
+    flagged = [{"path": "p#kpi"}]
+    report = CheckReport(filters={}, flagged=flagged, canvas=False, errors=[])
+    services.registry.record_check("read-back", 2, report)
     port = services.config.server.port
 
     listed = ok(call(server, "list_dashboards"))["dashboards"]
@@ -722,7 +723,7 @@ def test_publishing_checks_the_candidates_states_again(server, services, monkeyp
 
 
 def test_browser_reports_reach_the_agent_without_data(server, services):
-    from prumi.registry import PageCheck
+    from prumi.registry import CheckReport
 
     spec, html = unverified_page("reports")
     html = html.replace('"Target $1,234.56"', '""')
@@ -731,8 +732,13 @@ def test_browser_reports_reach_the_agent_without_data(server, services):
         {"text": "$1,234.56", "path": "p#extra", "code": "R8.unverified_number"},
         {"text": "$7.5", "path": "p#extra", "code": "R8.unverified_number"},
     ]
-    check = PageCheck({"region": ["North America"]}, flagged, False, ["Boom: North America"])
-    services.registry.record_check("reports", 1, check)
+    report = CheckReport(
+        filters={"region": ["North America"]},
+        flagged=flagged,
+        canvas=False,
+        errors=["Boom: North America"],
+    )
+    services.registry.record_check("reports", 1, report)
     [found] = ok(call(server, "get_dashboard", id="reports"))["checks"]
     assert found["filters"] == {"region": {"selected": 1}}  # how many values, not which
     assert found["flagged"] == [{"code": "R8.unverified_number", "path": "p#extra", "count": 2}]

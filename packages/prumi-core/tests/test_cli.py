@@ -169,20 +169,27 @@ def test_no_dashboards_and_no_requests(capsys, config):
 def test_certify_refuses_a_version_with_problems_found_in_browsers(
     capsys, config, services, demo_dashboard
 ):
-    from prumi.registry import PageCheck
+    from prumi.registry import CheckReport
+
+    def report(region, flagged=(), canvas=False, errors=()):
+        filters = {"region": region}
+        return CheckReport(filters=filters, flagged=flagged, canvas=canvas, errors=errors)
 
     services.publish(*demo_dashboard)
-    services.registry.record_check("sales", 1, PageCheck({"region": []}, [], False, []))
-    flagged = [{"text": "$1,234.56", "path": "p#extra"}]
-    services.registry.record_check("sales", 1, PageCheck({"region": ["North"]}, flagged, False, []))
-    services.registry.record_check("sales", 1, PageCheck({"region": ["West"]}, [], True, ["boom"]))
+    services.registry.record_check("sales", 1, report([]))
+    flagged = [{"text": "$1,234.56", "path": "p#extra"}, {"text": "$7.50", "path": "p#extra"}]
+    services.registry.record_check("sales", 1, report(["North"], flagged))
+    services.registry.record_check("sales", 1, report(["West"], canvas=True, errors=["boom"]))
 
     code, out = prumi(capsys, "certify", "sales", "1", "--config", str(config))
     assert code == 1
     assert "Not certified: viewers' browsers found problems in sales version 1" in out
-    assert '{"region": ["North"]}' in out and "R8.unverified_number  $1,234.56 in p#extra" in out
-    assert '{"region": ["West"]}' in out and "html.canvas" in out and "boom" in out
-    assert '{"region": []}' not in out
+    # Each report's state as stored (how many values, not which), then what was found.
+    assert out.count('{"region": {"selected": 1}}  (reported ') == 2
+    assert "R8.unverified_number  p#extra  (×2)" in out
+    assert "html.canvas" in out and "html.runtime_error  boom" in out
+    assert '{"region": {"selected": 0}}' not in out
+    assert "North" not in out and "1,234" not in out and "7.50" not in out
     assert services.registry.status("sales", 1).status == "draft"
 
 

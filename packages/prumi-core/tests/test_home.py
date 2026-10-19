@@ -5,7 +5,7 @@ import datetime as dt
 import re
 
 import pytest
-from prumi.registry import PageCheck, Registry
+from prumi.registry import CheckReport, Registry
 from prumi.server import pages
 from prumi.spec import DashboardSpec
 from starlette.testclient import TestClient
@@ -97,8 +97,9 @@ def test_one_card_per_dashboard_newest_first(services, client, clock):
     clock.now += dt.timedelta(hours=1)
     registry.save(spec("flagged", "Flagged"), HTML)
     registry.save(spec("flagged", "Flagged", ("orders",)), HTML)  # version 2
-    flagged = [{"text": "$1", "path": "p#kpi", "code": "R8.unverified_number"}]
-    registry.record_check("flagged", 2, PageCheck({}, flagged, False, []))
+    flagged = [{"path": "p#kpi", "code": "R8.unverified_number"}]
+    report = CheckReport(filters={}, flagged=flagged, canvas=False, errors=[])
+    registry.record_check("flagged", 2, report)
     clock.now += dt.timedelta(minutes=5)
 
     found = cards(client.get("/").text)

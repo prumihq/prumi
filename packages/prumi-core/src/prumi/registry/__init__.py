@@ -4,6 +4,9 @@ in-browser number checks.
 SQLite in WAL mode, so the CLI and the server can use it at the same time. Status is computed
 from certifications on every read, never stored: a version is certified while a non-revoked
 certification of the dashboard has its fingerprint.
+
+The registry holds no company data: check reports from viewers' browsers are stored without
+the numbers and names they saw (`PageCheck.of`).
 """
 
 from __future__ import annotations
@@ -12,16 +15,20 @@ import datetime as dt
 import hashlib
 import json
 import sqlite3
+from collections import Counter
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from prumi.adapters import LOCAL_VIEWER, Viewer
 from prumi.issues import Report, error
-from prumi.spec import DashboardSpec
+from prumi.scrub import scrubber
+from prumi.spec import DashboardSpec, TimeFilter
 
 Status = Literal["draft", "certified"]
 FINGERPRINT_VERSION = "v0"
@@ -42,6 +49,11 @@ def normalize_html(html: str) -> str:
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _canonical_json(data: Any) -> str:
+    """Keys sorted, no whitespace, ASCII only (so any string a browser sent encodes)."""
+    return json.dumps(data, sort_keys=True, separators=(",", ":"))
 
 
 @dataclass(frozen=True)
@@ -115,13 +127,42 @@ class MetricRequest:
     created_at: str
 
 
-@dataclass(frozen=True)
-class PageCheck:
-    """What a viewer's browser found on one version, for one filter state."""
+class FlaggedNumber(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(max_length=500)
+    code: Literal["R8.unverified_number", "R8.unbound_number"] = "R8.unverified_number"
+    # Older shells also send the number's text and the blocks it was checked against (a
+    # browser may still have one cached): accepted, never stored.
+    text: str | None = Field(default=None, max_length=200)
+    blocks: list[Annotated[str, Field(max_length=100)]] = Field(default=[], max_length=50)
+
+
+class CheckReport(BaseModel):
+    """A viewer's browser's number check for one filter state, as the shell posts it. It names
+    the values its dimension filters select, so it's never stored as it is: see `PageCheck`."""
+
+    model_config = ConfigDict(extra="forbid")
 
     filters: dict[str, Any]
-    flagged: list[dict[str, str]]  # [{text, path}]: numbers Prumi didn't deliver
+    flagged: list[FlaggedNumber] = Field(max_length=20)
     canvas: bool
+    errors: list[Annotated[str, Field(max_length=300)]] = Field(max_length=20)
+
+
+@dataclass(frozen=True)
+class PageCheck:
+    """What a viewer's browser found on one version, for one filter state, as the registry
+    keeps it: no numbers or names from the data."""
+
+    # sha256 of the full filter state, so different selections of a filter stay apart
+    # without their values being stored.
+    state_key: str
+    filters: dict[str, Any]  # time filters as sent; dimension filters as {"selected": n}
+    flagged: list[dict[str, Any]]  # [{code, path, count}]: numbers Prumi didn't deliver
+    canvas: bool
+    # Runtime errors without the report's dimension values or 3+-digit numbers. Page code
+    # could still spell data into its own messages, so agents only get their count.
     errors: list[str]
     reported_at: str = ""
 
@@ -129,8 +170,29 @@ class PageCheck:
     def clean(self) -> bool:
         return not (self.flagged or self.canvas or self.errors)
 
-    def to_json(self) -> dict[str, Any]:
-        return dict(self.__dict__)
+    @classmethod
+    def of(cls, spec: DashboardSpec, report: CheckReport, reported_at: str = "") -> PageCheck:
+        """`report` without company data. Windows are calendar facts and stay; any other
+        filter is treated as a dimension filter and keeps only how many values it selects."""
+        times = {f.id for f in spec.filters if isinstance(f, TimeFilter)}
+        selected = {
+            fid: value if isinstance(value, list) else [value]
+            for fid, value in report.filters.items()
+            if fid not in times
+        }
+        scrub = scrubber(v for values in selected.values() for v in values)
+        counts = Counter((item.code, item.path) for item in report.flagged)
+        return cls(
+            state_key=_sha256(_canonical_json(report.filters)),
+            filters={
+                fid: {"selected": len(selected[fid])} if fid in selected else value
+                for fid, value in report.filters.items()
+            },
+            flagged=[{"code": c, "path": p, "count": n} for (c, p), n in counts.items()],
+            canvas=report.canvas,
+            errors=[scrub(message) for message in report.errors],
+            reported_at=reported_at,
+        )
 
 
 @dataclass(frozen=True)
@@ -330,33 +392,40 @@ class Registry:
 
     # In-browser checks
 
-    def record_check(self, dashboard_id: str, version: int, check: PageCheck) -> None:
-        """Keep the latest report for the version and its filter state."""
-        filters = json.dumps(check.filters, sort_keys=True, separators=(",", ":"))
+    def record_check(self, dashboard_id: str, version: int, report: CheckReport) -> PageCheck:
+        """Keep the latest report for the version and its filter state, without company data."""
+        found = self.version(dashboard_id, version)
+        if found is None:
+            raise KeyError(f"{dashboard_id} version {version}")
+        check = PageCheck.of(found.spec, report, self._timestamp())
         with self._transaction() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO page_checks (dashboard_id, version, filters_json,"
-                " flagged_json, canvas, errors_json, reported_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO page_checks (dashboard_id, version, state_key,"
+                " filters_json, flagged_json, canvas, errors_json, reported_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     dashboard_id,
                     version,
-                    filters,
+                    check.state_key,
+                    _canonical_json(check.filters),
                     json.dumps(check.flagged),
                     int(check.canvas),
                     json.dumps(check.errors),
-                    self._timestamp(),
+                    check.reported_at,
                 ),
             )
+        return check
 
     def checks(self, dashboard_id: str, version: int) -> list[PageCheck]:
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT * FROM page_checks WHERE dashboard_id = ? AND version = ?"
-                " ORDER BY reported_at, filters_json",
+                " ORDER BY reported_at, state_key",
                 (dashboard_id, version),
             ).fetchall()
         return [
             PageCheck(
+                state_key=r["state_key"],
                 filters=json.loads(r["filters_json"]),
                 flagged=json.loads(r["flagged_json"]),
                 canvas=bool(r["canvas"]),

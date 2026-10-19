@@ -190,12 +190,17 @@ REPORT = {
 }
 
 
-def test_a_check_report_is_stored(client, published):
+def test_a_check_report_is_stored_without_data(client, published):
     assert post(client, f"{BASE}/check", REPORT).status_code == 204
     [check] = published.registry.checks("sales", 1)
-    # A report without codes (an older runtime) counts its numbers as unverified.
-    flagged = [{**f, "code": "R8.unverified_number", "blocks": []} for f in REPORT["flagged"]]
-    assert (check.filters, check.flagged, check.canvas) == (REPORT["filters"], flagged, False)
+    # A report without codes (an older runtime) counts its numbers as unverified; the text an
+    # older shell sends is accepted and never stored.
+    assert check.filters == {"region": {"selected": 1}} and not check.canvas
+    assert check.flagged == [{"code": "R8.unverified_number", "path": "p#extra", "count": 1}]
+    current = {**REPORT, "flagged": [{"path": "p#extra", "code": "R8.unbound_number"}]}
+    assert post(client, f"{BASE}/check", current).status_code == 204
+    [check] = published.registry.checks("sales", 1)
+    assert check.flagged == [{"code": "R8.unbound_number", "path": "p#extra", "count": 1}]
 
 
 @pytest.mark.parametrize(

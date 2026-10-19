@@ -78,7 +78,7 @@ The server tells the agent how to work with it: build dashboards with Prumi rath
 
 - **Dashboard data:** warehouse → Prumi → browser. It never passes through the agent or its LLM.
 - **What the agent sees:** Prumi never sends company data to your agent: `query` shows the shape of the data, and the numbers appear only in the dashboard. Its LLM provider gets metric definitions, the shape of results (row counts, empties, label lengths, magnitudes), issue codes and element paths: never a value or a name from the data.
-- **What Prumi stores:** specs, HTML, certifications and metric requests, in `registry.sqlite3` under the config's `data_dir` (`.prumi` by default). No query results, and no row data or filter values in logs.
+- **What Prumi stores:** specs, HTML, certifications, metric requests and the check reports from viewers' browsers, in `registry.sqlite3` under the config's `data_dir` (`.prumi` by default). Check reports keep issue codes, element paths and counts, never numbers or names from the data. No query results, and no row data or filter values in logs.
 
 Every number on a dashboard is computed by the source at the grain it's shown: Prumi never re-aggregates ratios, averages or distinct counts. The ten BI rules Prumi checks, and their issue codes, are explained in [docs/bi-rules.md](docs/bi-rules.md). The dashboard's HTML runs in a sandboxed frame that can't call any server, and the badge and data freshness come from Prumi, not from the HTML.
 

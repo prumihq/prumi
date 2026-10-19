@@ -24,6 +24,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from prumi.issues import Issue, error, warning
+from prumi.scrub import scrubber
 from prumi.spec import DashboardSpec
 
 ORIGIN = "http://prumi.check"
@@ -593,30 +594,15 @@ def _locator(source: str, frame: str) -> Callable[[int, int], tuple[int, int]]:
     return locate
 
 
-_LONG_NUMBER = re.compile(r"\d[\d,.]*\d")
-
-
 def _scrubber(results: Mapping[str, Mapping[str, Any]]) -> Callable[[str], str]:
     """Removes data from text a page produced (an error message): the dimension values it
     was given, and any number with 3+ digits."""
-    values: set[str] = set()
+    values = []
     for result in results.values():
         metrics = {c["name"] for c in result.get("columns", []) if c.get("kind") == "metric"}
         for row in result.get("rows", []):
-            for key, value in row.items():
-                if key not in metrics and not key.startswith("_") and isinstance(value, str):
-                    if len(value) >= 2:
-                        values.add(value)
-    ordered = sorted(values, key=len, reverse=True)
-
-    def scrub(text: str) -> str:
-        for value in ordered:
-            text = text.replace(value, "…")
-        return _LONG_NUMBER.sub(
-            lambda m: "…" if sum(c.isdigit() for c in m[0]) >= 3 else m[0], text
-        )
-
-    return scrub
+            values += [v for k, v in row.items() if k not in metrics and not k.startswith("_")]
+    return scrubber(values)
 
 
 def _describe_error(

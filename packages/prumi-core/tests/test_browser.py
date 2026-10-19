@@ -466,14 +466,12 @@ def test_the_browser_reports_numbers_prumi_didnt_deliver(page, server, services,
     frame, _ = open_dashboard(page, server, "unverified")
     frame.locator("#revenue").filter(has_text="$").wait_for()
     [default] = wait_for_checks(services, "unverified", 1)
-    assert default.filters == {"region": []} and default.clean
+    assert default.filters == {"region": {"selected": 0}} and default.clean
     frame.locator("body").evaluate("() => prumi.setFilter('region', ['North America'])")
     frame.locator("#extra").filter(has_text="1,234.56").wait_for()
     checks = wait_for_checks(services, "unverified", 2)
-    [chosen] = [c for c in checks if c.filters == {"region": ["North America"]}]
-    assert chosen.flagged == [
-        {"text": "$1,234.56", "path": "p#extra", "code": "R8.unverified_number", "blocks": ["kpi"]}
-    ]
+    [chosen] = [c for c in checks if c.filters == {"region": {"selected": 1}}]
+    assert chosen.flagged == [{"code": "R8.unverified_number", "path": "p#extra", "count": 1}]
     # The viewer is told, the version needs attention, and it can't be certified.
     bar = page.locator("#prumi-unverified")
     bar.wait_for()
@@ -488,7 +486,7 @@ def test_the_browser_reports_numbers_prumi_didnt_deliver(page, server, services,
     config = str(services.config.path)
     assert main(["certify", "unverified", "1", "--config", config]) == 1
     out = capsys.readouterr().out
-    assert '{"region": ["North America"]}' in out and "$1,234.56 in p#extra" in out
+    assert '{"region": {"selected": 1}}' in out and "R8.unverified_number  p#extra  (×1)" in out
 
 
 # Visible errors
