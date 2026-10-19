@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import logging
 import threading
 import time
@@ -85,10 +86,15 @@ class Services:
         metric_request_ids: Collection[int] | None = None,
         check_states: Sequence[Mapping[str, Any]] = (),
         layout_devices: Sequence[str] = (),
+        second_render: bool = True,
     ) -> Report:
         """Static checks, HTML checks, the dry run and the page check, against the current
         catalog; then the same for each of `check_states` (filter values). The layout is
-        measured on desktop, and on `layout_devices` too."""
+        measured on desktop, and on `layout_devices` too.
+
+        `second_render=False` skips rendering the page again in another browser language
+        (R8.browser_locale). Only the test suite passes it, to stay fast: the server, the
+        MCP tools and the CLI always render twice."""
         if metric_request_ids is None:
             metric_request_ids = self.registry.metric_request_ids()
         return validate(
@@ -100,7 +106,7 @@ class Services:
             hosts=self.hosts,
             engine=self.engine,
             viewer=viewer,
-            page_check=self.check_page,
+            page_check=functools.partial(self.check_page, second_render=second_render),
             check_states=check_states,
             layout_devices=layout_devices,
         )
@@ -112,6 +118,7 @@ class Services:
         results: Mapping[str, dict[str, Any]],
         values: Mapping[str, Any] | None = None,
         devices: Sequence[str] = ("desktop",),
+        second_render: bool = True,
     ) -> list[Issue]:
         """Render the page with these block results, as a viewer's browser would."""
         from prumi.server import pages  # the server package imports this module
@@ -133,6 +140,7 @@ class Services:
             values,
             devices,
             locale,
+            second_render,
         )
 
     def publish(
@@ -141,12 +149,16 @@ class Services:
         html: str,
         viewer: Viewer = LOCAL_VIEWER,
         check_states: Sequence[Mapping[str, Any]] = (),
+        second_render: bool = True,
     ) -> tuple[Report, Published | None]:
-        """Validate (the default filter state and `check_states`), then store."""
+        """Validate (the default filter state and `check_states`), then store.
+        `second_render` as for validate: tests only."""
         return publish(
             self.registry,
             spec,
             html,
-            lambda s, h: self.validate(s, h, viewer, check_states=check_states),
+            lambda s, h: self.validate(
+                s, h, viewer, check_states=check_states, second_render=second_render
+            ),
             viewer,
         )

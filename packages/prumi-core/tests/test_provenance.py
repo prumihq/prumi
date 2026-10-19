@@ -94,7 +94,9 @@ def flagged(report) -> list[tuple[str, str | None]]:
 
 @pytest.mark.parametrize("name", sorted(EXPECTED))
 def test_provenance_fixtures(name, demo_services):
-    report = demo_services.validate(*fixture(name))
+    # Pages expected to fail R8.browser_locale get the second render.
+    second = any(code == "R8.browser_locale" for code, _ in EXPECTED[name])
+    report = demo_services.validate(*fixture(name), second_render=second)
     expected = sorted(((code, text) for code, text in EXPECTED[name]), key=str)
     assert flagged(report) == expected, report.issues
     if not EXPECTED[name]:
@@ -430,7 +432,7 @@ def test_a_page_that_formats_with_the_browsers_language_fails(demo_services, sho
     script = (
         f'prumi.on("kpi", (b) => {{ document.getElementById("revenue").textContent = {shown}; }});'
     )
-    report = demo_services.validate(KPI_SPEC, kpi_page(script))
+    report = demo_services.validate(KPI_SPEC, kpi_page(script), second_render=True)
     [issue] = report.errors
     assert issue.code == "R8.browser_locale"
     assert issue.message.startswith(page_check.BROWSER_LOCALE_MESSAGE)
@@ -443,10 +445,11 @@ def test_the_fourth_run_page_formats_with_the_browsers_language(demo_services):
     The same page with prumi.locale there passes (and opens unflagged in a pt-BR browser)."""
     run = Path(__file__).parent / "fixtures" / "fourth_run"
     spec = json.loads((run / "weekly-revenue-aov-regions.spec.json").read_text())
-    report = demo_services.validate(spec, (run / "weekly-revenue-aov-regions.html").read_text())
+    html = (run / "weekly-revenue-aov-regions.html").read_text()
+    report = demo_services.validate(spec, html, second_render=True)
     assert flagged(report) == [("R8.browser_locale", "section#kpi")]
     fixed = (run / "weekly-revenue-aov-regions.fixed.html").read_text()
-    assert demo_services.validate(spec, fixed).ok
+    assert demo_services.validate(spec, fixed, second_render=True).ok
 
 
 @pytest.mark.parametrize(
@@ -461,7 +464,7 @@ def test_the_same_page_with_prumi_format_and_locale_passes(demo_services, shown)
     script = (
         f'prumi.on("kpi", (b) => {{ document.getElementById("revenue").textContent = {shown}; }});'
     )
-    report = demo_services.validate(KPI_SPEC, kpi_page(script))
+    report = demo_services.validate(KPI_SPEC, kpi_page(script), second_render=True)
     assert report.ok and not report.warnings, report.issues
 
 

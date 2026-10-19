@@ -7,7 +7,6 @@ import json
 import pytest
 import yaml
 from prumi.cli import main
-from prumi.config import load_config
 from prumi.services import Services
 
 
@@ -17,8 +16,8 @@ def config(tmp_path, make_demo_config):
 
 
 @pytest.fixture
-def services(config):
-    return Services(load_config(config))
+def services(config, suite_services):
+    return suite_services(config)
 
 
 def prumi(capsys, *args) -> tuple[int, str]:

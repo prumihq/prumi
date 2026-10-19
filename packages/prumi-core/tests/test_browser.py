@@ -471,7 +471,7 @@ def test_the_fourth_run_page_isnt_flagged_in_a_portuguese_browser(
     run = FIXTURES / "fourth_run"
     spec = json.loads((run / "weekly-revenue-aov-regions.spec.json").read_text())
     html = (run / "weekly-revenue-aov-regions.fixed.html").read_text()
-    report, published = services.publish(spec, html)
+    report, published = services.publish(spec, html, second_render=True)
     assert report.ok and published, report.issues
     with live_server(services) as live:
         context = browser.new_context(locale="pt-BR")

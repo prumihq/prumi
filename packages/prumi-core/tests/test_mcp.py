@@ -749,3 +749,50 @@ def test_a_failing_source_sends_no_database_text(server, services, monkeypatch):
     [issue] = report["errors"]
     assert issue["code"] == "query.failed" and "RuntimeError" in issue["message"]
     assert "North" not in json.dumps(report) and "2742409" not in json.dumps(report)
+
+
+# The second render in another browser language
+
+
+@pytest.mark.browser
+def test_validate_spec_over_mcp_always_renders_twice(demo_services, monkeypatch):
+    """The suite's services skip the second render to stay fast; the real ones, behind the
+    MCP tools, never do (there's no argument or setting for it)."""
+    from prumi.mcp import create_mcp
+    from prumi.services import Services
+    from prumi.validate.page import PageChecker
+
+    renders = []
+    check = PageChecker._check
+
+    def spy(self, *args):
+        renders.append(2 if args[-1] else 1)
+        return check(self, *args)
+
+    monkeypatch.setattr(PageChecker, "_check", spy)
+    spec = {
+        "spec_version": 0,
+        "dashboard": {"id": "kpi", "title": "Revenue"},
+        "data": [{"id": "kpi", "metrics": ["revenue"], "window": {"last": 4, "grain": "week"},
+                  "filters": []}],
+        "presentation": {"bindings": {"#kpi": "kpi"}},
+    }  # fmt: skip
+    html = (
+        '<p id="kpi"></p><script>prumi.on("kpi", (b) => { document.getElementById("kpi")'
+        ".textContent = b.rows[0].revenue.toLocaleString(); });</script>"
+    )
+    demo_services.validate(spec, html)
+    demo_services.validate(spec, html, second_render=True)
+    assert renders == [1, 2]
+
+    real = Services(demo_services.config)
+    real.source = demo_services.source
+
+    async def validate_over_mcp():
+        async with Client(create_mcp(real)) as client:
+            return await client.call_tool("validate_spec", {"spec": spec, "html": html})
+
+    result = asyncio.run(validate_over_mcp())
+    assert renders == [1, 2, 2]
+    codes = [i["code"] for i in result.structured_content["errors"]]
+    assert codes == ["R8.browser_locale"]

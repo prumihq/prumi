@@ -19,6 +19,7 @@ from prumi.adapters import (
     Result,
     SourceInfo,
 )
+from prumi.services import Services
 from prumi.source import Source
 
 AS_OF = dt.date(2026, 10, 15)
@@ -180,13 +181,35 @@ path = "{demo_project.db_path.as_posix()}"
     return path
 
 
+class SuiteServices(Services):
+    """The suite's services: validation skips the second render in another browser language
+    unless a test asks for it (second_render=True), which keeps the suite fast. Only the
+    tests of R8.browser_locale need it; the MCP tools always render twice (test_mcp)."""
+
+    def validate(self, *args, second_render=False, **kwargs):
+        return super().validate(*args, second_render=second_render, **kwargs)
+
+    def publish(self, *args, second_render=False, **kwargs):
+        return super().publish(*args, second_render=second_render, **kwargs)
+
+    def check_page(self, *args, second_render=False, **kwargs):
+        return super().check_page(*args, second_render=second_render, **kwargs)
+
+
+@pytest.fixture
+def suite_services():
+    """Builds the suite's services from a config file."""
+    from prumi.config import load_config
+
+    return lambda path: SuiteServices(load_config(path))
+
+
 @pytest.fixture
 def demo_services(tmp_path, demo_project, demo_source):
     """Services on the demo source with an empty registry of their own."""
     from prumi.config import load_config
-    from prumi.services import Services
 
-    services = Services(load_config(write_demo_config(tmp_path, demo_project)))
+    services = SuiteServices(load_config(write_demo_config(tmp_path, demo_project)))
     services.source = demo_source  # reuse the session's loaded adapter
     return services
 
@@ -264,13 +287,12 @@ class LiveServer:
 def live_services(tmp_path_factory, demo_project, demo_source):
     """Builds demo services on a free port, with their own data dir."""
     from prumi.config import load_config
-    from prumi.services import Services
 
     def make():
         directory = tmp_path_factory.mktemp("live")
         path = write_demo_config(directory, demo_project)
         path.write_text(path.read_text().replace("port = 8484", f"port = {free_port()}"))
-        services = Services(load_config(path))
+        services = SuiteServices(load_config(path))
         services.source = demo_source
         return services
 

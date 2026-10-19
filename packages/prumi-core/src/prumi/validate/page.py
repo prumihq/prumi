@@ -250,6 +250,7 @@ class PageChecker:
         values: Mapping[str, Any] | None = None,
         devices: Sequence[str] = ("desktop",),
         locale: str = "en-US",
+        second_render: bool = True,
     ) -> list[Issue]:
         """Issues for what the rendered page shows. `frame_page(origin)` gives the frame's
         HTML and Content-Security-Policy, as the server would serve them. `values` are the
@@ -257,7 +258,8 @@ class PageChecker:
         measured for each of `devices` (see DEVICES). The browser renders in `locale`, the
         server's display locale, and numbers are read in it. In the default state (no
         `values`), the page is rendered once more in another browser language, and bound
-        text that changes with it is R8.browser_locale."""
+        text that changes with it is R8.browser_locale; `second_render=False` skips that
+        (the test suite only)."""
         frame_html, csp = frame_page(ORIGIN)
         setup = {
             "filters": [f.model_dump(mode="json") for f in spec.filters],
@@ -272,7 +274,14 @@ class PageChecker:
         }
         return self._submit(
             lambda browser: self._check(
-                browser, frame_html, csp, setup, allowed_hosts, html, devices, values is None
+                browser,
+                frame_html,
+                csp,
+                setup,
+                allowed_hosts,
+                html,
+                devices,
+                second_render and values is None,
             )
         )
 
