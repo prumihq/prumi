@@ -98,3 +98,19 @@ I'd pick **C**: it shows both what went wrong in the fourth run and that the fix
 **Decision (2026-10-18): C.** The page as written is a must-fail for `R8.browser_locale`; a copy edited on that one line (to `prumi.locale`) is the AC 79 page. AC 79 updated.
 
 **Also decided: the reader is strict, not lenient** (your note in task 71). It reads only the configured locale's separators; with `en-US`, `1.234,5` is no longer read as 1234.5. Accepting both conventions gave a made-up number two chances to match. Under C, the AC 79 page formats in `en-US` whatever the browser, so strict doesn't break it. Rule 3 of section 21 and AC 78 updated; task 71 needs a follow-up commit.
+
+## 6. `prumi.change(-0.0005)` isn't "0%" at one decimal
+
+**Blocks:** the AC 85 test for task 78. The rest of task 78 is done.
+
+**Found:** AC 85 says `prumi.change(-0.0005)` gives `{text: "0%", sign: 0}`, with the default of at most 1 fraction digit. But -0.0005 is -0.05%, which rounds to `-0.1%` at one decimal (Intl rounds half away from zero, and the double for -0.0005 is a hair beyond it anyway). In Chromium: `-0.0005` → `-0.1%`; `-0.0004` and `-0.00049` → `0%`; with `decimals: 0`, `-0.0005` → `0%`. The sign logic works either way: it takes the sign from the formatted parts, so `0%` always has sign 0.
+
+**Options:**
+
+- **A. AC 85 uses `-0.0004`** (-0.04%): `{text: "0%", sign: 0}` at the default of 1 decimal. Nothing else changes.
+- **B. AC 85 uses `prumi.change(-0.0005, {decimals: 0})`.**
+- **C. Default `decimals` 0.** That breaks AC 85's `"+5.3%"` for 0.0532, so it would need more changes.
+
+I'd pick **A**.
+
+**Decision (2026-10-18): A.** AC 85 uses `-0.0004`; `-0.0005` was a mistake in the spec (it rounds to `-0.1%` at one decimal). The minus sign is whatever `Intl` writes for the locale; the spec's example now says `"-3.3%"`.
