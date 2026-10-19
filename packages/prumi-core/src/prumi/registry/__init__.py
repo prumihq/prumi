@@ -23,15 +23,17 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from prumi.adapters import LOCAL_VIEWER, Viewer
 from prumi.issues import Report, error
 from prumi.scrub import scrubber
 from prumi.spec import DashboardSpec, TimeFilter
+from prumi.time import Window
 
 Status = Literal["draft", "certified"]
 FINGERPRINT_VERSION = "v0"
+_WINDOW = TypeAdapter(Window)
 
 
 # Canonical content and fingerprints
@@ -158,7 +160,9 @@ class PageCheck:
     # sha256 of the full filter state, so different selections of a filter stay apart
     # without their values being stored.
     state_key: str
-    filters: dict[str, Any]  # time filters as sent; dimension filters as {"selected": n}
+    # Time filters as sent when they're windows, else {"invalid": true}; dimension filters as
+    # {"selected": n}.
+    filters: dict[str, Any]
     flagged: list[dict[str, Any]]  # [{code, path, count}]: numbers Prumi didn't deliver
     canvas: bool
     # Runtime errors without the report's dimension values or 3+-digit numbers. Page code
@@ -172,8 +176,10 @@ class PageCheck:
 
     @classmethod
     def of(cls, spec: DashboardSpec, report: CheckReport, reported_at: str = "") -> PageCheck:
-        """`report` without company data. Windows are calendar facts and stay; any other
-        filter is treated as a dimension filter and keeps only how many values it selects."""
+        """`report` without company data. Windows are calendar facts and stay, but page code
+        can set any value on a time filter, so one that isn't a window becomes
+        {"invalid": true}. Any other filter is treated as a dimension filter and keeps only
+        how many values it selects. The state key hashes every value as sent."""
         times = {f.id for f in spec.filters if isinstance(f, TimeFilter)}
         selected = {
             fid: value if isinstance(value, list) else [value]
@@ -185,7 +191,9 @@ class PageCheck:
         return cls(
             state_key=_sha256(_canonical_json(report.filters)),
             filters={
-                fid: {"selected": len(selected[fid])} if fid in selected else value
+                fid: {"selected": len(selected[fid])}
+                if fid in selected
+                else _window_or_invalid(value)
                 for fid, value in report.filters.items()
             },
             flagged=[{"code": c, "path": p, "count": n} for (c, p), n in counts.items()],
@@ -193,6 +201,15 @@ class PageCheck:
             errors=[scrub(message) for message in report.errors],
             reported_at=reported_at,
         )
+
+
+def _window_or_invalid(value: Any) -> Any:
+    """`value` if it's a window, in any form a time filter's default accepts."""
+    try:
+        _WINDOW.validate_python(value)
+    except ValidationError:
+        return {"invalid": True}
+    return value
 
 
 @dataclass(frozen=True)

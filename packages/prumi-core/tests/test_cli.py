@@ -171,8 +171,8 @@ def test_certify_refuses_a_version_with_problems_found_in_browsers(
 ):
     from prumi.registry import CheckReport
 
-    def report(region, flagged=(), canvas=False, errors=()):
-        filters = {"region": region}
+    def report(region, flagged=(), canvas=False, errors=(), **times):
+        filters = {"region": region, **times}
         return CheckReport(filters=filters, flagged=flagged, canvas=canvas, errors=errors)
 
     services.publish(*demo_dashboard)
@@ -180,6 +180,8 @@ def test_certify_refuses_a_version_with_problems_found_in_browsers(
     flagged = [{"text": "$1,234.56", "path": "p#extra"}, {"text": "$7.50", "path": "p#extra"}]
     services.registry.record_check("sales", 1, report(["North"], flagged))
     services.registry.record_check("sales", 1, report(["West"], canvas=True, errors=["boom"]))
+    # Page code set something that isn't a window on the time filter.
+    services.registry.record_check("sales", 1, report([], canvas=True, period="Sentinelia"))
 
     code, out = prumi(capsys, "certify", "sales", "1", "--config", str(config))
     assert code == 1
@@ -188,8 +190,10 @@ def test_certify_refuses_a_version_with_problems_found_in_browsers(
     assert out.count('{"region": {"selected": 1}}  (reported ') == 2
     assert "R8.unverified_number  p#extra  (×2)" in out
     assert "html.canvas" in out and "html.runtime_error  boom" in out
-    assert '{"region": {"selected": 0}}' not in out
+    assert '{"period": {"invalid": true}, "region": {"selected": 0}}  (reported ' in out
+    assert out.count('{"region": {"selected": 0}}') == 0  # the clean report isn't listed
     assert "North" not in out and "1,234" not in out and "7.50" not in out
+    assert "Sentinelia" not in out
     assert services.registry.status("sales", 1).status == "draft"
 
 

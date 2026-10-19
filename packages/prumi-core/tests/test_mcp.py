@@ -747,6 +747,23 @@ def test_browser_reports_reach_the_agent_without_data(server, services):
     assert "North" not in text and "1,234" not in text and "7.5" not in text
 
 
+def test_a_time_filter_value_that_isnt_a_window_reaches_the_agent_as_invalid(server, services):
+    from prumi.registry import CheckReport
+
+    spec = readback_spec("windows")
+    spec["filters"] = [{"id": "period", "type": "time", "default": {"last": 4, "grain": "week"}}]
+    spec["data"] = [{"id": "kpi", "metrics": ["revenue"], "filters": ["period"]}]
+    services.registry.save(DashboardSpec.model_validate(spec), READBACK_HTML)
+    for period in ("Sentinelia", {"last": 8, "grain": "week"}):
+        report = CheckReport(filters={"period": period}, flagged=[], canvas=True, errors=[])
+        services.registry.record_check("windows", 1, report)
+    checks = ok(call(server, "get_dashboard", id="windows", include_html=False))["checks"]
+    filters = [c["filters"] for c in checks]  # reported in the same second: any order
+    assert len(filters) == 2 and {"period": {"invalid": True}} in filters
+    assert {"period": {"last": 8, "grain": "week"}} in filters  # a window, as sent
+    assert "Sentinelia" not in json.dumps(checks)
+
+
 def test_a_failing_source_sends_no_database_text(server, services, monkeypatch):
     secret = "Binder Error: column 'North America' not found near 2742409.35"
 

@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -325,6 +326,62 @@ def test_reports_for_each_selection_of_a_filter_are_kept_apart(registry):
     registry.save(regional(), HTML + "<!-- 2 -->")
     assert not registry.status("sales", 1).needs_attention
     assert not registry.status("sales", 2).needs_attention
+
+
+@pytest.mark.parametrize(
+    "window",
+    [
+        {"last": 4, "grain": "month", "include_current": True},
+        {"to_date": "year"},
+        {"start": "2026-01-01", "end": "2026-03-31"},
+        {"start": "2026-01-01", "end": "2026-03-31", "grain": "week"},
+    ],
+)
+def test_a_time_filter_value_that_is_a_window_is_stored_as_sent(registry, window):
+    from prumi.registry import CheckReport
+
+    registry.save(regional(), HTML)
+    sent = CheckReport(filters={"period": window}, flagged=[], canvas=False, errors=[])
+    assert registry.record_check("sales", 1, sent).filters == {"period": window}
+    assert registry.checks("sales", 1)[0].filters == {"period": window}
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "Sentinelia",
+        12,
+        None,
+        ["Sentinelia"],
+        {"last": 12},  # no grain
+        {"last": 0, "grain": "week"},
+        {"last": 12, "grain": "fortnight"},
+        {"to_date": "week", "note": "Sentinelia"},
+        {"start": "2026-03-31", "end": "2026-01-01"},
+        {"name": "Sentinelia"},
+    ],
+)
+def test_a_time_filter_value_that_isnt_a_window_is_stored_as_invalid(registry, value):
+    from prumi.registry import CheckReport
+
+    registry.save(regional(), HTML)
+    wal = registry.path.with_name(registry.path.name + "-wal")
+    # While another connection is open, the write stays in the -wal file.
+    with closing(sqlite3.connect(registry.path)) as reader:
+        reader.execute("SELECT count(*) FROM page_checks").fetchone()
+        for region in ([], ["North"]):
+            filters = {"period": value, "region": region}
+            sent = CheckReport(filters=filters, flagged=[], canvas=True, errors=[])
+            registry.record_check("sales", 1, sent)
+        stored = registry.path.read_bytes() + wal.read_bytes()
+    checks = registry.checks("sales", 1)
+    assert [c.filters["period"] for c in checks] == [{"invalid": True}] * 2
+    # The state key still hashes the value as sent: each state keeps its own report.
+    assert {c.state_key for c in checks} == {
+        state_key({"period": value, "region": region}) for region in ([], ["North"])
+    }
+    assert b'"period":{"invalid":true}' in stored
+    assert b"Sentinelia" not in stored and b"fortnight" not in stored
 
 
 def test_a_report_for_an_unknown_version_is_refused(registry):
