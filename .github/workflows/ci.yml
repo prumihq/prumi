@@ -19,3 +19,13 @@ jobs:
         env:
           # Browser tests skip locally when Chromium is missing; in CI they must run.
           PRUMI_REQUIRE_BROWSER: "1"
+
+  install-check:
+    # Prumi as users get it: both packages built, installed with `uv tool install "prumi[dbt]"`
+    # into a temporary tool directory, and started on the demo (not part of `uv run pytest`).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv sync --locked
+      - run: uv run python scripts/check_install.py --with-deps

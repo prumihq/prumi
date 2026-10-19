@@ -105,6 +105,7 @@ Every number on a dashboard is computed by the source at the grain it's shown: P
 | `specs/` | Specs and task lists, one spec per minor release |
 | `docs/bi-rules.md` | The BI rules R1–R10 and their issue codes |
 | `docs/adr/` | Architecture decision records: why Prumi works the way it does |
+| `scripts/` | The install check |
 | `spikes/` | Throwaway experiments |
 
 ## Development
@@ -117,6 +118,12 @@ uv run ruff format
 ```
 
 Like the server, the tests need headless Chromium: `uv run prumi install-chromium --with-deps`. The full suite takes about 4 minutes, because most tests render a page in Chromium. [AGENTS.md](AGENTS.md) describes how work is organized (specs, ADRs, code style), for people and coding agents alike.
+
+The install check tries Prumi as users get it from PyPI, without uploading anything: it builds both packages, installs them with `uv tool install "prumi[dbt]"` into a temporary tool directory (never your own), runs `prumi install-chromium`, starts `prumi serve` on the demo and opens its home page, and runs `twine check` on the built files. It isn't part of `uv run pytest`; CI runs it as a job of its own.
+
+```sh
+uv run python scripts/check_install.py
+```
 
 ## License
 

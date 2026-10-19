@@ -26,6 +26,8 @@ dev = [
     "httpx2",
     "pytest>=8",
     "ruff>=0.6",
+    # `twine check` in the install check: the package READMEs must render on PyPI.
+    "twine>=6",
 ]
 
 [tool.ruff]

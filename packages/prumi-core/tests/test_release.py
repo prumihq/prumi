@@ -12,6 +12,7 @@ from pathlib import Path
 
 import prumi
 import pytest
+import yaml
 
 PACKAGES = Path(__file__).parents[2]
 VERSION = "0.1.0"
@@ -146,3 +147,13 @@ def test_the_adapter_wheel_registers_itself(wheels):
     assert "Requires-Dist: metricflow==0.213.0" in metadata
     assert "Requires-Dist: prumi<0.2,>=0.1.0" in metadata
     assert "Requires-Dist: duckdb; extra == 'duckdb'" in metadata
+
+
+def test_ci_runs_the_install_check_in_a_job_of_its_own():
+    ci = yaml.safe_load((PACKAGES.parent / ".github" / "workflows" / "ci.yml").read_text())
+    runs = {name: [s.get("run", "") for s in job["steps"]] for name, job in ci["jobs"].items()}
+    jobs = [
+        n for n, commands in runs.items() if any("scripts/check_install.py" in c for c in commands)
+    ]
+    assert jobs == ["install-check"]
+    assert not [c for c in runs["install-check"] if "pytest" in c]
