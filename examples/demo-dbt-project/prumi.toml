@@ -6,6 +6,7 @@ host = "127.0.0.1"
 port = 8484
 data_dir = ".prumi"
 as_of = "2026-10-15"  # pins "today": October 2026 is a partial month, data ends the day before
+locale = "en-US"  # how every page shows numbers, whatever the viewer's browser language
 script_hosts = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
 style_hosts = ["fonts.googleapis.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
 font_hosts = ["fonts.gstatic.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]

@@ -78,7 +78,7 @@ def create_app(services: Services) -> HostCheck:
             return _not_found_page("There's no such dashboard version.")
         origin = f"http://{request.headers['host']}"
         return HTMLResponse(
-            pages.frame_html(stored.html, origin),
+            pages.frame_html(stored.html, origin, server.locale),
             headers={
                 "Content-Security-Policy": pages.frame_csp(origin, services.hosts),
                 "X-Content-Type-Options": "nosniff",

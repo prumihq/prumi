@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import ipaddress
+import re
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -14,6 +15,9 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 DEFAULT_SOURCE = "default"
+DEFAULT_LOCALE = "en-US"
+# A BCP 47 tag's shape. Whether the browser knows it is checked when the server starts.
+_LOCALE = re.compile(r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*")
 
 DEFAULT_SCRIPT_HOSTS = ("cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com")
 DEFAULT_STYLE_HOSTS = (
@@ -35,6 +39,7 @@ class ServerConfig:
     port: int
     data_dir: Path
     as_of: dt.date | None
+    locale: str = DEFAULT_LOCALE
     script_hosts: tuple[str, ...] = DEFAULT_SCRIPT_HOSTS
     style_hosts: tuple[str, ...] = DEFAULT_STYLE_HOSTS
     font_hosts: tuple[str, ...] = DEFAULT_FONT_HOSTS
@@ -63,9 +68,19 @@ class _Server(BaseModel):
     port: int = Field(default=8484, ge=1, le=65535)
     data_dir: str = ".prumi"
     as_of: dt.date | None = None
+    locale: str = DEFAULT_LOCALE
     script_hosts: tuple[str, ...] = DEFAULT_SCRIPT_HOSTS
     style_hosts: tuple[str, ...] = DEFAULT_STYLE_HOSTS
     font_hosts: tuple[str, ...] = DEFAULT_FONT_HOSTS
+
+    @field_validator("locale")
+    @classmethod
+    def _locale_tag(cls, locale: str) -> str:
+        if not _LOCALE.fullmatch(locale):
+            raise ValueError(
+                f"{locale!r} isn't a locale tag; use a BCP 47 tag such as en-US, pt-BR or de-DE"
+            )
+        return locale
 
     @field_validator("host")
     @classmethod
@@ -114,6 +129,7 @@ def load_config(path: str | Path) -> Config:
             port=server.port,
             data_dir=(config_dir / server.data_dir).resolve(),
             as_of=server.as_of,
+            locale=server.locale,
             script_hosts=server.script_hosts,
             style_hosts=server.style_hosts,
             font_hosts=server.font_hosts,

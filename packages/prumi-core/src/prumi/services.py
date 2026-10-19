@@ -118,13 +118,17 @@ class Services:
 
         labels, formats = pages.labels_and_formats(spec, self.source)
         hosts = self.hosts
+        locale = self.config.server.locale
         return self.checker.check(
             spec,
             html,
             results,
             labels,
             formats,
-            lambda origin: (pages.frame_html(html, origin), pages.frame_csp(origin, hosts)),
+            lambda origin: (
+                pages.frame_html(html, origin, locale),
+                pages.frame_csp(origin, hosts),
+            ),
             frozenset(hosts.script) | frozenset(hosts.style) | frozenset(hosts.font),
             values,
             devices,

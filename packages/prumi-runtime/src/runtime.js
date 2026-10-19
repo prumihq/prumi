@@ -12,6 +12,20 @@
   var HANDSHAKE_MS = 2000;
   var NOTICE = "This dashboard only works inside Prumi";
 
+  // The server's display locale (one per server), from this script's tag: every viewer sees
+  // numbers formatted the same way, whatever their browser's language, and the number check
+  // reads them in the same locale.
+  var LOCALE = (function () {
+    var tag = document.currentScript && document.currentScript.getAttribute("data-locale");
+    if (!tag) return "en-US";
+    try {
+      Intl.getCanonicalLocales(tag); // throws on a malformed tag
+      return tag;
+    } catch (error) {
+      return "en-US";
+    }
+  })();
+
   var inShell = window.parent !== window;
   var connected = false;
   var dead = false;
@@ -317,7 +331,7 @@
       if (decimals === undefined) delete intl.maximumFractionDigits;
     }
     try {
-      return new Intl.NumberFormat(undefined, intl).format(value);
+      return new Intl.NumberFormat(LOCALE, intl).format(value);
     } catch (error) {
       return String(value);
     }
@@ -357,6 +371,8 @@
       send("click", { block: blockId, row: copy(row) });
     },
     format: format,
+    // For the page's own Intl calls (dates, other text): new Intl.DateTimeFormat(prumi.locale).
+    locale: LOCALE,
     label: function (name) {
       return Object.prototype.hasOwnProperty.call(labels, name) ? labels[name] : name;
     },

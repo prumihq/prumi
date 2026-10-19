@@ -96,6 +96,7 @@ Prumi loads a default theme before your styles: CSS variables on `:root`, light 
 | `prumi.click(blockId, row)` | Applies the interactions declared `from` that block, using `row` (an item of `result.rows`). | nothing |
 | `prumi.format(value, metric, options?)` | Formats a value for display. `metric` is a metric name (`"revenue"`): the type and unit always come from the metric's definition. `options` only change the presentation: `{decimals: 0}`, `{compact: true}` (`$80K`, `$2.7M`). `null` gives `"–"`. Anything other than a metric name (a format object, a typo) formats as a plain number and warns in the browser console. | string |
 | `prumi.label(name)` | A metric's or dimension's label from the catalog (`"customer__region"` → `"Region"`). | string |
+| `prumi.locale` | The server's display locale (`"en-US"`, `"pt-BR"`), a string. `prumi.format` uses it; pass it to your own `Intl` calls. | string |
 
 ### The result object
 

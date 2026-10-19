@@ -25,6 +25,7 @@ def test_the_demo_config():
     server = config.server
     assert (server.host, server.port) == ("127.0.0.1", 8484)
     assert server.as_of == dt.date(2026, 10, 15)
+    assert server.locale == "en-US"
     assert server.data_dir == DEMO_CONFIG.parent / ".prumi"
     assert server.font_hosts[0] == "fonts.gstatic.com"
     [(name, source)] = config.sources.items()
@@ -44,6 +45,7 @@ def test_defaults_and_relative_paths(tmp_path):
         None,
     )
     assert config.server.script_hosts == DEFAULT_SCRIPT_HOSTS
+    assert config.server.locale == "en-US"
     assert dict(config.sources["default"].settings) == {}
     assert config.sources["default"].project is None
 
@@ -77,6 +79,8 @@ def test_a_non_loopback_host_fails_with_a_clear_message(tmp_path, host):
         ("[server]\nport = 70000\n" + MINIMAL, "server.port"),
         ("[server]\nprot = 8484\n" + MINIMAL, "server.prot: unknown key"),
         ('[server]\nas_of = "soon"\n' + MINIMAL, "server.as_of"),
+        ('[server]\nlocale = "en_US"\n' + MINIMAL, "server.locale: 'en_US' isn't a locale tag"),
+        ('[server]\nlocale = ""\n' + MINIMAL, "server.locale"),
         ("[server]\n", "[source] needs `adapter`"),
         (MINIMAL + "[source.dbtt]\nx = 1\n", "unknown key(s) in [source]: dbtt"),
         (MINIMAL + "[sources]\n", "unknown section(s) sources"),
@@ -94,6 +98,12 @@ def test_the_project_name_is_optional_and_stays_out_of_the_adapters_settings(tmp
     config = load_config(write(tmp_path, MINIMAL + 'project = "jaffle_shop"\n'))
     source = config.sources["default"]
     assert source.project == "jaffle_shop" and dict(source.settings) == {}
+
+
+@pytest.mark.parametrize("locale", ["pt-BR", "de-DE", "en", "zh-Hant-TW"])
+def test_locale_tags(tmp_path, locale):
+    config = load_config(write(tmp_path, f'[server]\nlocale = "{locale}"\n' + MINIMAL))
+    assert config.server.locale == locale
 
 
 def test_a_missing_config_file(tmp_path):

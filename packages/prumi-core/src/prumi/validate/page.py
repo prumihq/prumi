@@ -200,6 +200,21 @@ class PageChecker:
         self._jobs.put((work, result))
         return result.result()
 
+    def supports_locale(self, locale: str) -> bool:
+        """Whether Chromium formats numbers in `locale`, rather than silently falling back to
+        another one."""
+
+        def work(browser) -> bool:
+            page = browser.new_page()
+            try:
+                return page.evaluate(
+                    "(tag) => Intl.NumberFormat.supportedLocalesOf([tag]).length > 0", locale
+                )
+            finally:
+                page.close()
+
+        return self._submit(work)
+
     # The check
 
     def check(

@@ -9,7 +9,8 @@ from prumi.server.pages import frame_html
 ORIGIN = "http://127.0.0.1:8484"
 RUNTIME = (
     f'<link rel="stylesheet" href="{ORIGIN}/theme.css">'
-    f'<script src="{ORIGIN}/provenance.js"></script><script src="{ORIGIN}/runtime.js"></script>'
+    f'<script src="{ORIGIN}/provenance.js"></script>'
+    f'<script src="{ORIGIN}/runtime.js" data-locale="en-US"></script>'
 )
 CSP = (
     "sandbox allow-scripts; default-src 'none'; "
@@ -39,7 +40,7 @@ def test_the_frame_is_sandboxed_with_the_runtime_first_in_head(client, demo_dash
 def test_the_origin_follows_the_host_header(client):
     response = client.get("/d/sales/v/1/frame", headers={"Host": "localhost:8484"})
     assert "script-src http://localhost:8484 " in response.headers["content-security-policy"]
-    assert '<script src="http://localhost:8484/runtime.js">' in response.text
+    assert '<script src="http://localhost:8484/runtime.js" data-locale="en-US">' in response.text
 
 
 @pytest.mark.parametrize(
@@ -59,7 +60,12 @@ def test_the_origin_follows_the_host_header(client):
     ],
 )
 def test_runtime_injection(html, expected):
-    assert frame_html(html, ORIGIN) == expected
+    assert frame_html(html, ORIGIN, "en-US") == expected
+
+
+def test_the_runtime_tag_carries_the_servers_locale():
+    html = frame_html("<p>x</p>", ORIGIN, "pt-BR")
+    assert f'<script src="{ORIGIN}/runtime.js" data-locale="pt-BR"></script>' in html
 
 
 def test_unknown_frames_are_404(client):

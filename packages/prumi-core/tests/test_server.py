@@ -59,6 +59,22 @@ def test_serve_refuses_a_non_loopback_host(capsys, tmp_path):
     assert "isn't a loopback address" in capsys.readouterr().err
 
 
+@pytest.mark.browser
+def test_serve_refuses_a_locale_the_browser_doesnt_know(
+    capsys, tmp_path, make_demo_config, monkeypatch
+):
+    from prumi.validate.page import PageChecker
+
+    # serve() closes its checker on the way out: not the one the other tests share.
+    monkeypatch.setattr("prumi.services.shared_checker", PageChecker)
+    path = make_demo_config(tmp_path)
+    path.write_text(path.read_text().replace("[server]\n", '[server]\nlocale = "xx-YY"\n', 1))
+    assert main(["serve", "--config", str(path)]) == 1
+    error = capsys.readouterr().err
+    assert "server.locale: 'xx-YY' isn't a locale the browser knows" in error
+    assert str(path) in error
+
+
 # The block API
 
 

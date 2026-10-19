@@ -187,11 +187,14 @@ _HTML = re.compile(r"<html(?:\s[^>]*)?>", re.IGNORECASE)
 _DOCTYPE = re.compile(r"\A\s*<!doctype[^>]*>", re.IGNORECASE)
 
 
-def frame_html(html: str, origin: str) -> str:
-    """The stored HTML with the theme and the runtime first in <head> (added if missing)."""
+def frame_html(html: str, origin: str, locale: str) -> str:
+    """The stored HTML with the theme and the runtime first in <head> (added if missing). The
+    runtime reads the server's locale from its tag, so prumi.locale is set before page
+    scripts run."""
     script = (
         f'<link rel="stylesheet" href="{origin}/theme.css">'
-        f'<script src="{origin}/provenance.js"></script><script src="{origin}/runtime.js"></script>'
+        f'<script src="{origin}/provenance.js"></script>'
+        f'<script src="{origin}/runtime.js" data-locale="{escape(locale)}"></script>'
     )
     if match := _HEAD.search(html):
         return html[: match.end()] + script + html[match.end() :]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from prumi.config import ConfigError
 from prumi.services import Services
 
 SHUTDOWN_TIMEOUT_S = 5
@@ -19,6 +20,12 @@ def serve(services: Services) -> None:
     services.checker.start()
     server = services.config.server
     try:
+        if not services.checker.supports_locale(server.locale):
+            raise ConfigError(
+                f"{services.config.path}: server.locale: {server.locale!r} isn't a locale the "
+                "browser knows, so numbers can't be formatted in it. Use a tag such as en-US, "
+                "pt-BR or de-DE."
+            )
         # Ctrl+C or SIGTERM: requests still running after 5 s are cancelled. MCP keeps no
         # stream open between requests (stateless), so nothing else holds the server up.
         uvicorn.run(

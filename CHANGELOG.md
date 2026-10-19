@@ -31,3 +31,4 @@ The first release: it proves the core loop on one machine, for one local user, a
 - One source, dbt on DuckDB only, with the legacy `measures:` YAML.
 - `metric_time` is the only time dimension, with the standard calendar.
 - Manifest changes need a restart.
+- One display locale per server (`[server] locale`, default `en-US`): every viewer sees numbers formatted the same way, whatever their browser's language.

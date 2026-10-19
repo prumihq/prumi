@@ -4,6 +4,7 @@ Headless Chromium through Playwright. Skipped when Chromium isn't installed
 (`uv run playwright install chromium`); with PRUMI_REQUIRE_BROWSER=1 (CI) that's a failure.
 """
 
+import dataclasses
 import os
 import re
 import time
@@ -291,6 +292,53 @@ def test_format_takes_a_metric_name_and_presentation_options(page, server):
     unknown = [w for w in warnings if w.startswith("prumi.format: unknown metric")]
     assert len(unknown) == 3  # the format object once, "nope" once, the missing argument once
     assert unknown[0].startswith('prumi.format: unknown metric {"type":"currency","unit":"EUR"};')
+
+
+def with_locale(services, locale):
+    """The services with another [server] locale."""
+    config = services.config
+    services.config = dataclasses.replace(
+        config, server=dataclasses.replace(config.server, locale=locale)
+    )
+    return services
+
+
+@pytest.fixture(scope="module")
+def pt_br_server(live_services, live_server):
+    services = with_locale(live_services(), "pt-BR")
+    probe = FIXTURES / "browser" / "probe"
+    services.registry.save(
+        DashboardSpec.model_validate(load_spec_file(probe.with_suffix(".yaml"))),
+        probe.with_suffix(".html").read_text(),
+    )
+    with live_server(services) as live:
+        yield live
+
+
+@pytest.mark.parametrize(
+    ("which", "language", "locale", "compact"),
+    [("pt_br_server", "en-US", "pt-BR", "US$ 47 mil"), ("server", "pt-BR", "en-US", "$47K")],
+)
+def test_format_uses_the_servers_locale_not_the_browsers(
+    browser, request, which, language, locale, compact
+):
+    context = browser.new_context(locale=language)
+    try:
+        page = context.new_page()
+        page.set_default_timeout(TIMEOUT)
+        _, frame = open_dashboard(page, request.getfixturevalue(which))
+        wait_for_calls(frame, "formats")
+        found = frame.evaluate(
+            """() => ({
+                browser: navigator.language,
+                locale: prumi.locale,
+                compact: prumi.format(47123, "revenue", {compact: true}),
+            })"""
+        )
+        found["compact"] = found["compact"].replace("\u00a0", " ")
+        assert found == {"browser": language, "locale": locale, "compact": compact}
+    finally:
+        context.close()
 
 
 def test_a_bad_filter_value_reaches_on_error(page, server):

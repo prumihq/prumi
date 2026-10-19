@@ -25,15 +25,16 @@ def test_the_example_validates_on_the_demo(demo_services):
     assert not report.warnings, report.warnings
 
 
-def test_the_guide_names_every_runtime_function():
+def test_the_guide_names_every_runtime_member():
     api = RUNTIME.read_text().split("window.prumi = Object.freeze({", 1)[1].split("\n  });", 1)[0]
-    functions = re.findall(r"^    (\w+):", api, re.M)
-    assert set(functions) == {
+    members = re.findall(r"^    (\w+):", api, re.M)
+    assert set(members) == {
         "on", "onError", "setFilter", "getFilter", "filterValues", "onFilters", "click",
-        "format", "label",
+        "format", "locale", "label",
     }  # fmt: skip
-    for name in functions:
-        assert f"`prumi.{name}(" in GUIDE, name
+    for name in members:
+        named = f"`prumi.{name}`" if name == "locale" else f"`prumi.{name}("  # a string
+        assert named in GUIDE, name
 
 
 def test_the_inlined_schema_is_the_committed_one():
