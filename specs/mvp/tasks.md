@@ -126,3 +126,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 81. Server side: redacted state and state key, flagged items reduced to code, path and count, errors cleaned with the report's filter values and the number rule, `text` and `blocks` accepted but never stored, migration 3, `prumi certify` output, `get_dashboard` reads the stored report, README "What Prumi stores" (AC 87, 88, 90)
 - [x] 82. Shell side: post flagged items without `text` and `blocks`, clean error messages with the block results the shell holds; the viewer bar keeps the text (AC 89)
 
+## Docs that list the code (spec section 24; added 2026-10-19, draft)
+
+- [ ] 83. Tests: the README names every MCP tool and CLI command, the runtime README every `window.prumi` member — done when the three tests pass on the current files and each fails, naming the item and the file, when one is removed. Docs: none, tests only (AC 91)
+

@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, section 23 on 2026-10-19)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, section 23 on 2026-10-19); section 24 draft
 
 ## Goal
 
@@ -1001,6 +1001,16 @@ The browser reports of 19.1b are stored in `page_checks` as they arrive: the tex
 - The AC 87 test keeps a second connection open so the write stays in `-wal`, checks the report landed there, then searches both files.
 - Suite after section 23: 839 tests in about 243 s.
 
+### 24. Docs that list the code stay complete (added 2026-10-19, draft)
+
+A docs pass before 0.1.0 found lists in the READMEs that had fallen behind the code: the runtime README's list of `window.prumi` members lacked `change` and `locale`. Lists can be checked mechanically; prose can't, and `AGENTS.md`'s docs rule covers it. This section adds tests only; nothing in the product changes.
+
+- Every tool the MCP server lists (`list_tools`) is named in backticks in `README.md`.
+- Every `prumi` CLI subcommand is named in `README.md`, in backticks or as `prumi <command>`.
+- Every member of `window.prumi` in `runtime.js` is named in backticks in `packages/prumi-runtime/README.md`, found the same way as the guide's test finds them.
+
+The tests read only shipped files (README files and code), never `specs/`, and run without a browser. When one fails, its message names the missing item and the file to add it to.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -1153,3 +1163,4 @@ Each criterion has at least one automated test unless it says otherwise.
 88. Reports for two different selections of the same dimension filter are stored apart: a clean report for one leaves the version's `needs_attention` set by the other, and a clean report for the same selection clears it.
 89. *(browser test)* On a published page whose number check flags a number for a non-default state, the viewer bar lists the flagged text, and the report the shell posts has no `text` and no `blocks`; an error message that contains a dimension value from that state's block results is posted with `…` in its place.
 90. Opening a registry created before section 23 runs migration 3: earlier reports are gone and new reports are stored as in item 4. The README's "What Prumi stores" names the check reports and says they hold no numbers or names from the data.
+91. Removing an MCP tool's name from `README.md`, a CLI command from `README.md`, or a `window.prumi` member from `packages/prumi-runtime/README.md` makes the matching test fail with a message naming the missing item and the file; the current files pass.

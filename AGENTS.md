@@ -22,12 +22,24 @@ uv run ruff format      # format
 
 ## Rules that shape the code
 
-The BI rules R1–R10 and their issue codes are explained in `docs/bi-rules.md`. Keep it in sync when a rule or code changes.
+The BI rules R1–R10 and their issue codes are explained in `docs/bi-rules.md`.
 
 - **Numbers only come from the source.** The engine never re-implements a metric definition and never re-aggregates non-additive metrics (ratios, averages, distinct counts). Dashboards get every number through the runtime.
 - **Access rules belong to the source.** Prumi passes the viewer's identity; it never decides who sees which rows.
 - **Adapters are separate packages** behind the adapter protocol in `prumi-core`. Core never imports an adapter directly.
 - **Database dialects are not Prumi's job.** For dbt, MetricFlow generates the SQL.
+
+## Docs are part of the task
+
+A task isn't done until the docs it affects match the code, in the same commit:
+
+- `CHANGELOG.md`: a line for each change a user can see: an MCP tool, a CLI command, a config key, a page, a rule or issue code, a limitation.
+- `README.md`: when the quick start, a command, an MCP tool, a config key or where data goes changes.
+- A package's `README.md`: when its public API changes (`window.prumi`, the adapter protocol, `config.meta.prumi`).
+- `docs/bi-rules.md`: when a BI rule or an issue code changes.
+- `docs/adr/`: never edit an accepted ADR. If your change makes one wrong, write it in `questions.md` and stop.
+
+Your report lists the docs you changed, or says that none were affected.
 
 ## Layout
 
