@@ -131,7 +131,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 - [x] 83. Tests: the README names every MCP tool and CLI command, the runtime README every `window.prumi` member — done when the three tests pass on the current files and each fails, naming the item and the file, when one is removed. Docs: none, tests only (AC 91)
 
-## Published on PyPI (spec section 25; added 2026-10-19, draft)
+## Published on PyPI (spec section 25; added 2026-10-19)
 
 - [ ] 85. Publish `prumi-core` as `prumi`: the package name, the adapter's dependency, the workspace, the `dbt` extra, the missing-adapter message, the release test — done when `uv lock` resolves and the release test passes with the new names (AC 93 names and extra, AC 95 adapter message). Docs: CHANGELOG, `AGENTS.md`, README (layout row), and the package READMEs where they name the package
 - [ ] 86. PyPI metadata and pages: authors, URLs, keywords, classifiers; the `prumi` and adapter READMEs as PyPI pages with absolute links; README "Your own dbt project" starts with the PyPI install — done when AC 93 passes. Docs: the package READMEs, README

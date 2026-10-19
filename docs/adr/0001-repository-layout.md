@@ -1,6 +1,6 @@
 # 0001. Repository layout
 
-Status: Accepted · 2026-10-17
+Status: Accepted · 2026-10-17 · package names replaced by [ADR 0014](0014-package-names-on-pypi.md)
 
 ## Context
 

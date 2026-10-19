@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–24 on 2026-10-19); section 25 draft
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–25 on 2026-10-19)
 
 ## Goal
 
@@ -1020,7 +1020,7 @@ The tests read only shipped files (README files and code), never `specs/`, and r
 - AC 91 is automated: each check also runs on its file with each item removed in turn, and asserts that the message names the item and the file. Messages read, for example, "README.md doesn't name the CLI command `delete`: add it to README.md, in backticks or as `prumi <command>`."
 - Suite after sections 23–24: 857 tests in about 239 s.
 
-### 25. Published on PyPI (added 2026-10-19, draft)
+### 25. Published on PyPI (added and accepted 2026-10-19)
 
 0.1.0 can be installed from PyPI as well as run from a clone. The quick start stays on a clone, because the demo project lives in the repository; the PyPI install is for your own dbt project. Nothing is uploaded before the repository is public: a package carries the full source. An upload can't be taken back, and a version number can be used only once.
 

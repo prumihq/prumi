@@ -4,7 +4,7 @@ Short records of technical decisions: context, decision, consequences. Numbered,
 
 | # | Decision | Status |
 |---|---|---|
-| [0001](0001-repository-layout.md) | Repository layout: one repo, uv workspace, one package per adapter | Accepted |
+| [0001](0001-repository-layout.md) | Repository layout: one repo, uv workspace, one package per adapter | Accepted; package names replaced by [0014](0014-package-names-on-pypi.md) |
 | [0002](0002-dbt-adapter-metricflow-compiles.md) | dbt adapter: MetricFlow compiles from the semantic manifest, Prumi executes over its own connection | Accepted |
 | [0003](0003-access-belongs-to-the-source.md) | Access rules belong to the source; every query runs as a viewer | Accepted |
 | [0004](0004-sandboxed-frame.md) | Dashboards run in a sandboxed frame; the browser sends only filter values | Accepted |
@@ -17,4 +17,4 @@ Short records of technical decisions: context, decision, consequences. Numbered,
 | [0011](0011-one-display-locale.md) | One display locale per server | Accepted |
 | [0012](0012-dashboard-spec-format.md) | The dashboard spec is Prumi's own format: what a dashboard shows, never what a metric means | Accepted |
 | [0013](0013-registry-sqlite.md) | The registry is SQLite, in WAL mode, with plain-SQL migrations | Accepted |
-| [0014](0014-package-names-on-pypi.md) | Package names on PyPI: the server is `prumi`, adapters stay separate, `prumi[dbt]` installs both | Proposed |
+| [0014](0014-package-names-on-pypi.md) | Package names on PyPI: the server is `prumi`, adapters stay separate, `prumi[dbt]` installs both | Accepted |

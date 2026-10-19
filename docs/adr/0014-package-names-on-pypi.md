@@ -1,6 +1,6 @@
 # 0014. Package names on PyPI
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 
