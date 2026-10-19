@@ -74,7 +74,7 @@ def chromium(demo_services):
     except page_check.BrowserStartupError:
         if os.environ.get("PRUMI_REQUIRE_BROWSER"):
             raise
-        pytest.skip("Headless Chromium can't start; run `uv run playwright install chromium`.")
+        pytest.skip("Headless Chromium can't start; run `uv run prumi install-chromium`.")
 
 
 def flagged(report) -> list[tuple[str, str | None]]:
@@ -198,7 +198,7 @@ def test_serve_without_chromium_fails_with_the_install_command(
     finally:
         if page_check._shared is not None:
             page_check._shared.close()
-    assert "uv run playwright install chromium" in capsys.readouterr().err
+    assert "run `prumi install-chromium`" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

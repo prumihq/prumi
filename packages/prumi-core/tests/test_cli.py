@@ -3,6 +3,8 @@
 import copy
 import getpass
 import json
+import subprocess
+import sys
 
 import pytest
 import yaml
@@ -18,6 +20,10 @@ def config(tmp_path, make_demo_config):
 @pytest.fixture
 def services(config, suite_services):
     return suite_services(config)
+
+
+def completed(returncode: int) -> subprocess.CompletedProcess:
+    return subprocess.CompletedProcess([], returncode)
 
 
 def prumi(capsys, *args) -> tuple[int, str]:
@@ -168,6 +174,39 @@ def test_serve_without_the_dbt_adapter_names_the_prumi_extra(capsys, config, mon
     code, out = prumi(capsys, "serve", "--config", str(config))
     assert code == 1 and out.startswith("prumi: No Prumi adapter named 'dbt' is installed")
     assert '"prumi[dbt]"' in out
+
+
+@pytest.mark.parametrize(
+    ("args", "playwright_args"),
+    [([], ["install", "chromium"]), (["--with-deps"], ["install", "--with-deps", "chromium"])],
+)
+def test_install_chromium_runs_playwright_with_prumis_python(
+    capsys, tmp_path, monkeypatch, args, playwright_args
+):
+    from prumi import cli
+
+    calls = []
+    monkeypatch.setattr(
+        cli.subprocess, "run", lambda command: calls.append(command) or completed(0)
+    )
+    monkeypatch.chdir(tmp_path)  # no prumi.toml here: the command needs no config
+    assert prumi(capsys, "install-chromium", *args) == (0, "")
+    assert calls == [[sys.executable, "-m", "playwright", *playwright_args]]
+
+
+def test_install_chromium_exits_1_when_playwright_fails(capsys, monkeypatch):
+    from prumi import cli
+
+    monkeypatch.setattr(cli.subprocess, "run", lambda command: completed(1))
+    assert prumi(capsys, "install-chromium")[0] == 1
+
+
+def test_prumis_python_runs_playwright_as_a_module():
+    # What `prumi install-chromium` relies on, without downloading anything.
+    result = subprocess.run(
+        [sys.executable, "-m", "playwright", "--version"], capture_output=True, text=True
+    )
+    assert result.returncode == 0 and result.stdout.startswith("Version ")
 
 
 def test_no_dashboards_and_no_requests(capsys, config):

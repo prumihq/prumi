@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import json
+import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -27,6 +28,8 @@ class Refused(Exception):
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)  # exits with 2 on usage errors
+    if args.standalone:
+        return args.run(args)
     try:
         services = Services(load_config(args.config))
         return args.run(services, args)
@@ -45,7 +48,7 @@ def _parser() -> argparse.ArgumentParser:
 
     def command(name: str, run, help: str) -> argparse.ArgumentParser:
         sub = commands.add_parser(name, parents=[config], help=help, description=help)
-        sub.set_defaults(run=run)
+        sub.set_defaults(run=run, standalone=False)
         return sub
 
     command("serve", _serve, "Start the server.")
@@ -64,6 +67,16 @@ def _parser() -> argparse.ArgumentParser:
     check = command("validate", _validate, "Validate a spec (YAML or JSON) and its HTML.")
     check.add_argument("spec", type=Path)
     check.add_argument("--html", type=Path, default=None)
+    chromium_help = "Install the headless Chromium that Prumi renders dashboards with."
+    chromium = commands.add_parser(
+        "install-chromium", help=chromium_help, description=chromium_help
+    )
+    chromium.add_argument(
+        "--with-deps",
+        action="store_true",
+        help="also install the system libraries Chromium needs (Linux; may ask for sudo)",
+    )
+    chromium.set_defaults(run=_install_chromium, standalone=True)
     return parser
 
 
@@ -168,6 +181,14 @@ def _validate(services: Services, args: argparse.Namespace) -> int:
     report = services.validate(spec, html)
     _print_report(report)
     return OK if report.ok else REFUSED
+
+
+def _install_chromium(args: argparse.Namespace) -> int:
+    # Playwright's installer, run by the Python that runs Prumi: the browser always matches
+    # the installed Playwright, and `uv tool install` puts no `playwright` command on PATH.
+    deps = ["--with-deps"] if args.with_deps else []
+    command = [sys.executable, "-m", "playwright", "install", *deps, "chromium"]
+    return OK if subprocess.run(command).returncode == 0 else REFUSED
 
 
 # Output

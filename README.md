@@ -20,7 +20,7 @@ Requires [uv](https://docs.astral.sh/uv/).
 uv sync
 
 # Headless Chromium: Prumi renders every dashboard it publishes to check its numbers
-uv run playwright install chromium
+uv run prumi install-chromium
 
 # Build the demo warehouse and semantic manifest (about 10 seconds)
 uv run --project examples/demo-dbt-project python examples/demo-dbt-project/build.py
@@ -48,10 +48,11 @@ Install Prumi from PyPI, with its dbt adapter, and start it on your project:
 
 ```sh
 uv tool install "prumi[dbt]"
+prumi install-chromium
 prumi serve --config prumi.toml
 ```
 
-With pip, `pip install "prumi[dbt]"` works the same, and the dbt-style `pip install prumi "prumi-adapter-dbt[duckdb]"` gives the same packages.
+`prumi install-chromium` installs the headless Chromium that Prumi checks every dashboard with (add `--with-deps` on Linux if system libraries are missing). With pip, `pip install "prumi[dbt]"` works the same, and the dbt-style `pip install prumi "prumi-adapter-dbt[duckdb]"` gives the same packages.
 
 `prumi.toml` points at your project's `target/semantic_manifest.json` and warehouse, like [the demo's](examples/demo-dbt-project/prumi.toml). See [Preparing your dbt project](packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project) for what Prumi reads and how to declare display formats. This release connects to DuckDB only.
 
@@ -83,7 +84,7 @@ The server tells the agent how to work with it: build dashboards with Prumi rath
 
 - **The agent has no Prumi tools** (it may ask you for a CSV instead): start Prumi before the agent session, because agents connect to their MCP servers when a session starts. In Claude Code, `/mcp` shows Prumi's state and reconnects it. If Prumi was added without `--scope user`, it's registered only in the folder where you ran `claude mcp add`.
 - **Restart your agent sessions after upgrading Prumi.** An open session keeps the tool list and the instructions it loaded when it started.
-- **`prumi serve` stops at startup:** the message names what to fix: Chromium isn't installed (`uv run playwright install chromium`), the semantic manifest is missing or unreadable (build the demo, or run `dbt parse` in your project), a table in the manifest doesn't exist on the connection, `host` isn't a loopback address, or `locale` isn't a tag the browser knows.
+- **`prumi serve` stops at startup:** the message names what to fix: Chromium isn't installed (`prumi install-chromium`, or `uv run prumi install-chromium` in a clone; add `--with-deps` on Linux if system libraries are missing), the semantic manifest is missing or unreadable (build the demo, or run `dbt parse` in your project), a table in the manifest doesn't exist on the connection, `host` isn't a loopback address, or `locale` isn't a tag the browser knows.
 
 ## Where your data goes
 
@@ -115,7 +116,7 @@ uv run ruff check
 uv run ruff format
 ```
 
-Like the server, the tests need headless Chromium: `uv run playwright install --with-deps chromium`. The full suite takes about 4 minutes, because most tests render a page in Chromium. [AGENTS.md](AGENTS.md) describes how work is organized (specs, ADRs, code style), for people and coding agents alike.
+Like the server, the tests need headless Chromium: `uv run prumi install-chromium --with-deps`. The full suite takes about 4 minutes, because most tests render a page in Chromium. [AGENTS.md](AGENTS.md) describes how work is organized (specs, ADRs, code style), for people and coding agents alike.
 
 ## License
 

@@ -1,7 +1,7 @@
 """Browser tests: the shell, the sandboxed frame and the runtime.
 
 Headless Chromium through Playwright. Skipped when Chromium isn't installed
-(`uv run playwright install chromium`); with PRUMI_REQUIRE_BROWSER=1 (CI) that's a failure.
+(`uv run prumi install-chromium`); with PRUMI_REQUIRE_BROWSER=1 (CI) that's a failure.
 """
 
 import dataclasses
@@ -56,8 +56,8 @@ def browser():
             if os.environ.get("PRUMI_REQUIRE_BROWSER"):
                 raise
             pytest.skip(
-                "Headless Chromium can't start; run `uv run playwright install --with-deps "
-                f"chromium`. ({str(exc).splitlines()[0]})"
+                "Headless Chromium can't start; run `uv run prumi install-chromium "
+                f"--with-deps`. ({str(exc).splitlines()[0]})"
             )
         yield chromium
         chromium.close()

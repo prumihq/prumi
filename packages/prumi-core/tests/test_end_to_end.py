@@ -86,7 +86,7 @@ def browser():
         except Error:
             if os.environ.get("PRUMI_REQUIRE_BROWSER"):
                 raise
-            pytest.skip("Headless Chromium can't start; run `uv run playwright install chromium`.")
+            pytest.skip("Headless Chromium can't start; run `uv run prumi install-chromium`.")
         yield chromium
         chromium.close()
 

@@ -28,7 +28,7 @@ def chromium(demo_services):
     except page_check.BrowserStartupError:
         if os.environ.get("PRUMI_REQUIRE_BROWSER"):
             raise
-        pytest.skip("Headless Chromium can't start; run `uv run playwright install chromium`.")
+        pytest.skip("Headless Chromium can't start; run `uv run prumi install-chromium`.")
 
 
 def layout(report):

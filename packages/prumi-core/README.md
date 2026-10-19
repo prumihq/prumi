@@ -14,11 +14,12 @@ With [uv](https://docs.astral.sh/uv/), Prumi and its dbt adapter:
 
 ```sh
 uv tool install "prumi[dbt]"
+prumi install-chromium
 prumi serve --config prumi.toml
 ```
 
 `pip install "prumi[dbt]"` installs the same packages. `prumi.toml` points at your dbt project's semantic manifest and warehouse: see [Your own dbt project](https://github.com/prumihq/prumi#your-own-dbt-project).
 
-Requirements: Python 3.12 or later, and headless Chromium installed with Playwright (`playwright install chromium`); the server won't start without it.
+Requirements: Python 3.12 or later, and headless Chromium, which `prumi install-chromium` installs with Playwright (add `--with-deps` on Linux if system libraries are missing); the server won't start without it.
 
 The quick start on a demo project, configuration and where data goes are in [the Prumi README](https://github.com/prumihq/prumi#readme); the BI rules Prumi checks are in [`docs/bi-rules.md`](https://github.com/prumihq/prumi/blob/main/docs/bi-rules.md).

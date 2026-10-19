@@ -28,7 +28,7 @@ from prumi.scrub import scrubber
 from prumi.spec import DashboardSpec
 
 ORIGIN = "http://prumi.check"
-INSTALL = "uv run playwright install chromium"
+INSTALL = "prumi install-chromium"
 SETTLE_MS = 300
 TIMEOUT_S = 10.0
 MAX_LISTED = 20
@@ -200,7 +200,8 @@ class PageChecker:
                     BrowserStartupError(
                         f"Headless Chromium can't start ({reason}). Prumi renders every "
                         "dashboard to check its numbers, so it needs Chromium: run "
-                        f"`{INSTALL}` (add --with-deps if system libraries are missing)."
+                        f"`{INSTALL}` (`uv run {INSTALL}` in a clone of the repository; add "
+                        "--with-deps if system libraries are missing)."
                     )
                 )
                 return
