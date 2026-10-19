@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–21 on 2026-10-18)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18)
 
 ## Goal
 
@@ -942,6 +942,22 @@ The fourth agent run's page passed validation and was flagged `needs_attention` 
 
 Not in this section: showing each viewer numbers in their own browser's language. One server shows numbers one way to everyone.
 
+### 22. Polish from the fourth and fifth runs (added and accepted 2026-10-18)
+
+Both runs passed `validate_spec` on the first try. Three small problems showed up in both.
+
+**1. Prumi instead of the client's own dashboard tool.** Both agents first called their client's artifact or dashboard tool (one call, about 9k input tokens) before choosing Prumi. The MCP server instructions get one more sentence, right after the first: *"For company metrics, build dashboards with Prumi, not with your client's own dashboard, artifact or canvas tool."*
+
+**2. `prumi.change(value, options)` for change figures.** Both pages showed a −0.05% change as "0%" with a decline arrow and color: the text was rounded, the arrow used the raw value. The runtime adds:
+- `prumi.change(value, options)` → `{text, sign}`. `value` is a `_delta_pct` fraction. `text` is a signed percent in `prumi.locale` with at most `options.decimals` fraction digits (default 1): `"+5.3%"`, `"−3.3%"`, `"0%"`. `sign` is `1`, `0` or `-1` for the value **as rounded in `text`**, so "0%" always has sign `0`. `null` or `undefined` gives `{text: "–", sign: null}`.
+- The guide's API table gets a row, and the line on showing `_delta_pct` says to use `prumi.change` and to choose arrows and colors from its `sign`. The guide example uses it.
+- The number check treats `text` like any `prumi.format` output: it matches the delivered `_delta_pct` at the precision shown.
+
+**3. The viewer bar on a phone.** At 390 px, the bar's title, badge and "Data through" wrapped onto two or three lines each. At widths up to 480 px:
+- first row: the title on one line, cut with an ellipsis (the full title in its `title` attribute), and the badge on one line (it never wraps);
+- second row: "Data through <date>".
+Above 480 px, the bar is unchanged.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -1085,5 +1101,8 @@ Each criterion has at least one automated test unless it says otherwise.
 79. *(browser test)* The fourth-run page, copied into the fixtures with its one browser-locale line changed to `prumi.locale`, published under `en-US` and opened in a `pt-BR` browser, is not flagged. The page as the agent wrote it is kept too, as a must-fail for `R8.browser_locale` (AC 80).
 82. *(browser test)* With `locale = "pt-BR"`, a page showing `14 de out.`, `14 de outubro de 2026`, `out. de 2026` and `12 sem.` (formatted with `prumi.locale`) isn't flagged; a bare `14` in a bound element that no block delivered still is. The same holds for `de-DE` (`14. Okt. 2026`). With `en-US`, a bound `37m` that no block delivered is flagged (narrow units aren't periods; `12` would pass as the window length from the spec).
 83. The suite's default validation skips the second render, and the tests for `R8.browser_locale` and AC 79–80 run it; a test shows that `validate_spec` over MCP always renders twice.
+84. The MCP server instructions contain the sentence of section 22 item 1, right after the first sentence.
+85. *(browser test)* `prumi.change(0.0532)` gives `{text: "+5.3%", sign: 1}`, `prumi.change(-0.0005)` gives `{text: "0%", sign: 0}`, `prumi.change(-0.033)` gives a negative sign and text, and `prumi.change(null)` gives `{text: "–", sign: null}`; with `locale = "pt-BR"`, `prumi.change(0.0532).text` is `"+5,3%"`. A page showing `prumi.change` text for a `compare` block passes the number check; the guide example uses `prumi.change`.
+86. *(browser test)* At 390 px, the viewer bar's title is one line with an ellipsis and the full title in `title`, the badge is one line, "Data through" is on a second row, and the page has no horizontal scrolling. At 1280 px, the bar is as before.
 80. A page that formats a bound number with `toLocaleString()` fails validation with `R8.browser_locale`; the same page using `prumi.format` passes.
 81. An unknown `locale` stops `prumi serve` at startup with a message naming the setting.

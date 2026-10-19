@@ -113,3 +113,9 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 74. Dates and periods in the configured locale, from `Intl` (rule 6; AC 82)
 - [x] 75. Test-only switch for the second render; the suite's default validation fixture uses it (rule 7; AC 83)
 - [x] 76. Drop narrow units from the period words; `12m` is flagged again in `en-US` (rule 6; AC 82)
+
+## Polish from the fourth and fifth runs (spec section 22; added 2026-10-18)
+
+- [ ] 77. Server instructions: build with Prumi, not the client's own dashboard tool (AC 84)
+- [ ] 78. `prumi.change`: runtime, number check, guide row, guide line and example (AC 85)
+- [ ] 79. The viewer bar on a phone (AC 86)
