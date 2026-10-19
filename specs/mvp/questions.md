@@ -78,3 +78,23 @@ Separately, the adapter protocol (section 3) has no way to tell core the project
 I'd pick **A**, with the protocol member above.
 
 **Decision (2026-10-18): B, as `[source] project = "..."` in `prumi.toml`** (not under `[source.dbt]`): core reads it, so it works for every adapter and adapters never see it. Optional; without it the header leaves the name out. The demo config sets `project = "prumi_demo"`. The adapter gets `describe() -> SourceInfo(adapter, connection)`, without `project`. Spec sections 2 and 20 updated. (An earlier answer, C, was changed the same day.)
+
+## 5. The fourth-run page can't be published once `R8.browser_locale` exists
+
+**Blocks:** the AC 79 test after task 72 (AC 79 vs AC 80). Tasks 70 and 71 don't depend on the answer.
+
+**Found:** The fourth-run page (`weekly-revenue-aov-regions.html`) formats the KPI's change with `new Intl.NumberFormat(undefined, {style: "percent", …})` (line 135) and writes it into `#kpi` (line 208), which is bound to `kpi`. In a `de-DE` render that text is `+5,3 %` instead of `+5.3%`, so rule 4 of section 21 fails it with `R8.browser_locale`. That's the rule working as intended: it's exactly the "pages that format with the browser's language themselves" case. But AC 79 says the page is "published under `en-US`", and from task 72 on, publishing validates it and refuses it.
+
+(Before task 72, AC 79 holds: with the reader keeping its current separator readings, `+5,3%` in a `pt-BR` browser still reads as 5.3 and matches `_delta_pct`; only `US$ 47 mil` from `prumi.format` was flagged.)
+
+**Options:**
+
+- **A. The AC 79 test stores the page as it was published in the fourth run** (registry save, no validation), then opens it in a `pt-BR` browser. AC 79 then tests the viewer side only; the same page also serves as a must-fail example for `R8.browser_locale` (AC 80).
+- **B. Edit the fixture** to use `prumi.locale` for its percent formatter, so it passes validation after task 72. It's then no longer the page as the agent wrote it.
+- **C. Keep both:** the page as written (must fail `R8.browser_locale`) and an edited copy (must pass, and the AC 79 test publishes it).
+
+I'd pick **C**: it shows both what went wrong in the fourth run and that the fix is a one-line change.
+
+**Decision (2026-10-18): C.** The page as written is a must-fail for `R8.browser_locale`; a copy edited on that one line (to `prumi.locale`) is the AC 79 page. AC 79 updated.
+
+**Also decided: the reader is strict, not lenient** (your note in task 71). It reads only the configured locale's separators; with `en-US`, `1.234,5` is no longer read as 1234.5. Accepting both conventions gave a made-up number two chances to match. Under C, the AC 79 page formats in `en-US` whatever the browser, so strict doesn't break it. Rule 3 of section 21 and AC 78 updated; task 71 needs a follow-up commit.
