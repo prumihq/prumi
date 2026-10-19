@@ -127,7 +127,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 82. Shell side: post flagged items without `text` and `blocks`, clean error messages with the block results the shell holds; the viewer bar keeps the text (AC 89)
 - [ ] 84. Store a time filter value from a report only if it parses as a window, else `{"invalid": true}` (item 7) — done when AC 92 passes. Docs: none (the README's "What Prumi stores" already covers it) (AC 92)
 
-## Docs that list the code (spec section 24; added 2026-10-19, draft)
+## Docs that list the code (spec section 24; added 2026-10-19)
 
 - [ ] 83. Tests: the README names every MCP tool and CLI command, the runtime README every `window.prumi` member — done when the three tests pass on the current files and each fails, naming the item and the file, when one is removed. Docs: none, tests only (AC 91)
 

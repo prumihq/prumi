@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, section 23 on 2026-10-19); section 24 draft
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–24 on 2026-10-19)
 
 ## Goal
 
@@ -1003,7 +1003,7 @@ The browser reports of 19.1b are stored in `page_checks` as they arrive: the tex
 - The AC 87 test keeps a second connection open so the write stays in `-wal`, checks the report landed there, then searches both files.
 - Suite after section 23: 839 tests in about 243 s.
 
-### 24. Docs that list the code stay complete (added 2026-10-19, draft)
+### 24. Docs that list the code stay complete (added and accepted 2026-10-19)
 
 A docs pass before 0.1.0 found lists in the READMEs that had fallen behind the code: the runtime README's list of `window.prumi` members lacked `change` and `locale`. Lists can be checked mechanically; prose can't, and `AGENTS.md`'s docs rule covers it. This section adds tests only; nothing in the product changes.
 
