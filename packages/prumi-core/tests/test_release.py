@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tomllib
@@ -82,6 +83,59 @@ def test_the_prumi_wheel_offers_the_dbt_adapter_as_an_extra(wheels):
     assert "Name: prumi\n" in metadata
     assert "Provides-Extra: dbt" in metadata
     assert "Requires-Dist: prumi-adapter-dbt[duckdb]<0.2,>=0.1.0; extra == 'dbt'" in metadata
+
+
+@pytest.mark.parametrize("wheel_name", ["prumi-0.1.0", "prumi_adapter_dbt-0.1.0"])
+def test_the_wheels_carry_what_the_pypi_page_shows(wheels, wheel_name):
+    with zipfile.ZipFile(wheels / f"{wheel_name}-py3-none-any.whl") as wheel:
+        metadata = wheel.read(f"{wheel_name}.dist-info/METADATA").decode()
+    headers = metadata.split("\n\n", 1)[0].splitlines()
+    assert "Author: Denner Rodrigues Campelo" in headers
+    assert not [h for h in headers if h.startswith("Author-email:")]
+    assert "Project-URL: Repository, https://github.com/prumihq/prumi" in headers
+    assert "Project-URL: Issues, https://github.com/prumihq/prumi/issues" in headers
+    assert (
+        "Project-URL: Changelog, https://github.com/prumihq/prumi/blob/main/CHANGELOG.md" in headers
+    )
+    assert "License-Expression: Apache-2.0" in headers
+    classifiers = [h.removeprefix("Classifier: ") for h in headers if h.startswith("Classifier:")]
+    assert "Development Status :: 3 - Alpha" in classifiers
+    assert "Programming Language :: Python :: 3.12" in classifiers
+    assert [c for c in classifiers if c.startswith("Topic ::")]
+    assert not [c for c in classifiers if c.startswith("License ::")]
+    assert [h for h in headers if h.startswith("Keywords: ")]
+    assert "Description-Content-Type: text/markdown" in headers
+
+
+# Markdown links and images, reference definitions, and HTML href/src attributes.
+LINK = re.compile(
+    r"!?\[[^\]]*\]\(\s*<?([^)\s>]+)|^\s*\[[^\]]+\]:\s*<?(\S+?)>?\s*$|(?:href|src)=[\"']([^\"']+)",
+    re.M,
+)
+FENCE = re.compile(r"^(```|~~~).*?^\1", re.M | re.S)
+CODE_SPAN = re.compile(r"(`+).+?\1", re.S)
+
+
+def test_package_readmes_link_only_to_absolute_urls():
+    # Each README is its package's page on PyPI, which can't follow a relative link.
+    links = {readme: _links(readme.read_text()) for readme in PACKAGES.glob("*/README.md")}
+    assert len(links) == 3 and sum(map(len, links.values())) > 5
+    for readme, targets in links.items():
+        relative = [t for t in targets if not re.match(r"(https?|mailto):", t)]
+        assert not relative, f"{readme.relative_to(PACKAGES.parent)} has relative links: {relative}"
+
+
+def test_the_link_check_finds_relative_links():
+    markdown = (
+        '[a](../x.md) and ![i](img.png), <a href="#top">t</a> but not `[c](code.md)`\n'
+        "[ref]: docs/y.md\n```\n[d](block.md)\n```\n[e](https://example.com/z)\n"
+    )
+    assert _links(markdown) == ["../x.md", "img.png", "#top", "docs/y.md", "https://example.com/z"]
+
+
+def _links(markdown: str) -> list[str]:
+    text = CODE_SPAN.sub("", FENCE.sub("", markdown))
+    return [next(g for g in m.groups() if g) for m in LINK.finditer(text)]
 
 
 def test_the_adapter_wheel_registers_itself(wheels):

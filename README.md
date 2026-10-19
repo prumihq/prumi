@@ -42,7 +42,18 @@ The other commands are `uncertify`, `delete`, `requests` (metrics agents asked f
 
 **One display locale:** every viewer sees numbers formatted the same way, whatever their browser's language. Set it with `locale` under `[server]` in `prumi.toml` (a tag such as `en-US`, `pt-BR` or `de-DE`; the default is `en-US`). Pages format numbers with `prumi.format` and change figures with `prumi.change`, and pass `prumi.locale` to their other `Intl` calls; validation refuses a page whose text changes with the browser's language.
 
-**Your own dbt project:** see [Preparing your dbt project](packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project) for what Prumi reads and how to declare display formats, then point a `prumi.toml` at its `target/semantic_manifest.json` and warehouse, like [the demo's](examples/demo-dbt-project/prumi.toml). This release connects to DuckDB only.
+## Your own dbt project
+
+Install Prumi from PyPI, with its dbt adapter, and start it on your project:
+
+```sh
+uv tool install "prumi[dbt]"
+prumi serve --config prumi.toml
+```
+
+With pip, `pip install "prumi[dbt]"` works the same, and the dbt-style `pip install prumi "prumi-adapter-dbt[duckdb]"` gives the same packages.
+
+`prumi.toml` points at your project's `target/semantic_manifest.json` and warehouse, like [the demo's](examples/demo-dbt-project/prumi.toml). See [Preparing your dbt project](packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project) for what Prumi reads and how to declare display formats. This release connects to DuckDB only.
 
 ## Connect your agent
 

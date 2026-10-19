@@ -8,6 +8,17 @@ Import name: `prumi`. It holds the catalog, the query engine, the BI validator a
 - **Numbers** come only from the source, computed at the grain they're shown. Validation renders each page in headless Chromium and checks that every number it shows is a value Prumi delivered.
 - **Dashboards** run in a sandboxed frame inside Prumi's own page, which shows the trust badge and data freshness. The data team certifies a version from the CLI; any later change makes it a draft again.
 
+## Install
+
+With [uv](https://docs.astral.sh/uv/), Prumi and its dbt adapter:
+
+```sh
+uv tool install "prumi[dbt]"
+prumi serve --config prumi.toml
+```
+
+`pip install "prumi[dbt]"` installs the same packages. `prumi.toml` points at your dbt project's semantic manifest and warehouse: see [Your own dbt project](https://github.com/prumihq/prumi#your-own-dbt-project).
+
 Requirements: Python 3.12 or later, and headless Chromium installed with Playwright (`playwright install chromium`); the server won't start without it.
 
-The quick start, configuration and where data goes are in [the Prumi README](https://github.com/prumihq/prumi#readme); the BI rules Prumi checks are in [`docs/bi-rules.md`](https://github.com/prumihq/prumi/blob/main/docs/bi-rules.md).
+The quick start on a demo project, configuration and where data goes are in [the Prumi README](https://github.com/prumihq/prumi#readme); the BI rules Prumi checks are in [`docs/bi-rules.md`](https://github.com/prumihq/prumi/blob/main/docs/bi-rules.md).

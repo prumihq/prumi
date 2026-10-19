@@ -3,8 +3,20 @@ name = "prumi"
 version = "0.1.0"
 description = "Prumi server: MCP endpoint, catalog, query engine, validator and registry"
 readme = "README.md"
+# An SPDX expression; the packaging metadata standard allows no license classifier with it.
 license = "Apache-2.0"
+authors = [{name = "Denner Rodrigues Campelo"}]
 requires-python = ">=3.12"
+keywords = ["bi", "dashboards", "mcp", "ai-agents", "semantic-layer", "metrics", "dbt"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
 dependencies = [
     # Capped at the next major version: mcp 2.x already renamed its server class.
     "mcp>=2.3,<3",
@@ -20,6 +32,11 @@ dependencies = [
 # One extra per first-party adapter, so `uv tool install "prumi[dbt]"` gives a server that
 # starts. The adapter depends on prumi in turn; resolvers and the lockfile handle the cycle.
 dbt = ["prumi-adapter-dbt[duckdb]>=0.1.0,<0.2"]
+
+[project.urls]
+Repository = "https://github.com/prumihq/prumi"
+Issues = "https://github.com/prumihq/prumi/issues"
+Changelog = "https://github.com/prumihq/prumi/blob/main/CHANGELOG.md"
 
 [project.scripts]
 prumi = "prumi.cli:main"

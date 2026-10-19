@@ -3,8 +3,19 @@ name = "prumi-adapter-dbt"
 version = "0.1.0"
 description = "Prumi adapter for dbt semantic models: MetricFlow compiles, Prumi executes"
 readme = "README.md"
+# An SPDX expression; the packaging metadata standard allows no license classifier with it.
 license = "Apache-2.0"
+authors = [{name = "Denner Rodrigues Campelo"}]
 requires-python = ">=3.12"
+keywords = ["prumi", "dbt", "metricflow", "semantic-layer", "metrics"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
 dependencies = [
     # The adapter protocol may change between 0.x releases.
     "prumi>=0.1.0,<0.2",
@@ -15,6 +26,11 @@ dependencies = [
 
 [project.optional-dependencies]
 duckdb = ["duckdb"]
+
+[project.urls]
+Repository = "https://github.com/prumihq/prumi"
+Issues = "https://github.com/prumihq/prumi/issues"
+Changelog = "https://github.com/prumihq/prumi/blob/main/CHANGELOG.md"
 
 [project.entry-points."prumi.adapters"]
 dbt = "prumi_adapter_dbt.adapter:create_adapter"
