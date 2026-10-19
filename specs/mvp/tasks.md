@@ -137,4 +137,4 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 86. PyPI metadata and pages: authors, URLs, keywords, classifiers; the `prumi` and adapter READMEs as PyPI pages with absolute links; README "Your own dbt project" starts with the PyPI install — done when AC 93 passes. Docs: the package READMEs, README
 - [x] 87. `prumi install-chromium [--with-deps]`; the startup error and the README use it — done when AC 95 passes. Docs: README (quick start, troubleshooting, development), CHANGELOG
 - [x] 88. The install check script and its CI job — done when the script passes locally (AC 94). Docs: README (Development)
-- [ ] 89. Release workflow with the tag check and the manual run; `docs/releasing.md` — done when AC 96 passes. Docs: `docs/releasing.md`, README (Development links it)
+- [x] 89. Release workflow with the tag check and the manual run; `docs/releasing.md` — done when AC 96 passes. Docs: `docs/releasing.md`, README (Development links it)

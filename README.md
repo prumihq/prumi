@@ -105,7 +105,7 @@ Every number on a dashboard is computed by the source at the grain it's shown: P
 | `specs/` | Specs and task lists, one spec per minor release |
 | `docs/bi-rules.md` | The BI rules R1–R10 and their issue codes |
 | `docs/adr/` | Architecture decision records: why Prumi works the way it does |
-| `scripts/` | The install check |
+| `scripts/` | The install check and the release's tag check |
 | `spikes/` | Throwaway experiments |
 
 ## Development
@@ -124,6 +124,8 @@ The install check tries Prumi as users get it from PyPI, without uploading anyth
 ```sh
 uv run python scripts/check_install.py
 ```
+
+Releases go to PyPI from GitHub Actions on a version tag; [docs/releasing.md](docs/releasing.md) is the maintainer's checklist.
 
 ## License
 
