@@ -1,6 +1,7 @@
 """Fixtures for core tests: a fake source with a demo-like catalog, no warehouse needed."""
 
 import datetime as dt
+import re
 import socket
 import threading
 import time
@@ -155,6 +156,14 @@ def demo_source(demo_config):
 
 
 DEMO_DASHBOARD = Path(__file__).parent / "fixtures" / "demo"
+RUNTIME_JS = Path(__file__).parents[2] / "prumi-runtime" / "src" / "runtime.js"
+
+
+@pytest.fixture(scope="session")
+def runtime_members() -> list[str]:
+    """The members of `window.prumi`, as runtime.js defines them."""
+    api = RUNTIME_JS.read_text().split("window.prumi = Object.freeze({", 1)[1]
+    return re.findall(r"^    (\w+):", api.split("\n  });", 1)[0], re.M)
 
 
 def write_demo_config(directory: Path, demo_project, manifest: Path | None = None) -> Path:

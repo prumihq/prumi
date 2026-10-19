@@ -129,5 +129,5 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 ## Docs that list the code (spec section 24; added 2026-10-19)
 
-- [ ] 83. Tests: the README names every MCP tool and CLI command, the runtime README every `window.prumi` member — done when the three tests pass on the current files and each fails, naming the item and the file, when one is removed. Docs: none, tests only (AC 91)
+- [x] 83. Tests: the README names every MCP tool and CLI command, the runtime README every `window.prumi` member — done when the three tests pass on the current files and each fails, naming the item and the file, when one is removed. Docs: none, tests only (AC 91)
 

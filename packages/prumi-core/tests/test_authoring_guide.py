@@ -7,7 +7,6 @@ from pathlib import Path
 from prumi.mcp import AUTHORING_GUIDE
 from prumi.spec.schema import SCHEMA_PATH
 
-RUNTIME = Path(__file__).parents[2] / "prumi-runtime" / "src" / "runtime.js"
 GUIDE = AUTHORING_GUIDE.read_text(encoding="utf-8")
 
 
@@ -26,14 +25,12 @@ def test_the_example_validates_on_the_demo(demo_services):
     assert not report.warnings, report.warnings
 
 
-def test_the_guide_names_every_runtime_member():
-    api = RUNTIME.read_text().split("window.prumi = Object.freeze({", 1)[1].split("\n  });", 1)[0]
-    members = re.findall(r"^    (\w+):", api, re.M)
-    assert set(members) == {
+def test_the_guide_names_every_runtime_member(runtime_members):
+    assert set(runtime_members) == {
         "on", "onError", "setFilter", "getFilter", "filterValues", "onFilters", "click",
         "format", "change", "locale", "label",
     }  # fmt: skip
-    for name in members:
+    for name in runtime_members:
         named = f"`prumi.{name}`" if name == "locale" else f"`prumi.{name}("  # a string
         assert named in GUIDE, name
 
