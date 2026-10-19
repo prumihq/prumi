@@ -326,6 +326,94 @@ def test_copied_numbers_in_another_locale(demo_services, body, script):
     assert "R8.copied_number" in codes(report), report.issues
 
 
+@pytest.mark.parametrize(
+    ("text", "locale", "numbers", "periods"),
+    [
+        ("14 de out.", "pt-BR", [], []),
+        ("14 de outubro de 2026", "pt-BR", [], []),
+        ("out. de 2026", "pt-BR", [], []),
+        ("14 de out. de 2026", "pt-BR", [], []),
+        ("12 sem. · 12 semanas · 1 mês", "pt-BR", [12, 12, 1], [True, True, True]),
+        ("14. Okt. 2026", "de-DE", [], []),
+        ("14. Oktober", "de-DE", [], []),
+        ("12 Wo.", "de-DE", [12], [True]),
+        ("2026年10月14日", "ja-JP", [], []),
+        ("14 octobre 2026 · 12 sem.", "fr-FR", [12], [True]),
+        # Not a date or a period: still a number.
+        ("14 de abc.", "pt-BR", [14], [False]),
+        ("14 sem", "en-US", [14], [False]),
+    ],
+)
+def test_dates_and_periods_in_the_servers_locale(demo_services, text, locale, numbers, periods):
+    def evaluate(browser):
+        page = browser.new_page()
+        try:
+            page.add_script_tag(content=(RUNTIME / "provenance.js").read_text())
+            return page.evaluate(
+                """([text, locale]) => window.prumiProvenance.numbers(text, locale).map(
+                    (n) => [n.readings[0].value, n.period])""",
+                [text, locale],
+            )
+        finally:
+            page.close()
+
+    found = demo_services.checker._submit(evaluate)
+    assert [n for n, _ in found] == numbers and [p for _, p in found] == periods
+
+
+DATES = """(locale) => {
+  const day = new Date(Date.UTC(2026, 9, 14));
+  const date = (options) =>
+    new Intl.DateTimeFormat(locale, {timeZone: "UTC", ...options}).format(day);
+  return [
+    date({day: "numeric", month: "short"}),
+    date({day: "numeric", month: "long", year: "numeric"}),
+    date({day: "numeric", month: "short", year: "numeric"}),
+    date({month: "short", year: "numeric"}),
+    new Intl.NumberFormat(locale, {style: "unit", unit: "week"}).format(12),
+  ].join(" · ");
+}"""
+DATES_PAGE = (
+    f"const dates = {DATES};"
+    """
+prumi.on("kpi", (b) => {
+  document.getElementById("revenue").textContent = prumi.format(b.rows[0].revenue, "revenue");
+  document.getElementById("dates").textContent = dates(prumi.locale);
+  %s
+});"""
+)
+
+
+@pytest.mark.parametrize(
+    ("locale", "shown"),
+    [
+        (
+            "pt-BR",
+            "14 de out. · 14 de outubro de 2026 · 14 de out. de 2026 · out. de 2026 · 12 sem.",
+        ),
+        ("de-DE", "14. Okt. · 14. Oktober 2026 · 14. Okt. 2026 · Okt. 2026 · 12 Wo."),
+    ],
+)
+def test_dates_and_periods_in_the_locale_arent_data(demo_services, locale, shown):
+    def evaluate(browser):
+        page = browser.new_page()
+        try:
+            return page.evaluate(DATES, locale)
+        finally:
+            page.close()
+
+    assert demo_services.checker._submit(evaluate).replace(" ", " ") == shown
+    in_locale(demo_services, locale)
+    spec = DashboardSpec.model_validate(KPI_SPEC)
+    body = '<p id="revenue"></p><p id="dates"></p><p id="extra"></p>'
+    assert demo_services.check_page(spec, kpi_page(DATES_PAGE % "", body), RESULTS) == []
+    # A bare number no block delivered is still flagged.
+    extra = 'document.getElementById("extra").textContent = "14";'
+    [issue] = demo_services.check_page(spec, kpi_page(DATES_PAGE % extra, body), RESULTS)
+    assert issue.code == "R8.unverified_number"
+    assert WHERE.match(issue.message)[1] == "p#extra"
+
+
 # Formatting with the browser's language
 
 

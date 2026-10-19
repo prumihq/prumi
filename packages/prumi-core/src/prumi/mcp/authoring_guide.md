@@ -73,6 +73,7 @@ The rules:
   - dates: `2026-10-14`, `2026-10`, `2026/10/14`, `10/14/2026`, `14.10.2026`, `Oct 14`, `Oct 14, 2026`, `14 October 2026`, `Oct 2026`, `Oct '26`, `Q3`, `Q3 2026`, `2026 Q3`, `FY2026`, `W42`, `Week 42`, and times (`06:30`, `6:30 pm`);
   - years: whole numbers from 1900 to 2199 written without separators (`2026`);
   - period counts: a whole number followed by `day`, `week`, `wk`, `month`, `mo`, `quarter`, `qtr`, `year` or `yr` (singular or plural), not after a currency symbol: "Last 26 weeks", "12 wk";
+  - in another locale, also its dates and period counts as `Intl` writes them with `prumi.locale`: `new Intl.DateTimeFormat(prumi.locale, {day: "numeric", month: "short"})` (`14 de out.` in pt-BR), month + year, day + month + year, and `new Intl.NumberFormat(prumi.locale, {style: "unit", unit: "week"})` (`12 sem.`);
   - numbers from the spec or result metadata: anything written in the spec (`last`, `top_n`) or in a label, a block's row count, numbers inside dimension values ("Store 12");
   - axis ticks (below).
 - **Tooltips** are checked too, on hover. Render them inside the bound chart element, or give them an element in the HTML (`<div id="tip" hidden></div>`) and bind it to the blocks they show (`"#tip": ["trend", "weekly_regions"]`).

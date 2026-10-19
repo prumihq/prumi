@@ -13,7 +13,8 @@
 
   var SKIP = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEMPLATE: 1 };
   var MONTH = "(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?";
-  // Removed from text before numbers are read.
+  // Removed from text before numbers are read, in every locale; each locale adds its own
+  // dates and periods from Intl (localeDates, localePeriods).
   var DATES = new RegExp(
     [
       "\\b\\d{4}-\\d{2}-\\d{2}(?:[T ]\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?Z?)?\\b",
@@ -97,6 +98,90 @@
     return out;
   }
 
+  // Dates as the locale writes them, from Intl: day + month, month + year and day + month +
+  // year, with the month short and long ("14 de out.", "out. de 2026", "14. Okt. 2026").
+  // Each pattern follows one formatted date's parts: its literal text, the locale's 12 month
+  // names in that form, digits for the day and year. Null when Intl gives nothing.
+  var DATE_FORMS = [
+    { day: "numeric", month: "short", year: "numeric" },
+    { day: "numeric", month: "long", year: "numeric" },
+    { day: "numeric", month: "short" },
+    { day: "numeric", month: "long" },
+    { month: "short", year: "numeric" },
+    { month: "long", year: "numeric" },
+  ];
+
+  function localeDates(locale) {
+    var patterns = [];
+    try {
+      DATE_FORMS.forEach(function (form) {
+        var options = Object.assign({ timeZone: "UTC" }, form);
+        var format = new Intl.DateTimeFormat(locale, options);
+        var names = [];
+        for (var month = 0; month < 12; month++) {
+          format.formatToParts(new Date(Date.UTC(2026, month, 14))).forEach(function (part) {
+            if (part.type === "month" && names.indexOf(part.value) < 0) names.push(part.value);
+          });
+        }
+        names.sort(function (a, b) {
+          return b.length - a.length;
+        });
+        var pattern = format.formatToParts(new Date(Date.UTC(2026, 9, 14))).map(function (part) {
+          if (part.type === "day") return "\\d{1,2}";
+          if (part.type === "year") return "\\d{4}";
+          if (part.type === "month") return "(?:" + names.map(escapeRegExp).join("|") + ")";
+          return escapeRegExp(part.value).replace(/\s+/g, "\\s*");
+        });
+        patterns.push(pattern.join(""));
+      });
+    } catch (error) {
+      return null;
+    }
+    return new RegExp("(?<![\\p{L}\\d])(?:" + patterns.join("|") + ")(?![\\p{L}\\d])", "giu");
+  }
+
+  // Counts of periods as the locale writes them ("12 sem.", "12 semanas", "12 Wo."): the unit
+  // words Intl gives for day, week, month and year, short, long and narrow, in each plural
+  // form (1, 2, 5 and 12 cover them). Words after the number are matched on the text after
+  // it, words before on the text before it.
+  function localePeriods(locale) {
+    var after = [];
+    var before = [];
+    try {
+      ["day", "week", "month", "year"].forEach(function (unit) {
+        ["short", "long", "narrow"].forEach(function (unitDisplay) {
+          var options = { style: "unit", unit: unit, unitDisplay: unitDisplay };
+          var format = new Intl.NumberFormat(locale, options);
+          [1, 2, 5, 12].forEach(function (n) {
+            var seen = false;
+            format.formatToParts(n).forEach(function (part) {
+              if (part.type === "integer") seen = true;
+              if (part.type !== "unit") return;
+              var words = seen ? after : before;
+              if (words.indexOf(part.value) < 0) words.push(part.value);
+            });
+          });
+        });
+      });
+    } catch (error) {
+      return null;
+    }
+    function alternation(words) {
+      return words
+        .sort(function (a, b) {
+          return b.length - a.length;
+        })
+        .map(function (word) {
+          return escapeRegExp(word) + (/\p{L}$/u.test(word) ? "(?![\\p{L}])" : "");
+        })
+        .join("|");
+    }
+    return {
+      after: after.length ? new RegExp("^\\s*-?\\s*(?:" + alternation(after) + ")", "iu") : null,
+      before: before.length ? new RegExp("(?:" + alternation(before) + ")\\s*$", "iu") : null,
+    };
+  }
+
   // The reader for a locale: what a number looks like there, and its scales.
   var readers = {};
 
@@ -127,6 +212,8 @@
       ),
       scales: scales,
       symbols: symbols,
+      dates: localeDates(locale),
+      periods: localePeriods(locale),
     };
     return readers[locale];
   }
@@ -163,9 +250,11 @@
   // readings.
   function numbers(text, locale) {
     var r = reader(locale);
-    var stripped = text.replace(DATES, function (m) {
+    var blank = function (m) {
       return " ".repeat(m.length);
-    });
+    };
+    var stripped = text.replace(DATES, blank);
+    if (r.dates) stripped = stripped.replace(r.dates, blank);
     var found = [];
     var match;
     r.number.lastIndex = 0;
@@ -179,6 +268,11 @@
         before: stripped.slice(0, match.index),
         after: stripped.slice(match.index + match[0].length),
       });
+      var number = found[found.length - 1];
+      number.period =
+        PERIODS.test(number.after) ||
+        !!(r.periods && r.periods.after && r.periods.after.test(number.after)) ||
+        !!(r.periods && r.periods.before && r.periods.before.test(number.before));
     }
     return found;
   }
@@ -227,7 +321,7 @@
       if (r.decimals !== 0) continue;
       if (context.allowed.has(r.value)) return "metadata";
       if (r.value >= 1900 && r.value <= 2199 && r.digits === number.raw) return "year";
-      if (PERIODS.test(number.after) && !CURRENCY_BEFORE.test(number.before)) return "periods";
+      if (number.period && !CURRENCY_BEFORE.test(number.before)) return "periods";
     }
     return null;
   }
