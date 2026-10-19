@@ -106,7 +106,9 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 ## One display locale (spec section 21; added 2026-10-18)
 
-- [ ] 70. `[server] locale`: config and startup check; `prumi.format` and `prumi.locale` use it (AC 77, 81)
-- [ ] 71. Number reader in the configured locale for the server and browser checks; the server check renders in it; the fourth-run page as a fixture (AC 78, 79)
-- [ ] 72. Second-language render and `R8.browser_locale` (AC 80)
-- [ ] 73. Guide, server instructions and README: one locale per server, `prumi.format` and `prumi.locale`
+- [x] 70. `[server] locale`: config and startup check; `prumi.format` and `prumi.locale` use it (AC 77, 81)
+- [x] 71. Number reader in the configured locale for the server and browser checks; the server check renders in it; the fourth-run page as a fixture (AC 78, 79)
+- [x] 72. Second-language render and `R8.browser_locale` (AC 80)
+- [x] 73. Guide, server instructions and README: one locale per server, `prumi.format` and `prumi.locale`
+- [ ] 74. Dates and periods in the configured locale, from `Intl` (rule 6; AC 82)
+- [ ] 75. Test-only switch for the second render; the suite's default validation fixture uses it (rule 7; AC 83)

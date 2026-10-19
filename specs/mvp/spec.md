@@ -922,6 +922,21 @@ The fourth agent run's page passed validation and was flagged `needs_attention` 
 4. **Server check:** renders in the configured locale (instead of the fixed `en-US`). Then it renders the default state once more with a different browser language (`de-DE`, or `en-US` when the configured locale is `de-*`). If the text of any bound element differs between the two renders, validation fails with `R8.browser_locale` (error): "This page formats with the viewer's browser language, so viewers would see different numbers than the check. Use `prumi.format` for numbers and `prumi.locale` for other `Intl` calls." The message names element paths only (19.16).
 5. **Guide and server instructions:** numbers only through `prumi.format`; dates and other `Intl` text with `prumi.locale`; never `toLocaleString()` or `Intl.*(undefined, …)`.
 
+6. **Dates and periods in the configured locale** (added and accepted 2026-10-18, after tasks 70–73). The reader's "not data" patterns (dates such as `Oct 14`, periods such as `12 wk`) are English only, so with `pt-BR` the `14` of `14 de out.` is flagged. The reader adds, on top of the English patterns:
+   - **dates** built from `Intl.DateTimeFormat(locale, …).formatToParts` for day + month, month + year and day + month + year, with `month` as `short` and as `long`: the locale's month names and the literal text between the parts (`14 de out.`, `14 de outubro de 2026`, `out. de 2026`, `14. Okt. 2026`);
+   - **periods** built from `Intl.NumberFormat(locale, {style: "unit", unit, unitDisplay})` for `day`, `week`, `month` and `year`, with `unitDisplay` `short`, `long` and `narrow` (`12 sem.`, `12 semanas`).
+   Nothing is hard-coded per language.
+7. **A test-only switch for the second render** (added and accepted 2026-10-18). The second-language render (rule 4) made the suite about 45% slower (207 s → 299 s), because about 200 tests validate a page. Validation takes an internal keyword that skips it; the suite's default validation fixture sets it, and the tests for `R8.browser_locale` and AC 79–80 don't. It isn't a config setting or an MCP argument: `prumi serve`, `validate_spec` and `prumi validate` always render twice.
+
+**Details settled during implementation (2026-10-18):**
+- The runtime learns the locale from its own script tag (`<script src=".../runtime.js" data-locale="pt-BR">`), so `prumi.locale` is set before page scripts run. A malformed attribute falls back to `en-US`.
+- `locale` is checked twice: at config load it must be shaped like a BCP 47 tag (a `ConfigError` otherwise, for every command); at `prumi serve`, after Chromium starts, `Intl.NumberFormat.supportedLocalesOf([tag])` must be non-empty, or startup stops naming `server.locale`.
+- The strict reader also takes group sizes from `formatToParts` (`en-IN` reads `12,34,567.5` and not `1,234,567.5`). A number with no strict reading matches nothing, so it's flagged. Compact scale is the value divided by the digits shown (`ja-JP` 万 = 1e4, `en-IN` L = 1e5); the fixed suffix table (`K`, `M`, `B`, `bn`, `Mio.`, …) stays as the base, with the locale's words added.
+- Copied-number detection reads `<script>` source both in the locale and as JavaScript literals, so a `pt-BR` page can't hide `2742409.35` in a script. HTML text is read in the locale only.
+- `R8.browser_locale` is one issue: the rule 4 message, then "Text that changed with the browser's language: <paths>." (at most 20, then "and N more"). "Text" is each bound element's `textContent` by element path, captured before the hover pass. Only the default state is rendered twice. The second language is `en-US` when the locale's language is `de`, otherwise `de-DE`.
+- The AC 79 page is `weekly-revenue-aov-regions.fixed.html`, the fourth-run page with line 135 changed to `prumi.locale`; the page as written fails on `section#kpi`.
+- The second render costs about 0.45 s per validation (2.19 s against 1.74 s on the fourth-run page).
+
 Not in this section: showing each viewer numbers in their own browser's language. One server shows numbers one way to everyone.
 
 ## Out of scope
@@ -1065,5 +1080,7 @@ Each criterion has at least one automated test unless it says otherwise.
 77. *(browser test)* With `locale = "pt-BR"`, `prumi.format(47123, "revenue", {compact: true})` gives `US$ 47 mil` in a browser whose language is `en-US`; with `locale = "en-US"`, it gives `$47K` in a `pt-BR` browser. `prumi.locale` returns the configured tag.
 78. With `locale = "pt-BR"`, the server check accepts `US$ 47 mil` and `US$ 2.742.409,35` for delivered `47123` and `2742409.35`, and refuses `US$ 48 mil`. With `en-US`, `2.742.409,35` doesn't match `2742409.35` (strict reading); existing tests that relied on the other convention are updated.
 79. *(browser test)* The fourth-run page, copied into the fixtures with its one browser-locale line changed to `prumi.locale`, published under `en-US` and opened in a `pt-BR` browser, is not flagged. The page as the agent wrote it is kept too, as a must-fail for `R8.browser_locale` (AC 80).
+82. *(browser test)* With `locale = "pt-BR"`, a page showing `14 de out.`, `14 de outubro de 2026`, `out. de 2026` and `12 sem.` (formatted with `prumi.locale`) isn't flagged; a bare `14` in a bound element that no block delivered still is. The same holds for `de-DE` (`14. Okt. 2026`).
+83. The suite's default validation skips the second render, and the tests for `R8.browser_locale` and AC 79–80 run it; a test shows that `validate_spec` over MCP always renders twice.
 80. A page that formats a bound number with `toLocaleString()` fails validation with `R8.browser_locale`; the same page using `prumi.format` passes.
 81. An unknown `locale` stops `prumi serve` at startup with a message naming the setting.
