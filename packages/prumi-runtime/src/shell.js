@@ -77,14 +77,57 @@
     }
   });
 
-  // The frame's number check for one filter state, stored for the data team.
+  // The frame's number check for one filter state, stored for the data team without data:
+  // flagged numbers by code and element path only, error messages cleaned. The viewer bar
+  // shows the flagged text from the report as the frame sent it, in this browser only.
   function sendCheck(report) {
     if (!report || typeof report !== "object") return;
+    var scrub = scrubber();
     fetch(config.api + "/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(report),
+      body: JSON.stringify({
+        filters: report.filters,
+        flagged: (Array.isArray(report.flagged) ? report.flagged : []).map(function (item) {
+          return { code: item && item.code, path: item && item.path };
+        }),
+        canvas: report.canvas,
+        errors: (Array.isArray(report.errors) ? report.errors : []).map(function (message) {
+          return scrub(String(message));
+        }),
+      }),
     }).catch(function () {});
+  }
+
+  // Page code can put data into its error messages. Every string value of a non-metric column
+  // in the results shown (2 or more characters, longest first), then every number with 3 or
+  // more digits, becomes "…", as in the server's check. The server cleans them again.
+  function scrubber() {
+    var found = new Set();
+    Object.keys(results).forEach(function (id) {
+      var metrics = new Set();
+      (results[id].columns || []).forEach(function (column) {
+        if (column.kind === "metric") metrics.add(column.name);
+      });
+      (results[id].rows || []).forEach(function (row) {
+        Object.keys(row).forEach(function (key) {
+          var value = row[key];
+          if (metrics.has(key) || key.charAt(0) === "_") return;
+          if (typeof value === "string" && value.length >= 2) found.add(value);
+        });
+      });
+    });
+    var ordered = Array.from(found).sort(function (a, b) {
+      return b.length - a.length || (a < b ? -1 : a > b ? 1 : 0);
+    });
+    return function (text) {
+      ordered.forEach(function (value) {
+        text = text.split(value).join("…");
+      });
+      return text.replace(/\d[\d,.]*\d/g, function (number) {
+        return number.replace(/\D/g, "").length >= 3 ? "…" : number;
+      });
+    };
   }
   // The server checked the default filters at publish; this viewer's browser found numbers
   // Prumi didn't deliver (new data, or another filter state), so the viewer is told.

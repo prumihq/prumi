@@ -489,6 +489,89 @@ def test_the_browser_reports_numbers_prumi_didnt_deliver(page, server, services,
     assert '{"region": {"selected": 1}}' in out and "R8.unverified_number  p#extra  (×1)" in out
 
 
+LEAKY_SPEC = {
+    "spec_version": 0,
+    "dashboard": {"id": "leaky", "title": "Leaky"},
+    "filters": [{"id": "region", "type": "dimension", "dimension": "customer__region",
+                 "default": []}],
+    "data": [
+        {"id": "kpi", "metrics": ["revenue"], "window": {"last": 12, "grain": "week"},
+         "filters": ["region"]},
+        {"id": "regions", "metrics": ["revenue"], "dimensions": ["customer__region"],
+         "window": {"last": 12, "grain": "week"}, "filters": ["region"]},
+    ],
+    "presentation": {"bindings": {"#kpi": "kpi", "#extra": "kpi", "#regions": "regions"}},
+}  # fmt: skip
+
+# Once a region is chosen, shows a number Prumi didn't deliver and throws an error that names
+# the region shown and a long number.
+LEAKY_HTML = """<!doctype html><html><body>
+<p id="kpi"></p><p id="extra"></p><ul id="regions"></ul>
+<script>
+  prumi.on("kpi", (b) => {
+    document.getElementById("kpi").textContent = prumi.format(b.rows[0].revenue, "revenue");
+    const chosen = (prumi.getFilter("region") || []).length > 0;
+    document.getElementById("extra").textContent = chosen ? "Target $1,234.56" : "";
+  });
+  prumi.on("regions", (b) => {
+    document.getElementById("regions").replaceChildren(...b.rows.map((row) => {
+      const item = document.createElement("li");
+      item.textContent = (row.customer__region || "None") + ": " +
+        prumi.format(row.revenue, "revenue");
+      return item;
+    }));
+    if ((prumi.getFilter("region") || []).length > 0) {
+      throw new Error("No target for " + b.rows[0].customer__region + " since 20240101");
+    }
+  });
+</script></body></html>"""
+
+
+def test_the_shell_posts_reports_without_data(page, server, services):
+    report, published = services.publish(LEAKY_SPEC, LEAKY_HTML)
+    assert report.ok and published, report.issues
+    posted = []
+    page.on(
+        "request",
+        lambda r: (
+            posted.append(r.post_data_json)
+            if r.method == "POST" and r.url.endswith("/leaky/versions/1/check")
+            else None
+        ),
+    )
+    frame, _ = open_dashboard(page, server, "leaky")
+    frame.locator("#kpi").filter(has_text="$").wait_for()
+    frame.locator("body").evaluate("() => prumi.setFilter('region', ['North America'])")
+    frame.locator("#extra").filter(has_text="1,234.56").wait_for()
+
+    def chosen():
+        return [p for p in posted if p["filters"] == {"region": ["North America"]}]
+
+    deadline = time.monotonic() + TIMEOUT / 1000
+    while not any(p["flagged"] and p["errors"] for p in chosen()):
+        assert time.monotonic() < deadline, posted
+        page.wait_for_timeout(50)  # Playwright delivers request events while it waits
+    # The viewer bar, built in this browser, lists the flagged text.
+    bar = page.locator("#prumi-unverified")
+    bar.locator("summary").click()
+    assert bar.locator("li").all_text_contents() == ["$1,234.56 in p#extra"]
+    # What the shell posts doesn't: numbers by code and element path, errors cleaned of the
+    # region the block delivered and of the long number.
+    for sent in posted:
+        assert all(set(item) == {"code", "path"} for item in sent["flagged"]), sent
+    last = chosen()[-1]
+    assert last["flagged"] == [{"code": "R8.unverified_number", "path": "p#extra"}]
+    assert last["errors"] == ["No target for … since …"]
+    # Only the filter state names the region: the server keys reports by it, never stores it.
+    rest = str([{**sent, "filters": None} for sent in posted])
+    assert "North America" not in rest and "1,234" not in rest
+    deadline = time.monotonic() + TIMEOUT / 1000
+    while not (stored := [c.errors for c in services.registry.checks("leaky", 1) if c.errors]):
+        assert time.monotonic() < deadline
+        time.sleep(0.05)
+    assert stored == [["No target for … since …"]]
+
+
 # Visible errors
 
 
