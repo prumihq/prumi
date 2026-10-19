@@ -13,10 +13,10 @@ Self-hosting keeps company data on the company's machines, but anything an MCP t
 - **Nothing agent-facing echoes data.** Number-check issues, layout warnings and the browser reports in `get_dashboard` give codes, element paths and counts. Source errors give the error type and a generic message, never the database's own text. Runtime error messages lose the page's dimension values and any number of 3 or more digits, and blocked requests name only the origin.
 - **Allowed in agent output:** catalog names, labels and descriptions; counts and magnitudes; window and freshness dates; text the agent itself wrote.
 - **Validation returns no screenshot.** Layout problems come back as measurements (element paths and boxes), never as an image or the page's text.
-- Dashboard data goes warehouse → Prumi → browser. Prumi stores no query results, and its logs hold no row values or filter values.
+- Dashboard data goes warehouse → Prumi → browser. Prumi stores no company data: no query results, and viewers' check reports keep only codes, element paths and counts, with filter states redacted and error messages cleaned ([ADR 0013](0013-registry-sqlite.md)). Its logs hold no row values or filter values.
 
 ## Consequences
 
 - The agent can't answer questions about the numbers. Analysis in chat would need new tools that keep this guarantee, or show their answers only to the user.
 - The agent never sees the page it built. It relies on the layout warnings, and on the user looking at the draft.
-- Every new tool output follows the same rules; a test plants data and checks that it never appears in agent output.
+- Every new tool output follows the same rules. Tests plant data and check that it never appears in agent output, nor in the registry file.

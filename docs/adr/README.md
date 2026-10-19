@@ -15,3 +15,5 @@ Short records of technical decisions: context, decision, consequences. Numbered,
 | [0009](0009-number-provenance.md) | Every number shown is a value Prumi delivered, checked in headless Chromium | Proposed |
 | [0010](0010-no-company-data-to-the-agent.md) | No company data reaches the agent: `query` returns a profile | Proposed |
 | [0011](0011-one-display-locale.md) | One display locale per server | Proposed |
+| [0012](0012-dashboard-spec-format.md) | The dashboard spec is Prumi's own format: what a dashboard shows, never what a metric means | Proposed |
+| [0013](0013-registry-sqlite.md) | The registry is SQLite, in WAL mode, with plain-SQL migrations | Proposed |
