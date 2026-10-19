@@ -132,6 +132,7 @@ class Services:
             frozenset(hosts.script) | frozenset(hosts.style) | frozenset(hosts.font),
             values,
             devices,
+            locale,
         )
 
     def publish(

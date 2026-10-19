@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 from prumi.cli import main
 from prumi.mcp import AUTHORING_GUIDE
+from prumi.spec import DashboardSpec
 from prumi.validate import page as page_check
 
 pytestmark = pytest.mark.browser
@@ -219,6 +220,68 @@ def test_numbers_are_read_in_either_locale(demo_services, text, readings):
             page.close()
 
     assert demo_services.checker._submit(evaluate) == pytest.approx(readings)
+
+
+@pytest.mark.parametrize(
+    ("text", "locale", "values"),
+    [
+        ("US$\u00a047\u00a0mil", "pt-BR", [47e3]),
+        ("US$\u00a02.742.409,35", "pt-BR", [2742409.35]),
+        ("2,7\u00a0mi", "pt-BR", [2.7e6]),
+        ("3\u00a0bi", "pt-BR", [3e9]),
+        ("1,2\u00a0Mio.\u00a0€", "de-DE", [1.2e6]),
+        ("1'234'567.5", "de-CH", [1234567.5]),
+        ("1\u00a0Md", "fr-FR", [1e9]),
+        ("100万", "ja-JP", [1e6]),  # 万 is 1e4
+        ("10L · ₹100Cr", "en-IN", [1e6, 1e9]),  # lakh and crore
+        # en-US reads as before: "mil" isn't a scale there.
+        ("$47K", "en-US", [47e3]),
+        ("47 mil", "en-US", [47]),
+    ],
+)
+def test_numbers_are_read_in_the_servers_locale(demo_services, text, locale, values):
+    def evaluate(browser):
+        page = browser.new_page()
+        try:
+            page.add_script_tag(content=(RUNTIME / "provenance.js").read_text())
+            return page.evaluate(
+                """([text, locale]) => window.prumiProvenance.numbers(text, locale).flatMap(
+                    (n) => n.readings.map((r) => r.value * n.scale))""",
+                [text, locale],
+            )
+        finally:
+            page.close()
+
+    assert demo_services.checker._submit(evaluate) == pytest.approx(values)
+
+
+def test_the_server_check_reads_numbers_in_the_servers_locale(demo_services):
+    import dataclasses
+
+    config = demo_services.config
+    demo_services.config = dataclasses.replace(
+        config, server=dataclasses.replace(config.server, locale="pt-BR")
+    )
+    spec = DashboardSpec.model_validate(KPI_SPEC)
+    results = {
+        "kpi": {
+            "columns": [{"name": "revenue", "kind": "metric", "label": "Revenue"}],
+            "rows": [{"revenue": 47123}],
+            "total": {"revenue": 2742409.35},
+        }
+    }
+    shown = """prumi.on("kpi", (b) => {
+      document.getElementById("compact").textContent =
+        prumi.format(b.rows[0].revenue, "revenue", {compact: true});
+      document.getElementById("total").textContent = prumi.format(b.total.revenue, "revenue");
+    });"""
+    body = '<p id="compact"></p><p id="total"></p>'
+    assert demo_services.check_page(spec, kpi_page(shown, body), results) == []
+    # Off by a thousand, in the same words: refused.
+    wrong = shown.replace("b.rows[0].revenue, ", "b.rows[0].revenue + 1000, ")
+    [issue] = demo_services.check_page(spec, kpi_page(wrong, body), results)
+    assert issue.code == "R8.unverified_number"
+    assert WHERE.match(issue.message)[1] == "p#compact"
 
 
 # Numbers copied into the source

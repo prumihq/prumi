@@ -152,7 +152,8 @@
       found = provenance.scan(document, {
         blocks: check.values,
         bindings: bindings,
-        allowed: check.allowed.concat(provenance.fromData([check.spec, labels])),
+        allowed: check.allowed.concat(provenance.fromData([check.spec, labels], [], LOCALE)),
+        locale: LOCALE,
       });
     } catch (error) {
       return;
@@ -180,7 +181,7 @@
   function delivered(block, result) {
     var results = {};
     results[block] = result;
-    var found = provenance ? provenance.fromResults(results) : null;
+    var found = provenance ? provenance.fromResults(results, LOCALE) : null;
     if (!found) return;
     var values = (check.values[block] = check.values[block] || []);
     Array.prototype.push.apply(values, found.blocks[block] || []);

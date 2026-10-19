@@ -32,9 +32,15 @@
     ].join("|"),
     "gi"
   );
-  // A number, not glued to a word on its left, with an optional scale after it.
-  var NUMBER =
-    /(?<![\p{L}\d_])(\d(?:[\d.,'   ]*\d)?)(?:[    ]?(%|‰|[kKMBT](?![\p{L}])|bn(?![\p{L}])|mn(?![\p{L}])|Mio\.?|Mrd\.?))?/gu;
+  var PERIODS = /^\s*-?\s*(?:days?|weeks?|wks?|months?|mos?|quarters?|qtrs?|years?|yrs?)\b/i;
+  var CURRENCY_BEFORE = /(?:[$€£¥₹₩₽¢]|\b[A-Z]{3})\s*$/;
+
+  // What every locale's reader knows: these separators inside a number, and these scales
+  // after it. A locale adds its own (see reader), so en-US reads exactly these.
+  var SEPARATORS = ".,'   ";
+  var SPACES = "    "; // between a number and its scale
+  var SUFFIXES = ["%", "‰", "[kKMBT](?![\\p{L}])", "bn(?![\\p{L}])", "mn(?![\\p{L}])",
+                  "Mio\\.?", "Mrd\\.?"];
   var SCALES = {
     "%": 0.01,
     "‰": 0.001,
@@ -50,19 +56,96 @@
     "Mrd.": 1e9,
     T: 1e12,
   };
-  var PERIODS = /^\s*-?\s*(?:days?|weeks?|wks?|months?|mos?|quarters?|qtrs?|years?|yrs?)\b/i;
-  var CURRENCY_BEFORE = /(?:[$€£¥₹₩₽¢]|\b[A-Z]{3})\s*$/;
+
+  function escapeRegExp(text) {
+    return text.replace(/[\\^$.*+?()[\]{}|\/-]/g, "\\$&");
+  }
+
+  // The locale's separators and compact scales, as Intl formats them: the group and decimal
+  // separators of 1234567.5, and the compact suffix of 1e3, 1e6 and 1e9, as a number and as
+  // a currency (some locales use other words there). The scale is the value over the digits
+  // shown, so "100万" (1e6 in ja-JP) makes 万 1e4.
+  function localeSymbols(locale) {
+    var out = { group: "", decimal: "", scales: {} };
+    try {
+      new Intl.NumberFormat(locale).formatToParts(1234567.5).forEach(function (part) {
+        if (part.type === "group") out.group = part.value;
+        if (part.type === "decimal") out.decimal = part.value;
+      });
+      var styles = [
+        { notation: "compact" },
+        { notation: "compact", style: "currency", currency: "USD" },
+      ];
+      [1e3, 1e6, 1e9].forEach(function (value) {
+        styles.forEach(function (options) {
+          var digits = "";
+          var suffix = "";
+          new Intl.NumberFormat(locale, options).formatToParts(value).forEach(function (part) {
+            if (part.type === "integer") digits += part.value;
+            if (part.type === "compact") suffix = part.value.trim();
+          });
+          if (suffix && +digits > 0) out.scales[suffix] = value / +digits;
+        });
+      });
+    } catch (error) {
+      // a tag this browser doesn't know: read as en-US
+    }
+    return out;
+  }
+
+  // The reader for a locale: what a number looks like there, and its scales.
+  var readers = {};
+
+  function reader(locale) {
+    locale = locale || "en-US";
+    if (readers[locale]) return readers[locale];
+    var symbols = localeSymbols(locale);
+    var odd = [symbols.group, symbols.decimal].filter(function (c) {
+      return c && SEPARATORS.indexOf(c) < 0 && c !== " ";
+    });
+    var own = Object.keys(symbols.scales)
+      .sort(function (a, b) {
+        return b.length - a.length;
+      })
+      .map(function (suffix) {
+        return escapeRegExp(suffix) + (/\p{L}$/u.test(suffix) ? "(?![\\p{L}])" : "");
+      });
+    var separators = escapeRegExp(SEPARATORS + odd.join(""));
+    var scales = {};
+    Object.keys(SCALES).forEach(function (k) {
+      scales[k] = SCALES[k];
+    });
+    Object.keys(symbols.scales).forEach(function (k) {
+      scales[k] = symbols.scales[k];
+    });
+    readers[locale] = {
+      // A number, not glued to a word on its left, with an optional scale after it.
+      number: new RegExp(
+        "(?<![\\p{L}\\d_])(\\d(?:[\\d" + separators + "]*\\d)?)(?:[" + SPACES + "]?(" +
+          own.concat(SUFFIXES).join("|") + "))?",
+        "gu"
+      ),
+      scales: scales,
+      // Group separators other than . and , are removed; an odd decimal separator becomes ".".
+      group: symbols.group && odd.indexOf(symbols.group) >= 0 ? symbols.group : "",
+      decimal: symbols.decimal && odd.indexOf(symbols.decimal) >= 0 ? symbols.decimal : "",
+    };
+    return readers[locale];
+  }
 
   // Readings of a number as shown: "1,234" is 1234 in en-US and 1.234 in de-DE.
-  function readings(raw) {
+  function readings(raw, locale) {
+    var r = reader(locale);
     var s = raw.replace(/['   ]/g, "");
+    if (r.group) s = s.split(r.group).join("");
+    if (r.decimal) s = s.split(r.decimal).join(".");
     var commas = s.split(",").length - 1;
     var dots = s.split(".").length - 1;
     if (!commas && !dots) return [{ value: +s, decimals: 0, digits: s }];
     if (commas && dots) {
       var decimal = s.lastIndexOf(",") > s.lastIndexOf(".") ? "," : ".";
-      var r = decimalReading(s, decimal);
-      return r ? [r] : [];
+      var one = decimalReading(s, decimal);
+      return one ? [one] : [];
     }
     var sep = commas ? "," : ".";
     var parts = s.split(sep);
@@ -101,19 +184,22 @@
     return digits.replace(/^0+/, "").replace(/0+$/, "").length;
   }
 
-  // The numbers in a piece of text, with what's around them.
-  function numbers(text) {
+  // The numbers in a piece of text as shown in `locale`, with what's around them and their
+  // readings.
+  function numbers(text, locale) {
+    var r = reader(locale);
     var stripped = text.replace(DATES, function (m) {
       return " ".repeat(m.length);
     });
     var found = [];
     var match;
-    NUMBER.lastIndex = 0;
-    while ((match = NUMBER.exec(stripped))) {
+    r.number.lastIndex = 0;
+    while ((match = r.number.exec(stripped))) {
       found.push({
         text: match[0],
         raw: match[1],
-        scale: match[2] ? SCALES[match[2]] || SCALES[match[2].replace(".", "")] : 1,
+        readings: readings(match[1], locale),
+        scale: match[2] ? r.scales[match[2]] || r.scales[match[2].replace(".", "")] : 1,
         suffix: match[2] || "",
         before: stripped.slice(0, match.index),
         after: stripped.slice(match.index + match[0].length),
@@ -160,7 +246,7 @@
   // result metadata, years, counts of periods.
   function nonData(number, context) {
     if (number.scale !== 1) return null;
-    var rs = readings(number.raw);
+    var rs = number.readings;
     for (var i = 0; i < rs.length; i++) {
       var r = rs[i];
       if (r.decimals !== 0) continue;
@@ -172,7 +258,7 @@
   }
 
   function deliveredBy(number, sorted) {
-    return readings(number.raw).some(function (r) {
+    return number.readings.some(function (r) {
       return delivered(r, number.scale, sorted);
     });
   }
@@ -315,7 +401,7 @@
   var UNVERIFIED = "R8.unverified_number";
 
   // context: {blocks: {blockId: [delivered values]}, bindings: {selector: [blockIds]},
-  // allowed: [numbers from the spec and metadata]}. A number that's data must sit in a bound
+  // allowed: [numbers from the spec and metadata], locale: the server's display locale}. A number that's data must sit in a bound
   // element and be a value of that binding's blocks: matching against every value on the page
   // lets a computed number through whenever it equals some other value at the precision shown.
   // Returns {flagged: [{text, path, code}], checked: count of numbers read, canvas: bool},
@@ -331,17 +417,17 @@
     var checked = 0;
     var ticks = []; // every number in a chart, verified or not: runs are found among them all
     texts(doc).forEach(function (t) {
-      numbers(t.text).forEach(function (number) {
+      numbers(t.text, context.locale).forEach(function (number) {
         checked++;
         var item = { number: number, element: t.element };
-        var reading = readings(number.raw)[0];
+        var reading = number.readings[0];
         if (reading && chartOf(t.element)) {
           item.reading = reading; // a run of ticks is judged on every number in the chart
           ticks.push(item);
         }
         if (nonData(number, ctx)) return;
         // A single round number in an axis-marked element is a tick on its own.
-        if (readings(number.raw).some(tickLike) && isAxis(t.element)) return;
+        if (number.readings.some(tickLike) && isAxis(t.element)) return;
         var blocks = boundBlocks(t.element, context.bindings);
         if (!blocks) {
           item.code = UNBOUND;
@@ -382,7 +468,7 @@
   // comparison fields. And what else a page may show: row counts and numbers in dimension
   // values (a "Store 12" category).
   // Returns {values: all of them, blocks: {blockId: values}, allowed}.
-  function fromResults(results) {
+  function fromResults(results, locale) {
     var all = [];
     var blocks = {};
     var allowed = [];
@@ -412,7 +498,7 @@
           if (key.charAt(0) === "_" || metrics.indexOf(key) >= 0) return;
           var v = row[key];
           if (typeof v === "number") allowed.push(v);
-          else if (typeof v === "string") numbersIn(v, allowed);
+          else if (typeof v === "string") numbersIn(v, allowed, locale);
         });
       });
       take(result.total);
@@ -424,11 +510,11 @@
   }
 
   // Every number written in the spec (a window's length, top_n) or in labels.
-  function fromData(data, out) {
+  function fromData(data, out, locale) {
     out = out || [];
     (function walk(v) {
       if (typeof v === "number") out.push(v);
-      else if (typeof v === "string") numbersIn(v, out);
+      else if (typeof v === "string") numbersIn(v, out, locale);
       else if (Array.isArray(v)) v.forEach(walk);
       else if (v && typeof v === "object") Object.keys(v).forEach(function (k) {
         walk(v[k]);
@@ -437,9 +523,9 @@
     return out;
   }
 
-  function numbersIn(text, out) {
-    numbers(text).forEach(function (n) {
-      readings(n.raw).forEach(function (r) {
+  function numbersIn(text, out, locale) {
+    numbers(text, locale).forEach(function (n) {
+      n.readings.forEach(function (r) {
         out.push(r.value);
       });
     });
@@ -453,15 +539,15 @@
   var COPIED_IN_TEXT = 3;
   var COPIED_IN_SCRIPT = 4;
 
-  function copied(source, values, limit) {
+  function copied(source, values, limit, locale) {
     limit = limit || 20;
     var sorted = sortedValues(values);
     var doc = new DOMParser().parseFromString(source, "text/html"); // runs no scripts
     var found = [];
     var seen = {};
     function read(text, minimum) {
-      numbers(text).forEach(function (number) {
-        var match = readings(number.raw).some(function (r) {
+      numbers(text, locale).forEach(function (number) {
+        var match = number.readings.some(function (r) {
           if (significant(r.digits) < minimum) return false;
           var year = r.decimals === 0 && r.value >= 1900 && r.value <= 2199 && r.digits === number.raw;
           return !(number.scale === 1 && year) && delivered(r, number.scale, sorted);

@@ -459,6 +459,32 @@ def test_errors_show_in_the_blocks_bound_elements(page, server):
     assert frame.locator("#trend-note").text_content() == failed
 
 
+def test_the_fourth_run_page_isnt_flagged_in_a_portuguese_browser(
+    browser, live_services, live_server
+):
+    """The page an agent published under en-US, opened by a viewer whose browser is pt-BR."""
+    import json
+
+    services = live_services()
+    run = FIXTURES / "fourth_run" / "weekly-revenue-aov-regions"
+    spec = json.loads(run.with_suffix(".spec.json").read_text())
+    report, published = services.publish(spec, run.with_suffix(".html").read_text())
+    assert report.ok and published, report.issues
+    with live_server(services) as live:
+        context = browser.new_context(locale="pt-BR")
+        try:
+            page = context.new_page()
+            page.set_default_timeout(TIMEOUT)
+            frame, _ = open_dashboard(page, live, published.dashboard_id)
+            frame.locator("#kpi").filter(has_text="$").first.wait_for()
+            [check] = wait_for_checks(services, published.dashboard_id, 1)
+            assert check.clean, check
+            assert not services.registry.status(published.dashboard_id, 1).needs_attention
+            assert page.locator("#prumi-unverified").is_hidden()
+        finally:
+            context.close()
+
+
 # The default theme
 
 

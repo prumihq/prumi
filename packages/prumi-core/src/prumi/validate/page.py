@@ -92,12 +92,13 @@ _SETTLE = """new Promise((resolve) => {
 _SCAN = """(() => {
   const p = window.prumiProvenance;
   const setup = %s;
-  const delivered = p.fromResults(setup.results);
-  const allowed = p.fromData([setup.spec, setup.labels], delivered.allowed);
+  const delivered = p.fromResults(setup.results, setup.locale);
+  const allowed = p.fromData([setup.spec, setup.labels], delivered.allowed, setup.locale);
   // Kept for the hover pass's scans, in this isolated world only.
-  window.prumiCheck = { blocks: delivered.blocks, bindings: setup.bindings, allowed };
+  window.prumiCheck = { blocks: delivered.blocks, bindings: setup.bindings, allowed,
+                        locale: setup.locale };
   const found = p.scan(document, window.prumiCheck, %d);
-  found.copied = p.copied(%s, delivered.values, %d);
+  found.copied = p.copied(%s, delivered.values, %d, setup.locale);
   found.unreadable = p.unreadable(document);
   return found;
 })()"""
@@ -228,11 +229,13 @@ class PageChecker:
         allowed_hosts: frozenset[str] = frozenset(),
         values: Mapping[str, Any] | None = None,
         devices: Sequence[str] = ("desktop",),
+        locale: str = "en-US",
     ) -> list[Issue]:
         """Issues for what the rendered page shows. `frame_page(origin)` gives the frame's
         HTML and Content-Security-Policy, as the server would serve them. `values` are the
         filter values the page starts with (default: the filters' defaults). The layout is
-        measured for each of `devices` (see DEVICES)."""
+        measured for each of `devices` (see DEVICES). The browser renders in `locale`, the
+        server's display locale, and numbers are read in it."""
         frame_html, csp = frame_page(ORIGIN)
         setup = {
             "filters": [f.model_dump(mode="json") for f in spec.filters],
@@ -243,6 +246,7 @@ class PageChecker:
             "bindings": {s: list(b) for s, b in spec.presentation.blocks_of().items()},
             "results": dict(results),
             "spec": spec.model_dump(mode="json", by_alias=True),
+            "locale": locale,
         }
         return self._submit(
             lambda browser: self._check(
@@ -251,10 +255,10 @@ class PageChecker:
         )
 
     @contextmanager
-    def _render(self, browser, route, viewport, errors, locate, on_console, scrub=str):
-        """A fresh context with the page rendered at `viewport`: yields (page, cdp,
-        evaluate-in-the-isolated-world, settled)."""
-        context = browser.new_context(locale="en-US", timezone_id="UTC", viewport=viewport)
+    def _render(self, browser, route, viewport, locale, errors, locate, on_console, scrub=str):
+        """A fresh context with the page rendered at `viewport`, in a browser whose language
+        is `locale`: yields (page, cdp, evaluate-in-the-isolated-world, settled)."""
+        context = browser.new_context(locale=locale, timezone_id="UTC", viewport=viewport)
         try:
             context.route("**/*", route)
             page = context.new_page()
@@ -350,8 +354,9 @@ class PageChecker:
         layout_js = files("prumi.validate").joinpath("layout.js").read_text(encoding="utf-8")
         layout_call = f"prumiLayout(document, {json.dumps(setup['bindings'])}, {MAX_LISTED})"
         layouts: list[tuple[str, list[dict[str, Any]]]] = []
+        locale = setup["locale"]
         with self._render(
-            browser, route, DEVICES["desktop"], errors, locate, on_console, scrub
+            browser, route, DEVICES["desktop"], locale, errors, locate, on_console, scrub
         ) as (
             page,
             cdp,
@@ -376,7 +381,7 @@ class PageChecker:
             if device == "desktop":
                 continue
             # Another render at the device's size, for the layout only.
-            with self._render(browser, route, DEVICES[device], [], locate, None, scrub) as (
+            with self._render(browser, route, DEVICES[device], locale, [], locate, None, scrub) as (
                 _,
                 _,
                 evaluate,
