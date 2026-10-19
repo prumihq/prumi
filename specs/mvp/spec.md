@@ -958,6 +958,13 @@ Both runs passed `validate_spec` on the first try. Three small problems showed u
 - second row: "Data through <date>".
 Above 480 px, the bar is unchanged.
 
+**Details settled during implementation (2026-10-19):**
+- The instructions sentence is exactly the second sentence (a test checks it).
+- `prumi.change` formats with `Intl.NumberFormat(prumi.locale, {style: "percent", maximumFractionDigits: decimals, signDisplay: "exceptZero"})` and reads `sign` from the plus and minus parts of `formatToParts`, so it always agrees with `text`. A non-number value gives `{text: String(value), sign: null}`, as `prumi.format` does; a non-number `decimals` falls back to 1. The number check needed no change.
+- The guide example shows ▲ or ▼ and the positive or negative color from `sign`; "0%" gets neither.
+- Phone bar: the title flexes (`min-width: 0`, no wrap, ellipsis) and always carries its full text in `title`, at any width; the badge is `flex: none` and never wraps; the Details toggle follows "Data through", and its popup is anchored left and capped at the viewport width.
+- Suite after section 22: 834 tests in about 234–245 s.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |

@@ -116,6 +116,6 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 ## Polish from the fourth and fifth runs (spec section 22; added 2026-10-18)
 
-- [ ] 77. Server instructions: build with Prumi, not the client's own dashboard tool (AC 84)
-- [ ] 78. `prumi.change`: runtime, number check, guide row, guide line and example (AC 85)
-- [ ] 79. The viewer bar on a phone (AC 86)
+- [x] 77. Server instructions: build with Prumi, not the client's own dashboard tool (AC 84)
+- [x] 78. `prumi.change`: runtime, number check, guide row, guide line and example (AC 85)
+- [x] 79. The viewer bar on a phone (AC 86)
