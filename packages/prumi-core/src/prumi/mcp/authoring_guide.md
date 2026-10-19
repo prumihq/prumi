@@ -125,7 +125,7 @@ What `prumi.on` callbacks receive:
 - Blocks with `compare` add `_previous`, `_delta` and `_delta_pct` to each row, each an object keyed by metric (`row._delta_pct.revenue` is a fraction: 0.12 is +12%; `null` when there's nothing to compare with).
 - `others` (with `top_n` and `others`) and `total` (with `total`) are objects keyed by metric, or `null` when not asked for or when every group is already in the top N. They carry no comparison values in this release: `_previous`, `_delta` and `_delta_pct` are on rows only. For an overall change, add a block without dimensions that has `compare`.
 - An empty result has `rows: []`, for example a month to date on its first day. Draw an empty state.
-- Format metric values (and `_previous`, `_delta`, `total`, `others`) with `prumi.format(value, "<metric>")`. Percent metrics are fractions (0.25 shows as 25%). `_delta_pct` is a fraction too, whatever the metric's unit: show it as a percent with `new Intl.NumberFormat(undefined, {style: "percent", maximumFractionDigits: 1}).format(value)`.
+- Format metric values (and `_previous`, `_delta`, `total`, `others`) with `prumi.format(value, "<metric>")`. Percent metrics are fractions (0.25 shows as 25%). `_delta_pct` is a fraction too, whatever the metric's unit: show it as a percent with `new Intl.NumberFormat(prumi.locale, {style: "percent", maximumFractionDigits: 1}).format(value)`.
 
 ## Example
 
@@ -182,7 +182,7 @@ Replace `revenue` and `customer__region` with metrics and dimensions from `find_
   <ol id="trend"></ol>
   <script>
     // _delta_pct is a fraction whatever the metric's unit, so it's shown as a percent.
-    const pct = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 1 });
+    const pct = new Intl.NumberFormat(prumi.locale, { style: "percent", maximumFractionDigits: 1 });
 
     prumi.on("kpi", (result) => {
       const row = result.rows[0];

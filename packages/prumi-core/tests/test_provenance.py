@@ -82,6 +82,9 @@ def flagged(report) -> list[tuple[str, str | None]]:
     for issue in report.issues:
         if issue.code == "R8.copied_number":
             found.append((issue.code, f"line {LINE.search(issue.message)[1]}"))
+        elif issue.code == "R8.browser_locale":
+            paths = issue.message.rsplit(": ", 1)[1].rstrip(".").split(", ")
+            found += [(issue.code, path) for path in paths]
         elif issue.code.startswith("R8."):
             found.append((issue.code, WHERE.match(issue.message)[1]))
         elif issue.code in FLAGGED:
@@ -321,6 +324,65 @@ def test_copied_numbers_in_another_locale(demo_services, body, script):
     page = kpi_page(SHOW_REVENUE + script, '<p id="revenue"></p>' + body)
     report = demo_services.validate(KPI_SPEC, page)
     assert "R8.copied_number" in codes(report), report.issues
+
+
+# Formatting with the browser's language
+
+
+@pytest.mark.parametrize(
+    "shown",
+    [
+        "b.rows[0].revenue.toLocaleString()",
+        'new Intl.NumberFormat(undefined, {style: "currency", currency: "USD"})'
+        ".format(b.rows[0].revenue)",
+        "prumi.format(b.rows[0].revenue, 'revenue') + ' on ' + new Date(0).toLocaleDateString()",
+    ],
+)
+def test_a_page_that_formats_with_the_browsers_language_fails(demo_services, shown):
+    script = (
+        f'prumi.on("kpi", (b) => {{ document.getElementById("revenue").textContent = {shown}; }});'
+    )
+    report = demo_services.validate(KPI_SPEC, kpi_page(script))
+    [issue] = report.errors
+    assert issue.code == "R8.browser_locale"
+    assert issue.message.startswith(page_check.BROWSER_LOCALE_MESSAGE)
+    assert issue.message.endswith("Text that changed with the browser's language: div#page.")
+    assert not re.search(r"\d", issue.message)  # element paths only, never the text
+
+
+def test_the_fourth_run_page_formats_with_the_browsers_language(demo_services):
+    """As the agent wrote it: the KPI's change goes through Intl.NumberFormat(undefined, …).
+    The same page with prumi.locale there passes (and opens unflagged in a pt-BR browser)."""
+    run = Path(__file__).parent / "fixtures" / "fourth_run"
+    spec = json.loads((run / "weekly-revenue-aov-regions.spec.json").read_text())
+    report = demo_services.validate(spec, (run / "weekly-revenue-aov-regions.html").read_text())
+    assert flagged(report) == [("R8.browser_locale", "section#kpi")]
+    fixed = (run / "weekly-revenue-aov-regions.fixed.html").read_text()
+    assert demo_services.validate(spec, fixed).ok
+
+
+@pytest.mark.parametrize(
+    "shown",
+    [
+        "prumi.format(b.rows[0].revenue, 'revenue')",
+        "prumi.format(b.rows[0].revenue, 'revenue') + ' on ' + "
+        "new Date(0).toLocaleDateString(prumi.locale, {timeZone: 'UTC'})",
+    ],
+)
+def test_the_same_page_with_prumi_format_and_locale_passes(demo_services, shown):
+    script = (
+        f'prumi.on("kpi", (b) => {{ document.getElementById("revenue").textContent = {shown}; }});'
+    )
+    report = demo_services.validate(KPI_SPEC, kpi_page(script))
+    assert report.ok and not report.warnings, report.issues
+
+
+@pytest.mark.parametrize(
+    ("locale", "other"),
+    [("en-US", "de-DE"), ("pt-BR", "de-DE"), ("de-DE", "en-US"), ("de", "en-US")],
+)
+def test_the_second_render_uses_another_language(locale, other):
+    assert page_check._other_language(locale) == other
 
 
 # Numbers copied into the source

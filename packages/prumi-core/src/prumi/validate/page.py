@@ -103,6 +103,26 @@ _SCAN = """(() => {
   return found;
 })()"""
 
+# The text of every bound element, by element path, before anything is hovered.
+_BOUND_TEXT = """(() => {
+  const out = {};
+  for (const selector of Object.keys(%s)) {
+    let found;
+    try { found = document.querySelectorAll(selector); } catch (error) { continue; }
+    for (const element of found) out[window.prumiProvenance.path(element)] = element.textContent;
+  }
+  return out;
+})()"""
+BROWSER_LOCALE_MESSAGE = (
+    "This page formats with the viewer's browser language, so viewers would see different "
+    "numbers than the check. Use `prumi.format` for numbers and `prumi.locale` for other "
+    "`Intl` calls."
+)
+BROWSER_LOCALE_HINT = (
+    "Never call toLocaleString() or Intl.*(undefined, ...): pass prumi.locale, as in "
+    "new Intl.DateTimeFormat(prumi.locale, ...)."
+)
+
 # After a hover: let the page draw its tooltip, then scan again.
 _RESCAN = """new Promise((resolve) => requestAnimationFrame(() => resolve(
   window.prumiProvenance.scan(document, window.prumiCheck, %d).flagged
@@ -235,7 +255,9 @@ class PageChecker:
         HTML and Content-Security-Policy, as the server would serve them. `values` are the
         filter values the page starts with (default: the filters' defaults). The layout is
         measured for each of `devices` (see DEVICES). The browser renders in `locale`, the
-        server's display locale, and numbers are read in it."""
+        server's display locale, and numbers are read in it. In the default state (no
+        `values`), the page is rendered once more in another browser language, and bound
+        text that changes with it is R8.browser_locale."""
         frame_html, csp = frame_page(ORIGIN)
         setup = {
             "filters": [f.model_dump(mode="json") for f in spec.filters],
@@ -250,7 +272,7 @@ class PageChecker:
         }
         return self._submit(
             lambda browser: self._check(
-                browser, frame_html, csp, setup, allowed_hosts, html, devices
+                browser, frame_html, csp, setup, allowed_hosts, html, devices, values is None
             )
         )
 
@@ -306,7 +328,7 @@ class PageChecker:
             context.close()
 
     def _check(
-        self, browser, frame_html, csp, setup, allowed_hosts, source_html, devices
+        self, browser, frame_html, csp, setup, allowed_hosts, source_html, devices, languages
     ) -> list[Issue]:
         from prumi.server.assets import read_asset  # prumi.server imports the validator
 
@@ -353,7 +375,9 @@ class PageChecker:
 
         layout_js = files("prumi.validate").joinpath("layout.js").read_text(encoding="utf-8")
         layout_call = f"prumiLayout(document, {json.dumps(setup['bindings'])}, {MAX_LISTED})"
+        bound_text = _BOUND_TEXT % json.dumps(setup["bindings"])
         layouts: list[tuple[str, list[dict[str, Any]]]] = []
+        shown: dict[str, str] | None = None
         locale = setup["locale"]
         with self._render(
             browser, route, DEVICES["desktop"], locale, errors, locate, on_console, scrub
@@ -367,6 +391,8 @@ class PageChecker:
             source = json.dumps(source_html).replace("<", "\\u003c")
             scan = evaluate(_SCAN % (setup_json, MAX_LISTED, source, MAX_LISTED))
             scan["unreadable"]["closed_shadow_root"] = _has_closed_shadow_root(cdp)
+            if settled and languages:
+                shown = evaluate(bound_text)
             if settled and "desktop" in devices:
                 layouts.append(("desktop", evaluate(layout_js + ";" + layout_call)))
             if settled and self.hover_samples:
@@ -377,6 +403,17 @@ class PageChecker:
                             found.add((item["text"], item["path"]))
                             scan["flagged"].append({**item, "hover": True})
                 scan["flagged"] = scan["flagged"][:MAX_LISTED]
+        changed: list[str] = []
+        if shown is not None:
+            # The same state in another browser language: honest pages show the same text.
+            with self._render(
+                browser, route, DEVICES["desktop"], _other_language(locale), [], locate, None
+            ) as (_, _, evaluate, other_settled):
+                if other_settled:
+                    evaluate(provenance)
+                    other = evaluate(bound_text)
+                    changed = sorted(p for p in shown.keys() | other.keys()
+                                     if shown.get(p) != other.get(p))  # fmt: skip
         for device in devices:
             if device == "desktop":
                 continue
@@ -389,7 +426,32 @@ class PageChecker:
             ):
                 if device_settled:
                     layouts.append((device, evaluate(layout_js + ";" + layout_call)))
-        return _issues(scan, errors, blocked, settled, self.timeout_s) + _layout_issues(layouts)
+        return (
+            _issues(scan, errors, blocked, settled, self.timeout_s)
+            + _locale_issues(changed)
+            + _layout_issues(layouts)
+        )
+
+
+def _other_language(locale: str) -> str:
+    return "en-US" if locale.lower().split("-")[0] == "de" else "de-DE"
+
+
+def _locale_issues(changed: Sequence[str]) -> list[Issue]:
+    """R8.browser_locale: the element paths whose text changed, never the text."""
+    if not changed:
+        return []
+    listed = ", ".join(changed[:MAX_LISTED])
+    more = f" and {len(changed) - MAX_LISTED} more" if len(changed) > MAX_LISTED else ""
+    return [
+        error(
+            "R8.browser_locale",
+            "html",
+            f"{BROWSER_LOCALE_MESSAGE} Text that changed with the browser's language: "
+            f"{listed}{more}.",
+            BROWSER_LOCALE_HINT,
+        )
+    ]
 
 
 LAYOUT_HINT = {

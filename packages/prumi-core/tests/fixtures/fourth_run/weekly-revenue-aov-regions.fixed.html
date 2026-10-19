@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly Revenue and AOV by Region</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--prumi-font); background: var(--prumi-bg); color: var(--prumi-text); font-size: 14px; line-height: 1.45; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 24px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
+  h1 { font-size: 22px; margin: 0; text-wrap: balance; }
+  h2 { font-size: 15px; margin: 0; }
+  .muted { color: var(--prumi-text-muted); font-size: 13px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--prumi-border); border-radius: var(--prumi-radius); overflow: hidden; }
+  .seg button { border: 0; background: transparent; color: var(--prumi-text); padding: 6px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--prumi-border); }
+  .seg button[aria-pressed="true"] { background: var(--prumi-accent); color: var(--prumi-bg); }
+  button:focus-visible, tr:focus-visible { outline: 2px solid var(--prumi-accent); outline-offset: 2px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--prumi-accent); color: var(--prumi-text); background: var(--prumi-surface); border-radius: 999px; padding: 4px 6px 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .chip span.x { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--prumi-border); font-size: 12px; }
+  .panel { background: var(--prumi-surface); border: 1px solid var(--prumi-border); border-radius: var(--prumi-radius); padding: 16px; min-width: 0; display: grid; gap: 12px; align-content: start; }
+  .panel-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px; }
+  .kpi { gap: 4px; }
+  .kpi .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--prumi-text-muted); }
+  .kpi .value { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .delta { font-size: 13px; color: var(--prumi-text-muted); font-variant-numeric: tabular-nums; }
+  .delta b { font-weight: 600; }
+  .delta b.up { color: var(--prumi-positive); }
+  .delta b.down { color: var(--prumi-negative); }
+  .trends { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 16px; }
+  .chart { min-height: 210px; min-width: 0; }
+  .chart svg { display: block; max-width: 100%; }
+  .chart text { font-size: 11px; fill: var(--prumi-text-muted); font-family: var(--prumi-font); }
+  .chart .grid { stroke: var(--prumi-border); stroke-width: 1; }
+  .chart .bar { fill: color-mix(in srgb, var(--prumi-series-1) 55%, var(--prumi-surface)); }
+  .chart .bar.last { fill: var(--prumi-series-1); }
+  .chart .bar:hover { fill: var(--prumi-accent); }
+  .chart .area { fill: color-mix(in srgb, var(--prumi-series-2) 14%, transparent); stroke: none; }
+  .chart .line { fill: none; stroke: var(--prumi-series-2); stroke-width: 2; }
+  .chart .dot { fill: var(--prumi-surface); stroke: var(--prumi-series-2); stroke-width: 2; }
+  .chart .dot.last { fill: var(--prumi-series-2); }
+  .empty { color: var(--prumi-text-muted); padding: 24px 0; }
+  .scroll { overflow-x: auto; min-width: 0; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 8px 10px; text-align: left; white-space: nowrap; }
+  thead th { font-size: 12px; font-weight: 600; color: var(--prumi-text-muted); border-bottom: 1px solid var(--prumi-border); }
+  .num { text-align: right; }
+  #regions-table tbody tr { cursor: pointer; border-bottom: 1px solid var(--prumi-border); }
+  #regions-table tbody tr:hover { background: color-mix(in srgb, var(--prumi-accent) 8%, transparent); }
+  #regions-table tbody tr.sel { background: color-mix(in srgb, var(--prumi-accent) 16%, transparent); }
+  #regions-table tbody tr.sel td:first-child { font-weight: 600; }
+  #regions-table tfoot td { font-weight: 600; border-top: 2px solid var(--prumi-border); }
+  .share { width: 32%; min-width: 120px; }
+  .share span { display: block; height: 8px; border-radius: 4px; background: var(--prumi-series-1); }
+  .none { color: var(--prumi-text-muted); font-style: italic; }
+  #heat table { width: auto; }
+  #heat th, #heat td { padding: 6px 8px; font-size: 12px; }
+  #heat tbody th { font-weight: 500; position: sticky; left: 0; background: var(--prumi-surface); }
+  #heat thead th:first-child { position: sticky; left: 0; background: var(--prumi-surface); }
+  #heat td { text-align: right; min-width: 56px; border: 2px solid var(--prumi-surface); border-radius: 4px; }
+  #heat tr.sel th { color: var(--prumi-accent); font-weight: 700; }
+  .legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--prumi-text-muted); }
+  .legend i { display: block; width: 120px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, color-mix(in srgb, var(--prumi-accent) 10%, var(--prumi-surface)), var(--prumi-accent)); }
+  @media (prefers-reduced-motion: no-preference) { .bar, tr { transition: background-color .15s, fill .15s; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Weekly revenue and average order value by region</h1>
+      <div class="muted" id="window-label">Complete weeks, Monday to Sunday</div>
+    </div>
+    <div class="controls">
+      <button class="chip" id="region-chip" type="button" hidden aria-label="Clear region filter"><span id="region-chip-name"></span><span class="x" aria-hidden="true">×</span></button>
+      <div class="seg" id="period-seg" role="group" aria-label="Period"></div>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpi">
+    <div class="panel kpi">
+      <div class="label">Revenue · <span class="scope">All regions</span></div>
+      <div class="value" id="kpi-rev">–</div>
+      <div class="delta" id="kpi-rev-delta"></div>
+    </div>
+    <div class="panel kpi">
+      <div class="label">Average order value · <span class="scope">All regions</span></div>
+      <div class="value" id="kpi-aov">–</div>
+      <div class="delta" id="kpi-aov-delta"></div>
+    </div>
+  </section>
+
+  <section class="trends">
+    <div class="panel">
+      <div class="panel-head"><h2>Weekly revenue</h2><span class="muted scope">All regions</span></div>
+      <div class="chart" id="trend-rev"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Weekly average order value</h2><span class="muted scope">All regions</span></div>
+      <div class="chart" id="trend-aov"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Regions</h2><span class="muted">Click a region to focus the summary and trends on it</span></div>
+    <div class="scroll">
+      <table id="regions-table">
+        <thead><tr><th>Region</th><th class="num">Revenue</th><th class="share">Share of revenue</th><th class="num">Avg order value</th></tr></thead>
+        <tbody></tbody>
+        <tfoot></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Week by week, per region</h2>
+      <div class="controls">
+        <div class="legend"><span>Lower</span><i></i><span>Higher</span></div>
+        <div class="seg" id="heat-seg" role="group" aria-label="Metric">
+          <button type="button" data-metric="revenue" aria-pressed="true">Revenue</button>
+          <button type="button" data-metric="average_order_value" aria-pressed="false">Avg order value</button>
+        </div>
+      </div>
+    </div>
+    <div class="scroll" id="heat"></div>
+  </section>
+</div>
+
+<script>
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const pct = new Intl.NumberFormat(prumi.locale, { style: "percent", maximumFractionDigits: 1, signDisplay: "exceptZero" });
+  const dayFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const dayYearFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const toDate = (s) => new Date(s + "T00:00:00Z");
+  const regionName = (v) => (v == null ? "No region" : v);
+  const PERIODS = [4, 12, 26, 52];
+
+  let filters = { period: { last: 12, grain: "week" }, region: [] };
+  let weeklyTotal = null, regionsRes = null, heatRes = null;
+  let heatMetric = "revenue";
+
+  function el(tag, attrs, text) {
+    const e = document.createElement(tag);
+    if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function svg(tag, attrs, parent) {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function empty(msg) { return el("div", { class: "empty" }, msg); }
+  function isSelected(region) { return filters.region.length > 0 && filters.region.includes(region); }
+  function periodWord() {
+    const p = filters.period;
+    return p && p.last ? `previous ${p.last} ${p.grain}${p.last === 1 ? "" : "s"}` : "previous period";
+  }
+
+  // Evenly spaced "nice" ticks covering [lo, hi]; used only to draw axes.
+  function ticks(lo, hi, n) {
+    const span = hi - lo || Math.abs(hi) || 1;
+    const raw = span / n;
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const f = raw / p;
+    const step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+    const a = Math.floor(lo / step) * step, b = Math.ceil(hi / step) * step;
+    const out = [];
+    for (let v = a; v <= b + step / 2; v += step) out.push(+v.toPrecision(12));
+    while (out.length < 3) out.push(+(out[out.length - 1] + step).toPrecision(12));
+    return out;
+  }
+
+  // ---- Period picker and region chip ----
+  const seg = document.getElementById("period-seg");
+  for (const n of PERIODS) {
+    const b = el("button", { type: "button", "data-last": String(n), "aria-pressed": "false" }, `${n} wk`);
+    b.onclick = () => prumi.setFilter("period", { last: n, grain: "week" });
+    seg.append(b);
+  }
+  document.getElementById("region-chip").onclick = () => prumi.setFilter("region", []);
+
+  prumi.onFilters((f) => {
+    filters = { period: f.period, region: f.region || [] };
+    for (const b of seg.querySelectorAll("button")) {
+      b.setAttribute("aria-pressed", String(f.period && f.period.grain === "week" && f.period.last === Number(b.dataset.last)));
+    }
+    const chip = document.getElementById("region-chip");
+    const scope = filters.region.length ? filters.region.map(regionName).join(", ") : "All regions";
+    chip.hidden = filters.region.length === 0;
+    document.getElementById("region-chip-name").textContent = scope;
+    for (const s of document.querySelectorAll(".scope")) s.textContent = scope;
+    renderRegions();
+    renderHeat();
+  });
+
+  // ---- KPIs ----
+  function setDelta(id, row, metric) {
+    const node = document.getElementById(id);
+    node.replaceChildren();
+    const change = row && row._delta_pct ? row._delta_pct[metric] : null;
+    if (change == null) { node.textContent = `No data for the ${periodWord()}`; return; }
+    const b = el("b", { class: change > 0 ? "up" : change < 0 ? "down" : "" }, pct.format(change));
+    node.append(b, ` vs ${periodWord()} (${prumi.format(row._previous[metric], metric)})`);
+  }
+  prumi.on("kpi", (res) => {
+    const row = res.rows[0];
+    document.getElementById("kpi-rev").textContent = row ? prumi.format(row.revenue, "revenue") : "–";
+    document.getElementById("kpi-aov").textContent = row ? prumi.format(row.average_order_value, "average_order_value") : "–";
+    setDelta("kpi-rev-delta", row, "revenue");
+    setDelta("kpi-aov-delta", row, "average_order_value");
+    if (res.window && res.window.start) {
+      const fresh = res.freshness && res.freshness.revenue ? ` · Data through ${dayYearFmt.format(toDate(res.freshness.revenue))}` : "";
+      document.getElementById("window-label").textContent =
+        `${dayFmt.format(toDate(res.window.start))} – ${dayYearFmt.format(toDate(res.window.end))}, complete weeks${fresh}`;
+    }
+  });
+
+  // ---- Weekly trend charts ----
+  function weekLabel(r) { return `Week of ${dayYearFmt.format(toDate(r.metric_time))}`; }
+
+  function drawChart(host, rows, metric, type) {
+    host.replaceChildren();
+    const vals = rows.map((r) => r[metric]).filter((v) => v != null);
+    if (!vals.length) { host.append(empty("No orders in this period.")); return; }
+    const W = Math.max(260, Math.floor(host.clientWidth || 520)), H = 210;
+    const m = { t: 14, r: 14, b: 28, l: 60 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    let lo = type === "bar" ? 0 : Math.min(...vals), hi = Math.max(...vals);
+    if (type === "line") {
+      const pad = (hi - lo) * 0.2 || hi * 0.05 || 1;
+      lo = Math.max(0, lo - pad); hi = hi + pad;
+    }
+    const tk = ticks(lo, hi, 4);
+    lo = tk[0]; hi = tk[tk.length - 1];
+    const y = (v) => m.t + ih - ((v - lo) / (hi - lo || 1)) * ih;
+    const band = iw / rows.length;
+    const x = (i) => m.l + band * (i + 0.5);
+    const s = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `${prumi.label(metric)} by week` });
+    s.style.width = "100%";
+    const axis = svg("g", { "data-prumi-role": "axis" }, s);
+    for (const t of tk) {
+      svg("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), class: "grid" }, axis);
+      svg("text", { x: m.l - 8, y: y(t), "text-anchor": "end", "dominant-baseline": "middle" }, axis)
+        .textContent = prumi.format(t, metric, { compact: true });
+    }
+    const every = Math.max(1, Math.ceil(rows.length / Math.max(1, Math.floor(iw / 58))));
+    rows.forEach((r, i) => {
+      if ((rows.length - 1 - i) % every) return;
+      svg("text", { x: x(i), y: H - 8, "text-anchor": "middle" }, axis).textContent = dayFmt.format(toDate(r.metric_time));
+    });
+    const marks = svg("g", {}, s);
+    if (type === "bar") {
+      const bw = Math.max(2, Math.min(40, band * 0.68));
+      rows.forEach((r, i) => {
+        const v = r[metric];
+        if (v == null) return;
+        const rect = svg("rect", { x: x(i) - bw / 2, y: y(v), width: bw, height: Math.max(0, y(lo) - y(v)), rx: 2, class: i === rows.length - 1 ? "bar last" : "bar" }, marks);
+        svg("title", {}, rect).textContent = `${weekLabel(r)}: ${prumi.format(v, metric)}`;
+      });
+    } else {
+      const pts = rows.map((r, i) => (r[metric] == null ? null : [x(i), y(r[metric]), r])).filter(Boolean);
+      const line = pts.map((p, j) => (j ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join("");
+      if (pts.length > 1) {
+        svg("path", { d: `${line}L${pts[pts.length - 1][0].toFixed(1)},${y(lo)}L${pts[0][0].toFixed(1)},${y(lo)}Z`, class: "area" }, marks);
+      }
+      svg("path", { d: line, class: "line" }, marks);
+      pts.forEach((p, j) => {
+        const last = j === pts.length - 1;
+        const c = svg("circle", { cx: p[0], cy: p[1], r: last ? 5 : 3.5, class: last ? "dot last" : "dot" }, marks);
+        svg("title", {}, c).textContent = `${weekLabel(p[2])}: ${prumi.format(p[2][metric], metric)}`;
+      });
+    }
+    host.append(s);
+  }
+
+  function renderTrends() {
+    if (!weeklyTotal) return;
+    drawChart(document.getElementById("trend-rev"), weeklyTotal.rows, "revenue", "bar");
+    drawChart(document.getElementById("trend-aov"), weeklyTotal.rows, "average_order_value", "line");
+  }
+  prumi.on("weekly_total", (res) => { weeklyTotal = res; renderTrends(); });
+
+  let lastWidth = 0;
+  new ResizeObserver(() => {
+    const w = document.getElementById("trend-rev").clientWidth;
+    if (Math.abs(w - lastWidth) > 4) { lastWidth = w; renderTrends(); }
+  }).observe(document.querySelector(".trends"));
+
+  // ---- Regions table ----
+  function renderRegions() {
+    if (!regionsRes) return;
+    const table = document.getElementById("regions-table");
+    const tbody = table.tBodies[0], tfoot = table.tFoot;
+    tbody.replaceChildren(); tfoot.replaceChildren();
+    if (!regionsRes.rows.length) {
+      const tr = el("tr"); const td = el("td", { colspan: "4" }); td.append(empty("No orders in this period."));
+      tr.append(td); tbody.append(tr); return;
+    }
+    const max = Math.max(...regionsRes.rows.map((r) => r.revenue || 0)) || 1;
+    for (const r of regionsRes.rows) {
+      const tr = el("tr", { tabindex: "0" });
+      if (isSelected(r.customer__region)) tr.className = "sel";
+      tr.setAttribute("aria-selected", String(isSelected(r.customer__region)));
+      const name = el("td", r.customer__region == null ? { class: "none" } : null, regionName(r.customer__region));
+      const bar = el("span"); bar.style.width = `${Math.max(1, ((r.revenue || 0) / max) * 100)}%`;
+      const share = el("td", { class: "share" }); share.append(bar);
+      tr.append(
+        name,
+        el("td", { class: "num" }, prumi.format(r.revenue, "revenue")),
+        share,
+        el("td", { class: "num" }, prumi.format(r.average_order_value, "average_order_value")),
+      );
+      tr.onclick = () => prumi.click("regions", r);
+      tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); prumi.click("regions", r); } };
+      tbody.append(tr);
+    }
+    if (regionsRes.total) {
+      const tr = el("tr");
+      tr.append(
+        el("td", null, "All regions"),
+        el("td", { class: "num" }, prumi.format(regionsRes.total.revenue, "revenue")),
+        el("td"),
+        el("td", { class: "num" }, prumi.format(regionsRes.total.average_order_value, "average_order_value")),
+      );
+      tfoot.append(tr);
+    }
+  }
+  prumi.on("regions", (res) => { regionsRes = res; renderRegions(); });
+
+  // ---- Heatmap: weeks x regions ----
+  const heatSeg = document.getElementById("heat-seg");
+  for (const b of heatSeg.querySelectorAll("button")) {
+    b.onclick = () => {
+      heatMetric = b.dataset.metric;
+      for (const o of heatSeg.querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b));
+      renderHeat();
+    };
+  }
+
+  function renderHeat() {
+    if (!heatRes) return;
+    const host = document.getElementById("heat");
+    host.replaceChildren();
+    if (!heatRes.rows.length) { host.append(empty("No orders in this period.")); return; }
+    const metric = heatMetric;
+    const weeks = [...new Set(heatRes.rows.map((r) => r.metric_time))].sort();
+    const cells = new Map();
+    const order = new Map();
+    for (const r of heatRes.rows) {
+      const key = r.customer__region;
+      if (!cells.has(key)) cells.set(key, new Map());
+      cells.get(key).set(r.metric_time, r);
+      order.set(key, (order.get(key) || 0) + (r.revenue || 0)); // only used to order rows
+    }
+    const regions = [...cells.keys()].sort((a, b) => (a == null) - (b == null) || order.get(b) - order.get(a));
+    const vals = heatRes.rows.map((r) => r[metric]).filter((v) => v != null);
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    const opts = metric === "revenue" ? { compact: true } : { decimals: 0 };
+
+    const table = el("table");
+    const head = el("tr");
+    head.append(el("th", null, "Region"));
+    for (const w of weeks) head.append(el("th", { class: "num", title: `Week of ${dayYearFmt.format(toDate(w))}` }, dayFmt.format(toDate(w))));
+    const thead = el("thead"); thead.append(head);
+    const tbody = el("tbody");
+    for (const reg of regions) {
+      const tr = el("tr");
+      if (isSelected(reg)) tr.className = "sel";
+      tr.append(el("th", reg == null ? { class: "none" } : null, regionName(reg)));
+      for (const w of weeks) {
+        const r = cells.get(reg).get(w);
+        const v = r ? r[metric] : null;
+        const td = el("td");
+        if (v == null) { td.textContent = "–"; td.className = "none"; }
+        else {
+          const t = hi > lo ? (v - lo) / (hi - lo) : 0.5;
+          td.style.background = `color-mix(in srgb, var(--prumi-accent) ${Math.round(10 + t * 80)}%, var(--prumi-surface))`;
+          td.style.color = t > 0.55 ? "var(--prumi-bg)" : "var(--prumi-text)";
+          td.textContent = prumi.format(v, metric, opts);
+          td.title = `${regionName(reg)}, week of ${dayYearFmt.format(toDate(w))}: ${prumi.format(v, metric)}`;
+        }
+        tr.append(td);
+      }
+      tbody.append(tr);
+    }
+    table.append(thead, tbody);
+    host.append(table);
+  }
+  prumi.on("weekly_regions", (res) => { heatRes = res; renderHeat(); });
+
+  // ---- Errors ----
+  const hosts = { kpi: "kpi", weekly_total: "trend-rev", regions: "regions-table", weekly_regions: "heat" };
+  for (const block in hosts) {
+    prumi.onError(block, (issue) => {
+      console.error(block, issue.message);
+      const h = document.getElementById(hosts[block]);
+      if (h && h.tagName !== "TABLE") h.replaceChildren(empty(`This section couldn't load: ${issue.message}`));
+    });
+  }
+</script>
+</body>
+</html>

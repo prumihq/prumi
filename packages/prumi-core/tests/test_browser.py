@@ -462,13 +462,16 @@ def test_errors_show_in_the_blocks_bound_elements(page, server):
 def test_the_fourth_run_page_isnt_flagged_in_a_portuguese_browser(
     browser, live_services, live_server
 ):
-    """The page an agent published under en-US, opened by a viewer whose browser is pt-BR."""
+    """The fourth agent run's page, published under en-US and opened by a viewer whose
+    browser is pt-BR. Its one browser-language formatter now uses prumi.locale (the page as
+    the agent wrote it fails R8.browser_locale)."""
     import json
 
     services = live_services()
-    run = FIXTURES / "fourth_run" / "weekly-revenue-aov-regions"
-    spec = json.loads(run.with_suffix(".spec.json").read_text())
-    report, published = services.publish(spec, run.with_suffix(".html").read_text())
+    run = FIXTURES / "fourth_run"
+    spec = json.loads((run / "weekly-revenue-aov-regions.spec.json").read_text())
+    html = (run / "weekly-revenue-aov-regions.fixed.html").read_text()
+    report, published = services.publish(spec, html)
     assert report.ok and published, report.issues
     with live_server(services) as live:
         context = browser.new_context(locale="pt-BR")

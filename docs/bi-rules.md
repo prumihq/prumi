@@ -112,9 +112,11 @@ The HTML is stored without data; every number arrives through the runtime. It do
 
 **Every number belongs to a bound block.** Each element that shows numbers must be matched by a `presentation.bindings` selector (or sit inside one), and its numbers must be values of **that binding's blocks**; the nearest bound ancestor wins. A binding names one block or a list (`"#table": ["regions", "regions_total"]`). Matching against every value on the page isn't enough: a page shows hundreds of values, and a number computed in JavaScript often equals one of them at the precision shown (a weekly average shown as `$229K` equals some week's revenue).
 
-**What counts as delivered:** every metric value in the bound blocks' results (rows, `total`, `others`, `_previous`, `_delta`, `_delta_pct`). A number on screen matches when such a value, rounded to the precision shown and scaled for `%` or `K`/`M`/`B`, gives the same number; currency symbols, separators and signs are ignored, and both `1,234.5` and `1.234,5` are read. `$2.7M` matches `2742409.17`; `$228,534` doesn't match anything if only `2742409.17` was delivered.
+**What counts as delivered:** every metric value in the bound blocks' results (rows, `total`, `others`, `_previous`, `_delta`, `_delta_pct`). A number on screen matches when such a value, rounded to the precision shown and scaled for `%` or the locale's compact words (`K`/`M`/`B` in en-US, `mil`/`mi`/`bi` in pt-BR), gives the same number; currency symbols and signs are ignored. Numbers are read strictly in the server's locale (`[server] locale`): its own group and decimal separators only, taken from `Intl`, so in en-US `1.234` is 1.234 and `1.234,5` matches nothing. `$2.7M` matches `2742409.17`; `$228,534` doesn't match anything if only `2742409.17` was delivered.
 
 **Allowed anywhere, bound or not:** dates and years in common formats, counts of periods ("Last 4 weeks"), numbers written in the spec or in result metadata (window lengths, `top_n`, row counts, numbers in dimension values), and axis ticks: inside an `<svg>` or an element marked `data-prumi-role="axis"`, any number that's part of a run of three or more evenly spaced values (at any precision: `$280, $286, $292`), and, in an axis-marked element, a single round number with at most two significant digits (`0`, `50K`, `2.5M`, `20%`). Outside both, nothing is a tick.
+
+**One locale for every viewer.** `prumi.format` formats in the server's locale and pages get it as `prumi.locale`, so every viewer sees the same text whatever their browser's language. At validation, the default state is rendered once more in another browser language (`de-DE`, or `en-US` for a `de-*` server); a bound element whose text changes formats with the browser's language (`toLocaleString()`, `Intl.*(undefined, …)`), and the page fails.
 
 **Not in the source:** a delivered value written into the HTML source (3+ significant digits in text, 4+ in a script) was copied there, so it's right only until the data changes. Attributes such as SVG coordinates aren't read, and round layout constants (`1200`) have too few digits.
 
@@ -131,6 +133,7 @@ The static checks still run first, and the frame can't make network calls, so pa
 |---|---|---|
 | `R8.unbound_number` | error | The rendered page shows a number outside every bound element, or a tooltip does on hover. The issue gives the element's path and how many numbers, never the numbers |
 | `R8.unverified_number` | error | A number in a bound element isn't a value its binding's blocks delivered. The issue gives the element's path, how many and the blocks; at most 20 numbers in all |
+| `R8.browser_locale` | error | A bound element's text changes with the browser's language. The issue gives the element paths, never the text |
 | `R8.copied_number` | error | The HTML source holds a delivered value (in text with 3+ significant digits, in a script with 4+). The issue gives the line, not the value |
 | `R8.embedded_numbers` | error | An inline script holds an array or object literal that looks like a dataset |
 | `R8.numbers_in_text` | warning | Visible text with several data-like numbers (`1,234`, `12.5%`, `$3.4M`) |

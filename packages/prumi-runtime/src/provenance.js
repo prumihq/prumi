@@ -571,5 +571,6 @@
     fromData: fromData,
     numbers: numbers,
     readings: readings,
+    path: path,
   });
 })(typeof window !== "undefined" ? window : globalThis);
