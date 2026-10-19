@@ -125,6 +125,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 80. Docstrings in `prumi/agent_output.py` and `prumi/mcp/__init__.py`: only `query` results pass through `for_agent`; issue messages and check reports are cleaned where they're built — done when neither docstring says every agent result passes through it (wording; no AC)
 - [x] 81. Server side: redacted state and state key, flagged items reduced to code, path and count, errors cleaned with the report's filter values and the number rule, `text` and `blocks` accepted but never stored, migration 3, `prumi certify` output, `get_dashboard` reads the stored report, README "What Prumi stores" (AC 87, 88, 90)
 - [x] 82. Shell side: post flagged items without `text` and `blocks`, clean error messages with the block results the shell holds; the viewer bar keeps the text (AC 89)
+- [ ] 84. Store a time filter value from a report only if it parses as a window, else `{"invalid": true}` (item 7) — done when AC 92 passes. Docs: none (the README's "What Prumi stores" already covers it) (AC 92)
 
 ## Docs that list the code (spec section 24; added 2026-10-19, draft)
 
