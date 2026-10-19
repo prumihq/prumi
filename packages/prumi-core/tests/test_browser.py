@@ -341,6 +341,52 @@ def test_format_uses_the_servers_locale_not_the_browsers(
         context.close()
 
 
+@pytest.mark.parametrize(
+    ("which", "expected"),
+    [
+        (
+            "server",
+            {
+                "up": {"text": "+5.3%", "sign": 1},
+                "flat": {"text": "0%", "sign": 0},
+                "down": {"text": "-3.3%", "sign": -1},
+                "missing": {"text": "–", "sign": None},
+                "decimals": {"text": "+5.32%", "sign": 1},
+            },
+        ),
+        (
+            "pt_br_server",
+            {
+                "up": {"text": "+5,3%", "sign": 1},
+                "flat": {"text": "0%", "sign": 0},
+                "down": {"text": "-3,3%", "sign": -1},
+                "missing": {"text": "–", "sign": None},
+                "decimals": {"text": "+5,32%", "sign": 1},
+            },
+        ),
+    ],
+)
+def test_change_shows_a_signed_percent_and_the_sign_it_shows(browser, request, which, expected):
+    context = browser.new_context(locale="en-US")
+    try:
+        page = context.new_page()
+        page.set_default_timeout(TIMEOUT)
+        _, frame = open_dashboard(page, request.getfixturevalue(which))
+        wait_for_calls(frame, "formats")
+        found = frame.evaluate(
+            """() => ({
+                up: prumi.change(0.0532),
+                flat: prumi.change(-0.0004),
+                down: prumi.change(-0.033),
+                missing: prumi.change(null),
+                decimals: prumi.change(0.05321, {decimals: 2}),
+            })"""
+        )
+        assert found == expected
+    finally:
+        context.close()
+
+
 def test_a_bad_filter_value_reaches_on_error(page, server):
     _, frame = open_dashboard(page, server)
     wait_for_calls(frame, "kpi")
@@ -392,7 +438,8 @@ def test_the_authoring_guide_example_renders(page, server, services):
     frame.locator("#regions button").first.wait_for()
     frame.locator("#trend li").first.wait_for()
     assert re.fullmatch(r"\$[\d,]+\.\d\d", frame.locator("#revenue").text_content())
-    assert re.fullmatch(r"[+-]?[\d.]+% vs last year", frame.locator("#change").text_content())
+    # The arrow follows the sign of the change as shown.
+    assert re.fullmatch(r"(▲ \+|▼ -)?[\d.]+% vs last year", frame.locator("#change").text_content())
     assert frame.locator("#regions button").count() == 5
     assert frame.locator("#others").text_content().startswith("Others: $")
     frame.locator("#regions button").first.click()

@@ -20,6 +20,7 @@ def fenced(after_heading: str, language: str) -> str:
 def test_the_example_validates_on_the_demo(demo_services):
     spec = json.loads(fenced("### Example spec", "json"))
     html = fenced("### Example HTML", "html")
+    assert "prumi.change(" in html  # changes, with arrows from the sign shown
     report = demo_services.validate(spec, html)
     assert report.ok, report.errors
     assert not report.warnings, report.warnings
@@ -30,7 +31,7 @@ def test_the_guide_names_every_runtime_member():
     members = re.findall(r"^    (\w+):", api, re.M)
     assert set(members) == {
         "on", "onError", "setFilter", "getFilter", "filterValues", "onFilters", "click",
-        "format", "locale", "label",
+        "format", "change", "locale", "label",
     }  # fmt: skip
     for name in members:
         named = f"`prumi.{name}`" if name == "locale" else f"`prumi.{name}("  # a string

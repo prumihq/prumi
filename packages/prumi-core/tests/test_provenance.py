@@ -430,6 +430,20 @@ def test_a_narrow_unit_isnt_a_period(demo_services):
     assert WHERE.match(issue.message)[1] == "p#extra"
 
 
+def test_change_text_passes_the_number_check(demo_services):
+    spec = {**KPI_SPEC, "data": [{**KPI_SPEC["data"][0], "compare": "previous_period"}]}
+    script = """prumi.on("kpi", (b) => {
+      const change = prumi.change(b.rows[0]._delta_pct.revenue);
+      document.getElementById("revenue").textContent =
+        `${prumi.format(b.rows[0].revenue, "revenue")} ${change.text}`;
+    });"""
+    report = demo_services.validate(spec, kpi_page(script))
+    assert report.ok and not report.warnings, report.issues
+    # A made-up change is still caught.
+    made_up = script.replace("b.rows[0]._delta_pct.revenue", "b.rows[0]._delta_pct.revenue + 0.1")
+    assert codes(demo_services.validate(spec, kpi_page(made_up))) == ["R8.unverified_number"]
+
+
 # Formatting with the browser's language
 
 

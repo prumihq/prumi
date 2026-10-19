@@ -338,6 +338,37 @@
     }
   }
 
+  // A change (a _delta_pct fraction) as a signed percent, and its sign as shown: "-0.05%" at
+  // one decimal is "0%", sign 0, so an arrow or color picked from `sign` matches the text.
+  function change(value, options) {
+    if (value === null || value === undefined) return { text: "–", sign: null };
+    if (typeof value !== "number") return { text: String(value), sign: null };
+    options = options && typeof options === "object" ? options : {};
+    var decimals = typeof options.decimals === "number" ? options.decimals : 1;
+    try {
+      var parts = new Intl.NumberFormat(LOCALE, {
+        style: "percent",
+        maximumFractionDigits: decimals,
+        signDisplay: "exceptZero",
+      }).formatToParts(value);
+      var sign = 0;
+      parts.forEach(function (part) {
+        if (part.type === "plusSign") sign = 1;
+        if (part.type === "minusSign") sign = -1;
+      });
+      return {
+        text: parts
+          .map(function (part) {
+            return part.value;
+          })
+          .join(""),
+        sign: sign,
+      };
+    } catch (error) {
+      return { text: String(value), sign: null };
+    }
+  }
+
   window.prumi = Object.freeze({
     // Called with the block's result on load and after each filter change.
     on: function (blockId, callback) {
@@ -372,6 +403,7 @@
       send("click", { block: blockId, row: copy(row) });
     },
     format: format,
+    change: change,
     // For the page's own Intl calls (dates, other text): new Intl.DateTimeFormat(prumi.locale).
     locale: LOCALE,
     label: function (name) {

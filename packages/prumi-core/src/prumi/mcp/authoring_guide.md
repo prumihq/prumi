@@ -101,6 +101,7 @@ Prumi loads a default theme before your styles: CSS variables on `:root`, light 
 | `prumi.filterValues(filterId)` | The distinct values of a dimension filter, for building a picker. | `Promise<values[]>` |
 | `prumi.click(blockId, row)` | Applies the interactions declared `from` that block, using `row` (an item of `result.rows`). | nothing |
 | `prumi.format(value, metric, options?)` | Formats a value for display. `metric` is a metric name (`"revenue"`): the type and unit always come from the metric's definition. `options` only change the presentation: `{decimals: 0}`, `{compact: true}` (`$80K`, `$2.7M`). `null` gives `"–"`. Anything other than a metric name (a format object, a typo) formats as a plain number and warns in the browser console. | string |
+| `prumi.change(value, options?)` | Shows a change: `value` is a `_delta_pct` fraction. `text` is a signed percent in `prumi.locale` with at most `options.decimals` fraction digits (default 1): `"+5.3%"`, `"-3.3%"`, `"0%"`. `sign` is `1`, `0` or `-1` for the value as rounded in `text`, so `"0%"` always has sign `0`. `null` gives `{text: "–", sign: null}`. | `{text, sign}` |
 | `prumi.label(name)` | A metric's or dimension's label from the catalog (`"customer__region"` → `"Region"`). | string |
 | `prumi.locale` | The server's display locale (`"en-US"`, `"pt-BR"`), a string. `prumi.format` uses it; pass it to your own `Intl` calls. | string |
 
@@ -131,7 +132,7 @@ What `prumi.on` callbacks receive:
 - Blocks with `compare` add `_previous`, `_delta` and `_delta_pct` to each row, each an object keyed by metric (`row._delta_pct.revenue` is a fraction: 0.12 is +12%; `null` when there's nothing to compare with).
 - `others` (with `top_n` and `others`) and `total` (with `total`) are objects keyed by metric, or `null` when not asked for or when every group is already in the top N. They carry no comparison values in this release: `_previous`, `_delta` and `_delta_pct` are on rows only. For an overall change, add a block without dimensions that has `compare`.
 - An empty result has `rows: []`, for example a month to date on its first day. Draw an empty state.
-- Format metric values (and `_previous`, `_delta`, `total`, `others`) with `prumi.format(value, "<metric>")`. Percent metrics are fractions (0.25 shows as 25%). `_delta_pct` is a fraction too, whatever the metric's unit: show it as a percent with `new Intl.NumberFormat(prumi.locale, {style: "percent", maximumFractionDigits: 1}).format(value)`.
+- Format metric values (and `_previous`, `_delta`, `total`, `others`) with `prumi.format(value, "<metric>")`. Percent metrics are fractions (0.25 shows as 25%). `_delta_pct` is a fraction too, whatever the metric's unit: show it with `prumi.change(value)`, and choose arrows and colors from its `sign`, not from the raw value. A change of -0.05% shows as "0%", and its `sign` is `0`: no decline arrow.
 
 ## Example
 
@@ -187,15 +188,16 @@ Replace `revenue` and `customer__region` with metrics and dimensions from `find_
   <p id="others"></p>
   <ol id="trend"></ol>
   <script>
-    // _delta_pct is a fraction whatever the metric's unit, so it's shown as a percent.
-    const pct = new Intl.NumberFormat(prumi.locale, { style: "percent", maximumFractionDigits: 1 });
-
     prumi.on("kpi", (result) => {
       const row = result.rows[0];
       document.getElementById("revenue").textContent = row ? prumi.format(row.revenue, "revenue") : "–";
-      const change = row && row._delta_pct.revenue;
-      document.getElementById("change").textContent =
-        change == null ? "" : `${pct.format(change)} vs last year`;
+      // The arrow and color come from the change as shown: "0%" gets neither.
+      const change = prumi.change(row && row._delta_pct.revenue);
+      const arrow = { 1: "▲ ", 0: "", "-1": "▼ " }[change.sign] ?? "";
+      const element = document.getElementById("change");
+      element.textContent = change.sign === null ? "" : `${arrow}${change.text} vs last year`;
+      element.style.color =
+        change.sign > 0 ? "var(--prumi-positive)" : change.sign < 0 ? "var(--prumi-negative)" : "";
     });
 
     prumi.on("regions", (result) => {
