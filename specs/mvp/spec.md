@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18); section 23 draft
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, section 23 on 2026-10-19)
 
 ## Goal
 
@@ -965,7 +965,7 @@ Above 480 px, the bar is unchanged.
 - Phone bar: the title flexes (`min-width: 0`, no wrap, ellipsis) and always carries its full text in `title`, at any width; the badge is `flex: none` and never wraps; the Details toggle follows "Data through", and its popup is anchored left and capped at the viewport width.
 - Suite after section 22: 834 tests in about 234–245 s.
 
-### 23. No company data in the registry (added 2026-10-19, draft)
+### 23. No company data in the registry (added and accepted 2026-10-19)
 
 The browser reports of 19.1b are stored in `page_checks` as they arrive: the text of each flagged number, the filter state with its dimension values, and the browser's error messages. A number flagged by `R8.unbound_number` is often a real delivered value shown outside its bound element, and a filter state names dimension values, so real figures and names reach `registry.sqlite3`. Agents never see them (`get_dashboard` redacts, 19.16), but the registry should hold no company data either. This section replaces the 19.16 detail that `prumi certify` shows full reports.
 
