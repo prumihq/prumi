@@ -50,7 +50,7 @@ metrics:
 - **Why under a `prumi` key:** `meta` is dbt's free-form dictionary for other tools, and dbt itself ignores it. Several tools read keys like `meta.format` with their own meanings, so Prumi keeps its settings in its own namespace to avoid clashes.
 - **Owner:** Prumi shows `config.meta.owner` (a common convention, outside the `prumi` key) as the metric's owner when it's a string.
 
-The demo project in [`examples/demo-dbt-project`](../../examples/demo-dbt-project/) uses this convention on every metric except `discount_rate`, which is left without a format on purpose.
+The demo project in [`examples/demo-dbt-project`](https://github.com/prumihq/prumi/tree/main/examples/demo-dbt-project) uses this convention on every metric except `discount_rate`, which is left without a format on purpose.
 
 ### Dimension names
 
