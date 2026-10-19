@@ -9,7 +9,7 @@ Self-hosting keeps company data on the company's machines, but anything an MCP t
 ## Decision
 
 - **`query` returns a profile, not rows:** the row count, the window, freshness, and for each column its distinct count, empties, label lengths, sign, decimals and magnitude (the range of integer digit counts). Magnitude is the only statistic derived from values, kept because agents need it to design axes.
-- **Every result for an agent passes through one function,** `prumi.agent_output.for_agent`.
+- **Every query result for an agent passes through one function,** `prumi.agent_output.for_agent`, which turns it into that profile.
 - **Nothing agent-facing echoes data.** Number-check issues, layout warnings and the browser reports in `get_dashboard` give codes, element paths and counts. Source errors give the error type and a generic message, never the database's own text. Runtime error messages lose the page's dimension values and any number of 3 or more digits, and blocked requests name only the origin.
 - **Allowed in agent output:** catalog names, labels and descriptions; counts and magnitudes; window and freshness dates; text the agent itself wrote.
 - **Validation returns no screenshot.** Layout problems come back as measurements (element paths and boxes), never as an image or the page's text.
