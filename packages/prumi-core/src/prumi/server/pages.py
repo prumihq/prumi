@@ -283,6 +283,7 @@ def _json_for_script(data: Any) -> str:
 def shell(version: Version, status: VersionStatus, source: Source) -> str:
     spec = version.spec
     kind, text = badge(status)
+    title = escape(spec.dashboard.title)
     frame = f"/d/{spec.dashboard.id}/v/{version.version}/frame"
     config = _json_for_script(shell_config(version, source))
     return f"""<!doctype html>
@@ -315,11 +316,21 @@ def shell(version: Version, status: VersionStatus, source: Source) -> str:
   #prumi-unverified summary {{ cursor: pointer; font-weight: 600; }}
   #prumi-unverified ul {{ margin: 4px 0; color: var(--prumi-text); }}
   #prumi-frame {{ flex: 1; border: 0; width: 100%; }}
+  /* A phone: title and badge on the first row, each on one line; "Data through" below. */
+  @media (max-width: 480px) {{
+    #prumi-bar {{ flex-wrap: wrap; row-gap: 4px; column-gap: 8px; padding: 8px 12px; }}
+    #prumi-title {{ flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden;
+                   text-overflow: ellipsis; }}
+    #prumi-badge {{ flex: none; white-space: nowrap; }}
+    #prumi-freshness {{ order: 1; flex-basis: 100%; }}
+    #prumi-details {{ order: 2; margin-left: 0; }}
+    #prumi-details ul {{ left: 0; right: auto; width: auto; max-width: calc(100vw - 24px); }}
+  }}
 </style>
 </head>
 <body>
 <div id="prumi-bar">
-  <span id="prumi-title">{escape(spec.dashboard.title)}</span>
+  <span id="prumi-title" title="{title}">{title}</span>
   <span id="prumi-badge" data-kind="{kind}">{escape(text)}</span>
   <span id="prumi-freshness"></span>
   <details id="prumi-details" hidden>

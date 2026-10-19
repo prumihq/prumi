@@ -663,3 +663,63 @@ def test_the_home_page_follows_the_theme(browser, home_server, scheme, bg, surfa
         assert text == expected
     finally:
         context.close()
+
+
+# The viewer bar on a phone
+
+LONG_TITLE = "Weekly revenue and average order value by region, against the previous period"
+
+
+@pytest.fixture(scope="module")
+def long_title(services):
+    probe = load_spec_file(FIXTURES / "browser" / "probe.yaml")
+    probe["dashboard"] = {"id": "long-title", "title": LONG_TITLE}
+    services.registry.save(
+        DashboardSpec.model_validate(probe), (FIXTURES / "browser" / "probe.html").read_text()
+    )
+    return "long-title"
+
+
+BAR = """() => {
+  const box = (id) => document.getElementById(id).getBoundingClientRect();
+  const lines = (id) => {  // distinct line tops of the element's text
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById(id));
+    return new Set(Array.from(range.getClientRects(), (r) => Math.round(r.top))).size;
+  };
+  const title = document.getElementById("prumi-title");
+  return {
+    title: box("prumi-title"), badge: box("prumi-badge"), freshness: box("prumi-freshness"),
+    titleLines: lines("prumi-title"), badgeLines: lines("prumi-badge"),
+    ellipsis: getComputedStyle(title).textOverflow === "ellipsis" &&
+              title.scrollWidth > title.clientWidth,
+    titleAttribute: title.getAttribute("title"),
+    scroll: [document.documentElement.scrollWidth, document.documentElement.clientWidth],
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_the_viewer_bar_on_a_phone(browser, server, long_title, width):
+    context = browser.new_context(locale="en-US", viewport={"width": width, "height": 844})
+    try:
+        page = context.new_page()
+        page.set_default_timeout(TIMEOUT)
+        open_dashboard(page, server, long_title)
+        page.wait_for_function("() => document.getElementById('prumi-freshness').textContent")
+        bar = page.evaluate(BAR)
+        assert bar["titleAttribute"] == LONG_TITLE
+        assert bar["badgeLines"] == 1
+        assert bar["scroll"][0] <= bar["scroll"][1]  # no horizontal scrolling
+        if width == 390:
+            # One row for the title (one line, cut) and the badge; "Data through" below.
+            assert bar["titleLines"] == 1 and bar["ellipsis"]
+            assert abs(bar["title"]["top"] - bar["badge"]["top"]) < 8
+            assert bar["freshness"]["top"] >= bar["title"]["bottom"]
+        else:
+            # As before: everything on one row, the title in full.
+            assert not bar["ellipsis"]
+            assert bar["freshness"]["left"] > bar["badge"]["right"]
+            assert abs(bar["freshness"]["top"] - bar["badge"]["top"]) < 8
+    finally:
+        context.close()
