@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18); section 23 draft
 
 ## Goal
 
@@ -44,7 +44,7 @@ Everything runs on one machine, for one local user, against a demo dbt project o
 
 - **Dashboard data:** warehouse → Prumi → browser. It never passes through the agent or its LLM.
 - **`query` results:** a profile of the result (counts, empties, label lengths, magnitudes), never values or names (section 19.16). No company data reaches the agent or its LLM provider.
-- **What Prumi stores:** specs, HTML, certifications, metric requests. No query results, and no row data in logs.
+- **What Prumi stores:** specs, HTML, certifications, metric requests, and viewers' number-check reports reduced to codes, element paths and counts (section 23). No query results and no company data, and no row data in logs.
 
 ## In scope
 
@@ -965,6 +965,30 @@ Above 480 px, the bar is unchanged.
 - Phone bar: the title flexes (`min-width: 0`, no wrap, ellipsis) and always carries its full text in `title`, at any width; the badge is `flex: none` and never wraps; the Details toggle follows "Data through", and its popup is anchored left and capped at the viewport width.
 - Suite after section 22: 834 tests in about 234–245 s.
 
+### 23. No company data in the registry (added 2026-10-19, draft)
+
+The browser reports of 19.1b are stored in `page_checks` as they arrive: the text of each flagged number, the filter state with its dimension values, and the browser's error messages. A number flagged by `R8.unbound_number` is often a real delivered value shown outside its bound element, and a filter state names dimension values, so real figures and names reach `registry.sqlite3`. Agents never see them (`get_dashboard` redacts, 19.16), but the registry should hold no company data either. This section replaces the 19.16 detail that `prumi certify` shows full reports.
+
+**1. What a stored report keeps.**
+- **Flagged numbers:** `{code, path, count}`, grouped by code and element path, as `get_dashboard` already shows them. Never the text.
+- **Filter state:** time filters as sent (windows are calendar facts); each dimension filter as `{"selected": n}`. One function does this redaction for the registry and for `get_dashboard`.
+- **State key:** reports are still kept per version and filter state (19.1b, 19.13 rule 5), so different selections of the same filter stay apart. The key is the sha256 (hex) of the full filter state's canonical JSON (keys sorted, no whitespace), computed by the server from the report it receives. The values themselves aren't stored.
+- **Errors:** the cleaned messages (item 3), at most 20 as today.
+- `canvas` and `reported_at` as today.
+
+**2. The shell sends less.** The shell posts flagged numbers as `{code, path}`, without `text` or `blocks`. The viewer bar (19.13 rule 5) still lists the flagged text: it's built from the report in the viewer's own browser, before posting. The server keeps accepting `text` and `blocks` in a report (an older cached `shell.js` may send them) and never stores them.
+
+**3. Error messages are cleaned twice.**
+- **In the shell,** before posting: the rule of the server check (19.16 details). Every string value of a non-metric column in the block results the shell holds for that state (2 or more characters, longest first) becomes `…`, then every number with 3 or more digits becomes `…`.
+- **On the server,** before storing: the values of the report's own dimension filters become `…`, then the number rule again.
+- Page code could still spell data into its own error text. That text stays in the company's registry and only reaches agents as a count (`get_dashboard` shows `errors` as a number).
+
+**4. Migration 3** drops and recreates `page_checks`: `dashboard_id`, `version`, `state_key`, `filters_json` (redacted), `flagged_json` (`[{code, path, count}]`), `canvas`, `errors_json` (cleaned), `reported_at`; primary key (`dashboard_id`, `version`, `state_key`). Reports stored before it are dropped: 0.1.0 isn't released, and the next viewer's check reports again.
+
+**5. Who reads reports.** `needs_attention` (19.13 rule 5) and the certification refusal (19.2) work as before. `prumi certify` lists each report's redacted state and time, then `code  path  (×count)` lines, `html.canvas`, and the cleaned errors. `get_dashboard` returns the stored report as it is (the redaction already happened).
+
+**6. README:** "What Prumi stores" adds the check reports and says they keep codes, element paths and counts, never numbers or names from the data.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -1113,3 +1137,7 @@ Each criterion has at least one automated test unless it says otherwise.
 86. *(browser test)* At 390 px, the viewer bar's title is one line with an ellipsis and the full title in `title`, the badge is one line, "Data through" is on a second row, and the page has no horizontal scrolling. At 1280 px, the bar is as before.
 80. A page that formats a bound number with `toLocaleString()` fails validation with `R8.browser_locale`; the same page using `prumi.format` passes.
 81. An unknown `locale` stops `prumi serve` at startup with a message naming the setting.
+87. A report posted to `POST .../check` for a state that selects a sentinel dimension value, with a flagged item whose `text` is a sentinel number and an error message containing both sentinels, stores neither: the sentinels appear nowhere in the bytes of `registry.sqlite3` or its `-wal` file. `prumi certify` and `get_dashboard` show the state as `{"selected": 1}`, the flagged item as code, path and count, and the error with `…` in place of both sentinels.
+88. Reports for two different selections of the same dimension filter are stored apart: a clean report for one leaves the version's `needs_attention` set by the other, and a clean report for the same selection clears it.
+89. *(browser test)* On a published page whose number check flags a number for a non-default state, the viewer bar lists the flagged text, and the report the shell posts has no `text` and no `blocks`; an error message that contains a dimension value from that state's block results is posted with `…` in its place.
+90. Opening a registry created before section 23 runs migration 3: earlier reports are gone and new reports are stored as in item 4. The README's "What Prumi stores" names the check reports and says they hold no numbers or names from the data.
