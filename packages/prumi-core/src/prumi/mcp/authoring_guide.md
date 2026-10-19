@@ -60,10 +60,15 @@ Your HTML runs in a sandboxed frame. It **can't** call any server (no `fetch`, `
 - `R8.unbound_number`: a number outside every bound element. Bind the element to the block it shows.
 - `R8.unverified_number`: a number its binding's blocks didn't deliver: a sum, average or share computed in JavaScript, a value from another block (bind a list of blocks), a number typed in from anywhere else. Ask for `total`, `others` or `compare` in the spec instead.
 - `R8.copied_number`: a delivered value written into the HTML source or a script, even if it's right today. It goes stale; show it from `prumi.on`.
+- `R8.browser_locale`: a bound element whose text changes with the viewer's browser language. Use `prumi.format` for numbers and `prumi.locale` for other `Intl` calls.
 
 The rules:
 
 - A shown number matches a delivered value at the precision shown, also scaled (`$2.7M`, `31%`).
+- **One locale for every viewer.** The server has one display locale, `prumi.locale` (`"en-US"` unless the data team set another), and every viewer sees numbers formatted in it, whatever their browser's language. Numbers are read strictly in it: in `en-US`, `1.234,5` matches nothing. So:
+  - format numbers only with `prumi.format`;
+  - pass `prumi.locale` to any other `Intl` call, for dates and other text: `new Intl.DateTimeFormat(prumi.locale, {month: "short", day: "numeric", timeZone: "UTC"})`;
+  - never call `toLocaleString()`, `toLocaleDateString()` or `Intl.*(undefined, …)`: they follow each viewer's browser. Validation renders the page a second time in another browser language, and bound text that changes fails with `R8.browser_locale`.
 - **Not data, fine anywhere** (bound or not), exactly these patterns:
   - dates: `2026-10-14`, `2026-10`, `2026/10/14`, `10/14/2026`, `14.10.2026`, `Oct 14`, `Oct 14, 2026`, `14 October 2026`, `Oct 2026`, `Oct '26`, `Q3`, `Q3 2026`, `2026 Q3`, `FY2026`, `W42`, `Week 42`, and times (`06:30`, `6:30 pm`);
   - years: whole numbers from 1900 to 2199 written without separators (`2026`);

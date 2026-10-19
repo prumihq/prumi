@@ -90,3 +90,18 @@ def test_the_guide_instructions_and_readme_say_no_company_data_reaches_the_agent
     for text in (GUIDE, INSTRUCTIONS, readme):
         assert WORDING in text
         assert "200 rows" not in text and "200-row" not in text
+
+
+def test_the_guide_instructions_and_readme_give_the_one_locale_rule():
+    from prumi.mcp import INSTRUCTIONS
+
+    readme = (Path(__file__).parents[3] / "README.md").read_text(encoding="utf-8")
+    for text in (GUIDE, INSTRUCTIONS, readme):
+        assert "`prumi.format`" in text and "`prumi.locale`" in text
+    for text in (GUIDE, INSTRUCTIONS):
+        assert "`toLocaleString()`" in text and "`Intl.*(undefined, …)`" in text
+    assert "R8.browser_locale" in GUIDE
+    assert "`locale` under `[server]`" in readme
+    # The guide's own code never formats with the browser's language.
+    assert "undefined," not in GUIDE.replace("`Intl.*(undefined, …)`", "")
+    assert ".toLocale" not in GUIDE

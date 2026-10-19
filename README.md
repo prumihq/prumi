@@ -40,6 +40,8 @@ uv run prumi certify sales-weekly 1 --config examples/demo-dbt-project/prumi.tom
 
 The other commands are `uncertify`, `delete`, `requests` (metrics agents asked for that don't exist yet) and `validate` (check a spec file and its HTML).
 
+**One display locale:** every viewer sees numbers formatted the same way, whatever their browser's language. Set it with `locale` under `[server]` in `prumi.toml` (a tag such as `en-US`, `pt-BR` or `de-DE`; the default is `en-US`). Pages format numbers with `prumi.format` and pass `prumi.locale` to their other `Intl` calls, and validation refuses a page whose text changes with the browser's language.
+
 **Your own dbt project:** see [Preparing your dbt project](packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project) for what Prumi reads and how to declare display formats, then point a `prumi.toml` at its `target/semantic_manifest.json` and warehouse, like [the demo's](examples/demo-dbt-project/prumi.toml). This release connects to DuckDB only.
 
 ## Connect your agent
@@ -54,7 +56,7 @@ claude mcp add --scope user --transport http prumi http://127.0.0.1:8484/mcp
 
 Any MCP client that runs on your machine and supports Streamable HTTP can connect the same way. Clients that connect from their vendor's cloud (connectors configured in a web app, for example) can't reach a server on your machine.
 
-The server tells the agent how to work with it: use only catalog metrics and ask for missing ones with `request_metric`, never write numbers into the page, declare totals and comparisons in the spec, and validate before publishing. Validation renders the page in headless Chromium with its data and checks that every number it shows is a value Prumi delivered ([R8](docs/bi-rules.md#r8-every-number-shown-is-a-value-prumi-delivered)). Its tools:
+The server tells the agent how to work with it: use only catalog metrics and ask for missing ones with `request_metric`, never write numbers into the page, format them with `prumi.format` in the server's locale, declare totals and comparisons in the spec, and validate before publishing. Validation renders the page in headless Chromium with its data and checks that every number it shows is a value Prumi delivered ([R8](docs/bi-rules.md#r8-every-number-shown-is-a-value-prumi-delivered)). Its tools:
 
 | Tool | For |
 |---|---|
