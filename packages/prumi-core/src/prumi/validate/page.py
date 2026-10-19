@@ -183,7 +183,7 @@ class PageChecker:
     def _run(self) -> None:
         try:
             from playwright.sync_api import Error, sync_playwright
-        except ImportError as exc:  # pragma: no cover - a dependency of prumi-core
+        except ImportError as exc:  # pragma: no cover - a dependency of prumi
             self._started.set_exception(BrowserStartupError(f"Playwright isn't installed: {exc}"))
             return
         try:

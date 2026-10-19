@@ -11,7 +11,7 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from importlib.metadata import entry_points
+from importlib.metadata import PackageNotFoundError, entry_points, metadata
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal, Protocol, runtime_checkable
@@ -240,12 +240,12 @@ ENTRY_POINT_GROUP = "prumi.adapters"
 AdapterFactory = Callable[[Mapping[str, Any], Path], Adapter]
 
 
-class AdapterNotFoundError(LookupError):
-    pass
-
-
 class AdapterStartupError(Exception):
     """An adapter can't start. The message names the file or relation and what to do."""
+
+
+class AdapterNotFoundError(AdapterStartupError, LookupError):
+    """No installed package registers the adapter by that name, or more than one does."""
 
 
 def adapter_names() -> list[str]:
@@ -260,7 +260,7 @@ def load_adapter_factory(name: str) -> AdapterFactory:
         installed = ", ".join(adapter_names()) or "none"
         raise AdapterNotFoundError(
             f"No Prumi adapter named {name!r} is installed (installed: {installed}). "
-            f"Install the package that provides it, e.g. prumi-adapter-{name}."
+            + _install_hint(name)
         )
     if len({ep.value for ep in matches}) > 1:
         sources = ", ".join(sorted(ep.value for ep in matches))
@@ -268,3 +268,18 @@ def load_adapter_factory(name: str) -> AdapterFactory:
             f"More than one installed package registers the adapter {name!r}: {sources}"
         )
     return matches[0].load()
+
+
+def _install_hint(name: str) -> str:
+    # First-party adapters come as extras of the prumi package (`prumi[dbt]`); its metadata
+    # lists them, so a new one needs no change here.
+    try:
+        extras = metadata("prumi").get_all("Provides-Extra") or []
+    except PackageNotFoundError:
+        extras = []
+    if name in extras:
+        return (
+            f'Install Prumi with it: `uv tool install "prumi[{name}]"` '
+            f'or `pip install "prumi[{name}]"`.'
+        )
+    return f"Install the package that provides it, e.g. prumi-adapter-{name}."

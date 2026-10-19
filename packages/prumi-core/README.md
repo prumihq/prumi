@@ -1,4 +1,4 @@
-# prumi-core
+# prumi
 
 The Prumi server and the `prumi` CLI. AI agents connect to its MCP endpoint and build dashboards on a company's official metrics; Prumi checks every page, hosts it, and lets the data team certify it.
 

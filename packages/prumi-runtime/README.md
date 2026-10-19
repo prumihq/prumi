@@ -10,4 +10,4 @@ The browser side of Prumi, plain JS with no dependencies and no build step:
 
 Outside a Prumi shell, the runtime shows "This dashboard only works inside Prumi" and calls no callbacks.
 
-The Prumi server serves each at its name (`/runtime.js`, `/shell.js`, `/provenance.js`, `/theme.css`, `/home.css`, `/home.js`). The `prumi-core` wheel carries a copy of each (see `packages/prumi-core/hatch_build.py`); these files are the only source.
+The Prumi server serves each at its name (`/runtime.js`, `/shell.js`, `/provenance.js`, `/theme.css`, `/home.css`, `/home.js`). The `prumi` wheel carries a copy of each (see `packages/prumi-core/hatch_build.py`); these files are the only source.

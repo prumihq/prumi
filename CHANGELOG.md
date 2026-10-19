@@ -8,7 +8,8 @@ The first release: it proves the core loop on one machine, for one local user, a
 
 ### Added
 
-- **`prumi-core`**: the server and the `prumi` CLI.
+- **Installable from PyPI** as `prumi` and `prumi-adapter-dbt`, released together with one version: `prumi[dbt]` installs both.
+- **`prumi`**: the server and the `prumi` CLI. Its extra `dbt` installs the dbt adapter with it (`prumi[dbt]`); without an adapter, `prumi serve` stops and names the extra to install.
   - MCP endpoint at `/mcp` (Streamable HTTP, stateless) with nine tools: `authoring_guide` (the spec format, the page API and a working example), `find_metrics`, `describe_metric`, `query` (the shape of the data, never its values: no company data reaches the agent), `validate_spec` (also for edits to any validated candidate, failed ones included, or to a published version: `base` + `html_edits`; and for extra filter states to check: `check_states`), `publish_dashboard` (by the `candidate_id` of a successful validation, so the HTML is sent once), `list_dashboards`, `get_dashboard` and `request_metric`. The server's instructions walk the agent through that workflow, and tell it to build company dashboards with Prumi rather than with its client's own dashboard or artifact tool.
   - Dashboard spec format version 0, with its JSON Schema.
   - Validator: spec rules, BI rules R2 to R8 and R10, HTML checks, and a dry run of every block.
@@ -22,7 +23,7 @@ The first release: it proves the core loop on one machine, for one local user, a
   - Query logs with origin, viewer, duration and row count, never values.
   - CLI: `serve`, `list`, `certify`, `uncertify`, `delete`, `requests`, `validate`.
 - **`prumi-adapter-dbt`**: reads `target/semantic_manifest.json`. MetricFlow 0.213.0 compiles (exact pin, Apache-2.0); Prumi runs the SQL over its own DuckDB connection. Formats come from `config.meta.prumi`, and startup checks cover the manifest, the connection type and every relation.
-- **`prumi-runtime`**: `runtime.js` (the `prumi.*` API in the dashboard frame, with no aggregation helpers; `prumi.format` and `prumi.change` write numbers and change figures in the server's locale), `shell.js`, `provenance.js` (the number matcher), `theme.css`, `home.css` and `home.js`, plain JS and CSS with no build step. The `prumi-core` wheel carries a copy of each.
+- **`prumi-runtime`**: `runtime.js` (the `prumi.*` API in the dashboard frame, with no aggregation helpers; `prumi.format` and `prumi.change` write numbers and change figures in the server's locale), `shell.js`, `provenance.js` (the number matcher), `theme.css`, `home.css` and `home.js`, plain JS and CSS with no build step. The `prumi` wheel carries a copy of each.
 - **Demo dbt project** (`examples/demo-dbt-project`): a deterministic synthetic shop on DuckDB, with metrics that plant the usual BI traps.
 
 ### Known limitations

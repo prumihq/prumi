@@ -8,8 +8,8 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "prumi",
     "prumi-adapter-dbt",
-    "prumi-core",
     "prumi-workspace",
 ]
 
@@ -656,29 +656,7 @@ wheels = [
 ]
 
 [[package]]
-name = "prumi-adapter-dbt"
-version = "0.1.0"
-source = { editable = "packages/prumi-adapter-dbt" }
-dependencies = [
-    { name = "metricflow" },
-    { name = "prumi-core" },
-]
-
-[package.optional-dependencies]
-duckdb = [
-    { name = "duckdb" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "duckdb", marker = "extra == 'duckdb'" },
-    { name = "metricflow", specifier = "==0.213.0" },
-    { name = "prumi-core", editable = "packages/prumi-core" },
-]
-provides-extras = ["duckdb"]
-
-[[package]]
-name = "prumi-core"
+name = "prumi"
 version = "0.1.0"
 source = { editable = "packages/prumi-core" }
 dependencies = [
@@ -690,15 +668,44 @@ dependencies = [
     { name = "uvicorn" },
 ]
 
+[package.optional-dependencies]
+dbt = [
+    { name = "prumi-adapter-dbt", extra = ["duckdb"] },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=2.3,<3" },
     { name = "playwright", specifier = ">=1.64,<2" },
+    { name = "prumi-adapter-dbt", extras = ["duckdb"], marker = "extra == 'dbt'", editable = "packages/prumi-adapter-dbt" },
     { name = "pydantic", specifier = ">=2.14,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "starlette", specifier = ">=1.8,<2" },
     { name = "uvicorn", specifier = ">=0.54" },
 ]
+provides-extras = ["dbt"]
+
+[[package]]
+name = "prumi-adapter-dbt"
+version = "0.1.0"
+source = { editable = "packages/prumi-adapter-dbt" }
+dependencies = [
+    { name = "metricflow" },
+    { name = "prumi" },
+]
+
+[package.optional-dependencies]
+duckdb = [
+    { name = "duckdb" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "duckdb", marker = "extra == 'duckdb'" },
+    { name = "metricflow", specifier = "==0.213.0" },
+    { name = "prumi", editable = "packages/prumi-core" },
+]
+provides-extras = ["duckdb"]
 
 [[package]]
 name = "prumi-workspace"
@@ -708,8 +715,8 @@ source = { virtual = "." }
 [package.dev-dependencies]
 dev = [
     { name = "httpx2" },
+    { name = "prumi" },
     { name = "prumi-adapter-dbt", extra = ["duckdb"] },
-    { name = "prumi-core" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -719,8 +726,8 @@ dev = [
 [package.metadata.requires-dev]
 dev = [
     { name = "httpx2" },
+    { name = "prumi", editable = "packages/prumi-core" },
     { name = "prumi-adapter-dbt", extras = ["duckdb"], editable = "packages/prumi-adapter-dbt" },
-    { name = "prumi-core", editable = "packages/prumi-core" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },
 ]

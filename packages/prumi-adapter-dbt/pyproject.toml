@@ -7,7 +7,7 @@ license = "Apache-2.0"
 requires-python = ">=3.12"
 dependencies = [
     # The adapter protocol may change between 0.x releases.
-    "prumi-core>=0.1.0,<0.2",
+    "prumi>=0.1.0,<0.2",
     # Exact pin: MetricFlow's engine API isn't stable (ADR 0002). Bumping it means rerunning
     # the contract test and rechecking the license.
     "metricflow==0.213.0",

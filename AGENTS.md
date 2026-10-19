@@ -26,7 +26,7 @@ The BI rules R1–R10 and their issue codes are explained in `docs/bi-rules.md`.
 
 - **Numbers only come from the source.** The engine never re-implements a metric definition and never re-aggregates non-additive metrics (ratios, averages, distinct counts). Dashboards get every number through the runtime.
 - **Access rules belong to the source.** Prumi passes the viewer's identity; it never decides who sees which rows.
-- **Adapters are separate packages** behind the adapter protocol in `prumi-core`. Core never imports an adapter directly.
+- **Adapters are separate packages** behind the adapter protocol in `prumi`. Core never imports an adapter directly.
 - **Database dialects are not Prumi's job.** For dbt, MetricFlow generates the SQL.
 
 ## Docs are part of the task
@@ -43,8 +43,8 @@ Your report lists the docs you changed, or says that none were affected.
 
 ## Layout
 
-- `packages/prumi-core` (import `prumi`): server, MCP endpoint, catalog, engine, validator, registry, adapter protocol
-- `packages/prumi-adapter-dbt` (import `prumi_adapter_dbt`): dbt adapter
+- `packages/prumi-core` (package and import `prumi`): server, MCP endpoint, catalog, engine, validator, registry, adapter protocol; extra `prumi[dbt]` adds the dbt adapter
+- `packages/prumi-adapter-dbt` (package `prumi-adapter-dbt`, import `prumi_adapter_dbt`): dbt adapter
 - `packages/prumi-runtime`: browser runtime, plain JS, no build step
 - `examples/demo-dbt-project`: a stand-in "customer" project for tests and the trial; not product code
 

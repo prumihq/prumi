@@ -161,6 +161,15 @@ def test_a_bad_config_exits_1(capsys, tmp_path):
     assert code == 1 and "isn't a loopback address" in out
 
 
+def test_serve_without_the_dbt_adapter_names_the_prumi_extra(capsys, config, monkeypatch):
+    from prumi import adapters
+
+    monkeypatch.setattr(adapters, "entry_points", lambda group: [])
+    code, out = prumi(capsys, "serve", "--config", str(config))
+    assert code == 1 and out.startswith("prumi: No Prumi adapter named 'dbt' is installed")
+    assert '"prumi[dbt]"' in out
+
+
 def test_no_dashboards_and_no_requests(capsys, config):
     assert prumi(capsys, "list", "--config", str(config)) == (0, "No dashboards.\n")
     assert prumi(capsys, "requests", "--config", str(config)) == (0, "No metric requests.\n")

@@ -1,4 +1,4 @@
-"""Release: versions are 0.1.0 and `uv build` makes wheels with the runtime in them."""
+"""Release: versions are 0.1.0 and `uv build` makes the `prumi` and `prumi-adapter-dbt` wheels."""
 
 import json
 import os
@@ -17,11 +17,11 @@ VERSION = "0.1.0"
 
 
 def test_versions():
-    for package in ("prumi-core", "prumi-adapter-dbt"):
-        with (PACKAGES / package / "pyproject.toml").open("rb") as f:
-            assert tomllib.load(f)["project"]["version"] == VERSION, package
+    for folder in ("prumi-core", "prumi-adapter-dbt"):
+        with (PACKAGES / folder / "pyproject.toml").open("rb") as f:
+            assert tomllib.load(f)["project"]["version"] == VERSION, folder
     assert prumi.__version__ == VERSION
-    assert version("prumi-core") == version("prumi-adapter-dbt") == VERSION
+    assert version("prumi") == version("prumi-adapter-dbt") == VERSION
     adapter_init = PACKAGES / "prumi-adapter-dbt" / "src" / "prumi_adapter_dbt" / "__init__.py"
     assert f'__version__ = "{VERSION}"' in adapter_init.read_text()
     runtime = json.loads((PACKAGES / "prumi-runtime" / "package.json").read_text())
@@ -35,7 +35,7 @@ def wheels(tmp_path_factory):
         pytest.fail("Building the wheels needs `uv` on PATH.")
     out = tmp_path_factory.mktemp("dist")
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
-    for package in ("prumi-core", "prumi-adapter-dbt"):
+    for package in ("prumi", "prumi-adapter-dbt"):
         # Like a release: the sdist first, then the wheel built from it.
         subprocess.run(
             [uv, "build", "--package", package, "--out-dir", str(out), "--quiet"],
@@ -48,15 +48,15 @@ def wheels(tmp_path_factory):
 
 def test_uv_build_makes_both_wheels_and_sdists(wheels):
     assert sorted(p.name for p in wheels.iterdir() if p.suffix in (".whl", ".gz")) == [
+        "prumi-0.1.0-py3-none-any.whl",
+        "prumi-0.1.0.tar.gz",
         "prumi_adapter_dbt-0.1.0-py3-none-any.whl",
         "prumi_adapter_dbt-0.1.0.tar.gz",
-        "prumi_core-0.1.0-py3-none-any.whl",
-        "prumi_core-0.1.0.tar.gz",
     ]
 
 
 def test_the_core_wheel_carries_the_runtime(wheels):
-    with zipfile.ZipFile(wheels / "prumi_core-0.1.0-py3-none-any.whl") as wheel:
+    with zipfile.ZipFile(wheels / "prumi-0.1.0-py3-none-any.whl") as wheel:
         names = set(wheel.namelist())
         for asset in (
             "runtime.js",
@@ -72,8 +72,16 @@ def test_the_core_wheel_carries_the_runtime(wheels):
         assert "prumi/spec/dashboard-spec.v0.schema.json" in names
         assert "prumi/mcp/authoring_guide.md" in names
         assert "prumi/validate/layout.js" in names
-        entry_points = wheel.read("prumi_core-0.1.0.dist-info/entry_points.txt").decode()
+        entry_points = wheel.read("prumi-0.1.0.dist-info/entry_points.txt").decode()
         assert "prumi = prumi.cli:main" in entry_points
+
+
+def test_the_prumi_wheel_offers_the_dbt_adapter_as_an_extra(wheels):
+    with zipfile.ZipFile(wheels / "prumi-0.1.0-py3-none-any.whl") as wheel:
+        metadata = wheel.read("prumi-0.1.0.dist-info/METADATA").decode()
+    assert "Name: prumi\n" in metadata
+    assert "Provides-Extra: dbt" in metadata
+    assert "Requires-Dist: prumi-adapter-dbt[duckdb]<0.2,>=0.1.0; extra == 'dbt'" in metadata
 
 
 def test_the_adapter_wheel_registers_itself(wheels):
@@ -82,5 +90,5 @@ def test_the_adapter_wheel_registers_itself(wheels):
         metadata = wheel.read("prumi_adapter_dbt-0.1.0.dist-info/METADATA").decode()
     assert "[prumi.adapters]\ndbt = prumi_adapter_dbt.adapter:create_adapter" in entry_points
     assert "Requires-Dist: metricflow==0.213.0" in metadata
-    assert "Requires-Dist: prumi-core<0.2,>=0.1.0" in metadata
+    assert "Requires-Dist: prumi<0.2,>=0.1.0" in metadata
     assert "Requires-Dist: duckdb; extra == 'duckdb'" in metadata

@@ -1,5 +1,5 @@
 [project]
-name = "prumi-core"
+name = "prumi"
 version = "0.1.0"
 description = "Prumi server: MCP endpoint, catalog, query engine, validator and registry"
 readme = "README.md"
@@ -15,6 +15,11 @@ dependencies = [
     # Headless Chromium renders each dashboard at validation to check its numbers.
     "playwright>=1.64,<2",
 ]
+
+[project.optional-dependencies]
+# One extra per first-party adapter, so `uv tool install "prumi[dbt]"` gives a server that
+# starts. The adapter depends on prumi in turn; resolvers and the lockfile handle the cycle.
+dbt = ["prumi-adapter-dbt[duckdb]>=0.1.0,<0.2"]
 
 [project.scripts]
 prumi = "prumi.cli:main"

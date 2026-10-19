@@ -16,12 +16,12 @@ members = [
 exclude = ["spikes/*", "examples/*"]
 
 [tool.uv.sources]
-prumi-core = { workspace = true }
+prumi = { workspace = true }
 prumi-adapter-dbt = { workspace = true }
 
 [dependency-groups]
 dev = [
-    "prumi-core",
+    "prumi",
     "prumi-adapter-dbt[duckdb]",
     "httpx2",
     "pytest>=8",

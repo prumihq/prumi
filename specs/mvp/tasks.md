@@ -133,7 +133,7 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 
 ## Published on PyPI (spec section 25; added 2026-10-19)
 
-- [ ] 85. Publish `prumi-core` as `prumi`: the package name, the adapter's dependency, the workspace, the `dbt` extra, the missing-adapter message, the release test — done when `uv lock` resolves and the release test passes with the new names (AC 93 names and extra, AC 95 adapter message). Docs: CHANGELOG, `AGENTS.md`, README (layout row), and the package READMEs where they name the package
+- [x] 85. Publish `prumi-core` as `prumi`: the package name, the adapter's dependency, the workspace, the `dbt` extra, the missing-adapter message, the release test — done when `uv lock` resolves and the release test passes with the new names (AC 93 names and extra, AC 95 adapter message). Docs: CHANGELOG, `AGENTS.md`, README (layout row), and the package READMEs where they name the package
 - [ ] 86. PyPI metadata and pages: authors, URLs, keywords, classifiers; the `prumi` and adapter READMEs as PyPI pages with absolute links; README "Your own dbt project" starts with the PyPI install — done when AC 93 passes. Docs: the package READMEs, README
 - [ ] 87. `prumi install-chromium [--with-deps]`; the startup error and the README use it — done when AC 95 passes. Docs: README (quick start, troubleshooting, development), CHANGELOG
 - [ ] 88. The install check script and its CI job — done when the script passes locally (AC 94). Docs: README (Development)

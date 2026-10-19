@@ -86,8 +86,8 @@ Every number on a dashboard is computed by the source at the grain it's shown: P
 
 | Path | What it is |
 |---|---|
-| `packages/prumi-core` | The server: MCP endpoint, catalog, query engine, validator, registry |
-| `packages/prumi-adapter-dbt` | dbt adapter (MetricFlow compiles, Prumi executes) |
+| `packages/prumi-core` | The `prumi` package: the server and the `prumi` command (MCP endpoint, catalog, query engine, validator, registry) |
+| `packages/prumi-adapter-dbt` | The `prumi-adapter-dbt` package: dbt adapter (MetricFlow compiles, Prumi executes) |
 | `packages/prumi-runtime` | Browser runtime that dashboards load |
 | `examples/demo-dbt-project` | Demo dbt project on DuckDB, used for tests and the trial |
 | `specs/` | Specs and task lists, one spec per minor release |

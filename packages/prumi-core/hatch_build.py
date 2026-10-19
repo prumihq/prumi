@@ -1,5 +1,5 @@
 """Puts prumi-runtime's browser assets (runtime.js, shell.js, provenance.js, theme.css,
-home.css, home.js) into the prumi-core wheel (prumi/_runtime/).
+home.css, home.js) into the prumi wheel (prumi/_runtime/).
 
 There is one source of each, in packages/prumi-runtime/src/. A wheel built in the workspace
 reads them there; a wheel built from the sdist reads the copies the sdist carries.

@@ -89,6 +89,17 @@ def test_an_unknown_adapter_name_says_what_is_installed(fake_adapter_installed):
         load_adapter_factory("nope")
 
 
+def test_a_missing_first_party_adapter_names_the_prumi_extra(monkeypatch):
+    import prumi.adapters
+
+    monkeypatch.setattr(prumi.adapters, "entry_points", lambda group: [])
+    with pytest.raises(AdapterNotFoundError) as missing:
+        load_adapter_factory("dbt")
+    assert 'uv tool install "prumi[dbt]"' in str(missing.value)
+    with pytest.raises(AdapterNotFoundError, match=r"e\.g\. prumi-adapter-nope\.$"):
+        load_adapter_factory("nope")
+
+
 def test_capabilities_defaults():
     capabilities = Capabilities(identity_mode="shared_account")
     assert capabilities.time_grains == ("day", "week", "month", "quarter", "year")
