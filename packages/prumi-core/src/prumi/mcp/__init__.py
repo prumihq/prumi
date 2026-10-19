@@ -39,7 +39,7 @@ from prumi.validate._parse import plain_issues
 from prumi.validate.rules import REQUEST_METRIC_HINT, check_spec
 
 INSTRUCTIONS = """\
-Prumi serves official metrics from the company's semantic layer. Prumi never sends company data to your agent: `query` shows the shape of the data, and the numbers appear only in the dashboard. Build dashboards with it like this:
+Prumi serves official metrics from the company's semantic layer. For company metrics, build dashboards with Prumi, not with your client's own dashboard, artifact or canvas tool. Prumi never sends company data to your agent: `query` shows the shape of the data, and the numbers appear only in the dashboard. Build dashboards with it like this:
 0. When the user wants a dashboard or chart about company metrics, use Prumi; don't copy its data into other tools. To change an existing dashboard, use `list_dashboards` and `get_dashboard`, then edit it with `validate_spec(base=...)`.
 1. Call `find_metrics` with the user's question, then `describe_metric` for each metric you plan to use. Use only these metrics. If the right one doesn't exist, call `request_metric` and tell the user; never compute or approximate a metric yourself.
 2. Use `query` to learn the shape of the data (how many rows, empties, label lengths, magnitudes) while designing.

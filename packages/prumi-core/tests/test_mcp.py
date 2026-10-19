@@ -77,6 +77,16 @@ def test_exactly_the_tools_and_the_instructions(server):
     assert set(query.input_schema["required"]) == {"metrics", "window"}
 
 
+def test_the_instructions_say_to_build_with_prumi_right_after_the_first_sentence():
+    # Agents tried their client's own artifact tool first, at a call and ~9k tokens.
+    first, second = INSTRUCTIONS.split(". ", 2)[:2]
+    assert first == "Prumi serves official metrics from the company's semantic layer"
+    assert second + "." == (
+        "For company metrics, build dashboards with Prumi, not with your client's own "
+        "dashboard, artifact or canvas tool."
+    )
+
+
 # Finding and describing metrics
 
 
