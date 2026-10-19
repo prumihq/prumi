@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–24 on 2026-10-19)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–24 on 2026-10-19); section 25 draft
 
 ## Goal
 
@@ -1020,6 +1020,47 @@ The tests read only shipped files (README files and code), never `specs/`, and r
 - AC 91 is automated: each check also runs on its file with each item removed in turn, and asserts that the message names the item and the file. Messages read, for example, "README.md doesn't name the CLI command `delete`: add it to README.md, in backticks or as `prumi <command>`."
 - Suite after sections 23–24: 857 tests in about 239 s.
 
+### 25. Published on PyPI (added 2026-10-19, draft)
+
+0.1.0 can be installed from PyPI as well as run from a clone. The quick start stays on a clone, because the demo project lives in the repository; the PyPI install is for your own dbt project. Nothing is uploaded before the repository is public: a package carries the full source. An upload can't be taken back, and a version number can be used only once.
+
+**1. Package names** ([ADR 0014](../../docs/adr/0014-package-names-on-pypi.md)).
+- `prumi-core` (section 1) is published as **`prumi`**: the server and the `prumi` command. The import name stays `prumi`, and the folder stays `packages/prumi-core`, where accepted ADRs point.
+- `prumi-adapter-dbt` keeps its name and depends on `prumi>=0.1.0,<0.2`.
+- `prumi` gets the extra `dbt` → `prumi-adapter-dbt[duckdb]>=0.1.0,<0.2`. `uv tool install "prumi[dbt]"` installs everything 0.1.0 needs; the dbt-style `pip install prumi "prumi-adapter-dbt[duckdb]"` gives the same packages. `uv lock` has to resolve the cycle this makes in the workspace (`prumi[dbt]` → the adapter → `prumi`); if it can't, write it in `questions.md` and stop.
+- Both packages are released together, always with the same version.
+- When the config names the `dbt` adapter and it isn't installed, the startup message says to install `prumi[dbt]`.
+
+This settles ADR 0001's open question about a `prumi` package.
+
+**2. What the PyPI pages show.**
+- Both `pyproject.toml` files: `authors = [{name = "Denner Rodrigues Campelo"}]`, with no email; `[project.urls]` for the repository, the issues and the changelog on GitHub; `keywords`; `classifiers` for an alpha release, the Python versions CI tests (3.12) and the topics. The license stays the SPDX expression `Apache-2.0`, with no license classifier (the packaging metadata standard doesn't allow both).
+- Each package's README is its PyPI page. `packages/prumi-core/README.md` becomes the `prumi` page: what Prumi is, `uv tool install "prumi[dbt]"`, `prumi install-chromium`, `prumi serve --config prumi.toml`, and a link to the main README for the rest. The adapter's README gets an install line. PyPI can't follow relative links, so every link in a package README is absolute.
+
+**3. `prumi install-chromium [--with-deps]`.** After `uv tool install`, only the `prumi` command is on the PATH, not `playwright`. The new command runs Playwright's installer with the Python that runs Prumi (`python -m playwright install chromium`, plus `--with-deps` when given), so the browser always matches the installed Playwright. The startup error for a missing Chromium and the README name it (`uv run prumi install-chromium` in a clone).
+
+**4. The install check.** A script that CI runs as its own job (not part of `uv run pytest`), that the release workflow runs before any upload, and that runs locally:
+- build both packages;
+- install them the way the README says, `uv tool install "prumi[dbt]"`, into a temporary tool directory (never the user's own), taking `prumi` and `prumi-adapter-dbt` from the built files, never from PyPI;
+- run `prumi install-chromium`, start `prumi serve` on the built demo project, and get its home page;
+- run `twine check` on the built files, so their READMEs render on PyPI.
+
+**5. Release workflow** (`.github/workflows/release.yml`).
+- **On a pushed tag `v<version>`:** stop before building if the tag doesn't match the version of both packages, or if `CHANGELOG.md` has no dated heading for that version. Then the checks (ruff, the full suite with browser tests, the install check), the build (wheel and sdist for each package), and the upload.
+- **The upload** uses PyPI's trusted publishing, in a job that runs in the GitHub environment `pypi` and is the only one with `id-token: write`. No token or password is stored anywhere. A rerun after a partial upload skips the files already on PyPI.
+- **A manual run** (`workflow_dispatch`) does everything except the upload, so the maintainer can try the workflow before tagging.
+
+**6. `docs/releasing.md`**, the maintainer's checklist, written for someone releasing for the first time:
+- **Once:** on PyPI, a pending publisher for `prumi` and one for `prumi-adapter-dbt` (owner `prumihq`, repository `prumi`, workflow `release.yml`, environment `pypi`). On GitHub, the environment `pypi` with the maintainer as required reviewer, so nothing uploads without their approval (GitHub offers this on public repositories).
+- **The first release:** make the repository public and turn on private vulnerability reporting (`SECURITY.md`) first, then tag. The README's PyPI commands work once the upload finishes, a few minutes later.
+- **Each release:** bump both versions, date the CHANGELOG heading, try the manual run, tag and push, approve the `pypi` deployment, then check both PyPI pages and a fresh `uv tool install "prumi[dbt]"`.
+- **What can't be undone:** a version uploads once; a mistake is fixed by the next patch version. If the upload stops halfway, rerun the job.
+
+**7. Docs.**
+- README: "Your own dbt project" starts with the PyPI install (item 2's three commands, and the pip and dbt-style lines in one sentence); the quick start uses `uv run prumi install-chromium`; the repository layout says `packages/prumi-core` is the `prumi` package; Development links `docs/releasing.md`.
+- CHANGELOG: installable from PyPI as `prumi` and `prumi-adapter-dbt`, the `dbt` extra, `prumi install-chromium`; the `prumi-core` bullet becomes `prumi`.
+- `AGENTS.md`: the package names.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -1045,7 +1086,6 @@ The tests read only shipped files (README files and code), never `specs/`, and r
 | Accepting presentation-only changes without re-certification; a review UI | Later |
 | Agent-data modes other than the row cap (masked values, shape only) | Later |
 | The newer dbt metrics YAML (metrics on models), untested by the spike | Later |
-| A `prumi` meta-package on PyPI | Open (ADR 0001) |
 
 ## Design for later
 
@@ -1174,3 +1214,8 @@ Each criterion has at least one automated test unless it says otherwise.
 90. Opening a registry created before section 23 runs migration 3: earlier reports are gone and new reports are stored as in item 4. The README's "What Prumi stores" names the check reports and says they hold no numbers or names from the data.
 91. Removing an MCP tool's name from `README.md`, a CLI command from `README.md`, or a `window.prumi` member from `packages/prumi-runtime/README.md` makes the matching test fail with a message naming the missing item and the file; the current files pass.
 92. A report whose time filter value isn't a window (a string, a number, an object of another shape) is stored with `{"invalid": true}` for that filter, and `prumi certify` and `get_dashboard` show that; a valid window is stored as sent. A sentinel string set as a time filter's value appears nowhere in the bytes of `registry.sqlite3` or its `-wal` file.
+93. `uv build` makes the wheel and sdist of `prumi` 0.1.0 and of `prumi-adapter-dbt` 0.1.0. The `prumi` wheel's metadata has the author, the project URLs and the extra `dbt` requiring `prumi-adapter-dbt[duckdb]`; the adapter's requires `prumi<0.2,>=0.1.0`. No package README has a relative link.
+94. The install check (section 25 item 4) passes locally and has its own CI job: from the built files, in a temporary tool directory, `uv tool install "prumi[dbt]"` gives a `prumi` command, `prumi install-chromium` installs Chromium, `prumi serve` on the demo answers `GET /` with 200, and `twine check` passes.
+95. With Chromium missing, `prumi serve` stops with a message naming `prumi install-chromium`; with the `dbt` adapter missing, with a message naming `prumi[dbt]`.
+96. The release workflow's tag check refuses a tag that doesn't match both versions and a CHANGELOG without a dated heading for that version (a test runs the check). A test reads `release.yml`: only the upload job has `id-token: write`, it runs in the environment `pypi`, no step reads a token secret, and a manual run skips the upload.
+97. `docs/releasing.md`, the README, the CHANGELOG and `AGENTS.md` say what section 25 items 6 and 7 say. *(review)*

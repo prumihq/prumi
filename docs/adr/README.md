@@ -17,3 +17,4 @@ Short records of technical decisions: context, decision, consequences. Numbered,
 | [0011](0011-one-display-locale.md) | One display locale per server | Accepted |
 | [0012](0012-dashboard-spec-format.md) | The dashboard spec is Prumi's own format: what a dashboard shows, never what a metric means | Accepted |
 | [0013](0013-registry-sqlite.md) | The registry is SQLite, in WAL mode, with plain-SQL migrations | Accepted |
+| [0014](0014-package-names-on-pypi.md) | Package names on PyPI: the server is `prumi`, adapters stay separate, `prumi[dbt]` installs both | Proposed |
