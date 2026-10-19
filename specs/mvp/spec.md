@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–25 on 2026-10-19)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–25 on 2026-10-19; section 25 item 8 draft)
 
 ## Goal
 
@@ -1061,6 +1061,19 @@ This settles ADR 0001's open question about a `prumi` package.
 - CHANGELOG: installable from PyPI as `prumi` and `prumi-adapter-dbt`, the `dbt` extra, `prumi install-chromium`; the `prumi-core` bullet becomes `prumi`.
 - `AGENTS.md`: the package names.
 
+**8. Both packages carry LICENSE and NOTICE** (added 2026-10-19, draft). Found after tasks 85–89: neither wheel nor sdist contains them, because neither package folder has them. Apache-2.0 asks anyone who redistributes the work to pass on a copy of the license and the NOTICE file, and PyPI is a redistribution. Each package's wheel (in `.dist-info/licenses/`) and sdist carry the repository's `LICENSE` and `NOTICE`, unchanged. The root files stay the only source: copies in the package folders are allowed only with a test that they match the root files byte for byte.
+
+**Details settled during implementation (2026-10-19):**
+- A missing adapter crashed `prumi serve` with a traceback (`AdapterNotFoundError` wasn't caught). It's now a subclass of `AdapterStartupError` (still a `LookupError`). For an extra that `prumi`'s own metadata declares (`dbt`), the message says `uv tool install "prumi[dbt]"` or `pip install "prumi[dbt]"`; for any other name, `prumi-adapter-<name>` as before.
+- `install-chromium` is the only command without `--config`; it exits 0, or 1 when Playwright fails. CI and the tests' skip messages use it too.
+- The install check is `scripts/check_install.py` (`--with-deps`, `--dist DIR`). It runs `uv tool install "prumi[dbt]" --overrides` with `prumi[dbt]` and `prumi-adapter-dbt[duckdb]` pinned to the built wheels (an override drops requested extras, so it names `prumi[dbt]`), with `UV_TOOL_DIR` and `UV_TOOL_BIN_DIR` in a temporary directory, and reads `direct_url.json` to confirm both came from those wheels. The server runs on a free port with a temporary data dir. Chromium goes to Playwright's usual cache. `twine` is in the dev group (locked), for `twine check --strict`.
+- Release order differs from item 5, for the better: the `build` job builds once, runs the install check on those exact files (`--dist dist`), and hands them to the `upload` job as an artifact. Jobs: `tag` → `checks` → `build` → `upload`; nothing uploads before every check passes.
+- The upload is `uv publish --trusted-publishing always --check-url https://pypi.org/simple/` (not pypa's action).
+- The tag check is `scripts/check_release.py`. A manual run has no tag: it checks that both packages have the same version and that the CHANGELOG dates it. The heading must be `## <version> — YYYY-MM-DD` with a valid date.
+- Classifiers: Alpha; Python 3, 3 :: Only, 3.12; Topic :: Database and :: Scientific/Engineering :: Information Analysis, plus Visualization for `prumi`. Keywords were the implementer's choice.
+- `test_release.py` builds file names from `VERSION`, so a version bump changes that one line too (`docs/releasing.md` says so).
+- Suite after section 25: 882 tests in about 234–239 s. The install check: 7 s with Chromium and the dependencies cached, 32 s with a Chromium download.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -1219,3 +1232,4 @@ Each criterion has at least one automated test unless it says otherwise.
 95. With Chromium missing, `prumi serve` stops with a message naming `prumi install-chromium`; with the `dbt` adapter missing, with a message naming `prumi[dbt]`.
 96. The release workflow's tag check refuses a tag that doesn't match both versions and a CHANGELOG without a dated heading for that version (a test runs the check). A test reads `release.yml`: only the upload job has `id-token: write`, it runs in the environment `pypi`, no step reads a token secret, and a manual run skips the upload.
 97. `docs/releasing.md`, the README, the CHANGELOG and `AGENTS.md` say what section 25 items 6 and 7 say. *(review)*
+98. The wheel and the sdist of `prumi` and of `prumi-adapter-dbt` contain `LICENSE` and `NOTICE` identical to the repository's (the wheels in `.dist-info/licenses/`), and the wheel metadata lists them as `License-File`.
