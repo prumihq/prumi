@@ -1,6 +1,6 @@
 # 0006. The catalog shows the source as it is
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 

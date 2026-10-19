@@ -1,6 +1,6 @@
 # 0003. Access rules belong to the source; every query runs as a viewer
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0013. The registry is SQLite
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 

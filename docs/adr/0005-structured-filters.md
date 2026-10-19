@@ -1,6 +1,6 @@
 # 0005. Filters are structured; agent and browser input never becomes SQL text
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 

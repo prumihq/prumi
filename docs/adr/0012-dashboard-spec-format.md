@@ -1,6 +1,6 @@
 # 0012. The dashboard spec is Prumi's own format
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 

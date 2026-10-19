@@ -1,6 +1,6 @@
 # 0004. Dashboards run in a sandboxed frame; the browser sends only filter values
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 

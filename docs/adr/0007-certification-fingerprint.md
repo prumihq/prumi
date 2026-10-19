@@ -1,6 +1,6 @@
 # 0007. Certification follows a fingerprint; status is computed, not stored
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0011. One display locale per server
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 

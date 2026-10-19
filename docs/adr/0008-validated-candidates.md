@@ -1,6 +1,6 @@
 # 0008. Publishing goes through validated candidates
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0010. No company data reaches the agent
 
-Status: Proposed · 2026-10-19
+Status: Accepted · 2026-10-19
 
 ## Context
 
