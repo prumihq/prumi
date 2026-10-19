@@ -35,10 +35,9 @@
   var PERIODS = /^\s*-?\s*(?:days?|weeks?|wks?|months?|mos?|quarters?|qtrs?|years?|yrs?)\b/i;
   var CURRENCY_BEFORE = /(?:[$€£¥₹₩₽¢]|\b[A-Z]{3})\s*$/;
 
-  // What every locale's reader knows: these separators inside a number, and these scales
-  // after it. A locale adds its own (see reader), so en-US reads exactly these.
-  var SEPARATORS = ".,'   ";
-  var SPACES = "    "; // between a number and its scale
+  // Scales every locale's reader knows after a number; a locale adds its own compact words
+  // (see reader). Separators are the locale's only.
+  var SPACES = "\u00a0\u202f\u2009 "; // between a number and its scale
   var SUFFIXES = ["%", "‰", "[kKMBT](?![\\p{L}])", "bn(?![\\p{L}])", "mn(?![\\p{L}])",
                   "Mio\\.?", "Mrd\\.?"];
   var SCALES = {
@@ -62,16 +61,21 @@
   }
 
   // The locale's separators and compact scales, as Intl formats them: the group and decimal
-  // separators of 1234567.5, and the compact suffix of 1e3, 1e6 and 1e9, as a number and as
-  // a currency (some locales use other words there). The scale is the value over the digits
+  // separators and the group sizes of 1234567890.5 (3 and 3 in en-US; 3, then 2 in en-IN's
+  // 1,23,45,67,890.5), and the compact suffix of 1e3, 1e6 and 1e9, as a number and as a
+  // currency (some locales use other words there). The scale is the value over the digits
   // shown, so "100万" (1e6 in ja-JP) makes 万 1e4.
   function localeSymbols(locale) {
-    var out = { group: "", decimal: "", scales: {} };
+    var out = { group: ",", decimal: ".", primary: 3, secondary: 3, scales: {} };
     try {
-      new Intl.NumberFormat(locale).formatToParts(1234567.5).forEach(function (part) {
+      var groups = [];
+      new Intl.NumberFormat(locale).formatToParts(1234567890.5).forEach(function (part) {
         if (part.type === "group") out.group = part.value;
         if (part.type === "decimal") out.decimal = part.value;
+        if (part.type === "integer") groups.push(part.value.length);
       });
+      if (groups.length > 1) out.primary = groups[groups.length - 1];
+      if (groups.length > 2) out.secondary = groups[groups.length - 2];
       var styles = [
         { notation: "compact" },
         { notation: "compact", style: "currency", currency: "USD" },
@@ -100,9 +104,6 @@
     locale = locale || "en-US";
     if (readers[locale]) return readers[locale];
     var symbols = localeSymbols(locale);
-    var odd = [symbols.group, symbols.decimal].filter(function (c) {
-      return c && SEPARATORS.indexOf(c) < 0 && c !== " ";
-    });
     var own = Object.keys(symbols.scales)
       .sort(function (a, b) {
         return b.length - a.length;
@@ -110,7 +111,6 @@
       .map(function (suffix) {
         return escapeRegExp(suffix) + (/\p{L}$/u.test(suffix) ? "(?![\\p{L}])" : "");
       });
-    var separators = escapeRegExp(SEPARATORS + odd.join(""));
     var scales = {};
     Object.keys(SCALES).forEach(function (k) {
       scales[k] = SCALES[k];
@@ -121,63 +121,38 @@
     readers[locale] = {
       // A number, not glued to a word on its left, with an optional scale after it.
       number: new RegExp(
-        "(?<![\\p{L}\\d_])(\\d(?:[\\d" + separators + "]*\\d)?)(?:[" + SPACES + "]?(" +
-          own.concat(SUFFIXES).join("|") + "))?",
+        "(?<![\\p{L}\\d_])(\\d(?:[\\d" + escapeRegExp(symbols.group + symbols.decimal) +
+          "]*\\d)?)(?:[" + SPACES + "]?(" + own.concat(SUFFIXES).join("|") + "))?",
         "gu"
       ),
       scales: scales,
-      // Group separators other than . and , are removed; an odd decimal separator becomes ".".
-      group: symbols.group && odd.indexOf(symbols.group) >= 0 ? symbols.group : "",
-      decimal: symbols.decimal && odd.indexOf(symbols.decimal) >= 0 ? symbols.decimal : "",
+      symbols: symbols,
     };
     return readers[locale];
   }
 
-  // Readings of a number as shown: "1,234" is 1234 in en-US and 1.234 in de-DE.
+  // The reading of a number as shown in `locale`, strictly: only that locale's separators,
+  // grouped as it groups. "1.234" is 1.234 in en-US and 1234 in pt-BR; "1.234,5" isn't a
+  // number in en-US. A number that doesn't read has no readings, so it matches nothing.
   function readings(raw, locale) {
-    var r = reader(locale);
-    var s = raw.replace(/['   ]/g, "");
-    if (r.group) s = s.split(r.group).join("");
-    if (r.decimal) s = s.split(r.decimal).join(".");
-    var commas = s.split(",").length - 1;
-    var dots = s.split(".").length - 1;
-    if (!commas && !dots) return [{ value: +s, decimals: 0, digits: s }];
-    if (commas && dots) {
-      var decimal = s.lastIndexOf(",") > s.lastIndexOf(".") ? "," : ".";
-      var one = decimalReading(s, decimal);
-      return one ? [one] : [];
+    var symbols = reader(locale).symbols;
+    var pieces = raw.split(symbols.decimal);
+    if (pieces.length > 2) return [];
+    var fraction = pieces.length === 2 ? pieces[1] : "";
+    if (pieces.length === 2 && !/^\d+$/.test(fraction)) return [];
+    var groups = pieces[0].split(symbols.group);
+    for (var i = 0; i < groups.length; i++) {
+      if (!/^\d+$/.test(groups[i])) return [];
     }
-    var sep = commas ? "," : ".";
-    var parts = s.split(sep);
-    if (parts.length > 2) {
-      var grouped = groupReading(parts);
-      return grouped ? [grouped] : [];
+    if (groups.length > 1) {
+      var last = groups.length - 1;
+      if (groups[last].length !== symbols.primary) return [];
+      for (var j = 1; j < last; j++) if (groups[j].length !== symbols.secondary) return [];
+      if (groups[0].length > symbols.secondary) return [];
     }
-    var out = [];
-    if (parts[1].length === 3) {
-      var g = groupReading(parts);
-      if (g) out.push(g);
-    }
-    out.push(decimalReading(s, sep));
-    return out.filter(Boolean);
-  }
-
-  function groupReading(parts) {
-    for (var i = 1; i < parts.length; i++) if (parts[i].length !== 3) return null;
-    var digits = parts.join("");
-    return { value: +digits, decimals: 0, digits: digits };
-  }
-
-  function decimalReading(s, decimal) {
-    var group = decimal === "," ? "." : ",";
-    var i = s.lastIndexOf(decimal);
-    var whole = s.slice(0, i);
-    var fraction = s.slice(i + 1);
-    if (fraction.indexOf(group) >= 0 || fraction.indexOf(decimal) >= 0) return null;
-    var wholeParts = whole.split(group);
-    for (var k = 1; k < wholeParts.length; k++) if (wholeParts[k].length !== 3) return null;
-    whole = wholeParts.join("");
-    return { value: +(whole + "." + fraction), decimals: fraction.length, digits: whole + fraction };
+    var whole = groups.join("");
+    var value = +(fraction ? whole + "." + fraction : whole);
+    return [{ value: value, decimals: fraction.length, digits: whole + fraction }];
   }
 
   function significant(digits) {
@@ -545,7 +520,7 @@
     var doc = new DOMParser().parseFromString(source, "text/html"); // runs no scripts
     var found = [];
     var seen = {};
-    function read(text, minimum) {
+    function read(text, minimum, locale) {
       numbers(text, locale).forEach(function (number) {
         var match = number.readings.some(function (r) {
           if (significant(r.digits) < minimum) return false;
@@ -563,10 +538,14 @@
     }
     var walker = doc.createTreeWalker(doc.documentElement, 4 /* SHOW_TEXT */);
     for (var node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (node.parentElement && !skipped(node.parentElement)) read(node.data, COPIED_IN_TEXT);
+      if (node.parentElement && !skipped(node.parentElement)) {
+        read(node.data, COPIED_IN_TEXT, locale);
+      }
     }
+    // Scripts hold JavaScript literals (2742409.35) as well as text in the page's locale.
     Array.prototype.forEach.call(doc.querySelectorAll("script"), function (script) {
-      read(script.textContent, COPIED_IN_SCRIPT);
+      read(script.textContent, COPIED_IN_SCRIPT, locale);
+      if ((locale || "en-US") !== "en-US") read(script.textContent, COPIED_IN_SCRIPT, "en-US");
     });
     return found;
   }

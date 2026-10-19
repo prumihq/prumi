@@ -197,24 +197,33 @@ def test_serve_without_chromium_fails_with_the_install_command(
 
 
 @pytest.mark.parametrize(
-    ("text", "readings"),
+    ("text", "locale", "readings"),
     [
-        ("$2,742,409", [2742409]),
-        ("1,234", [1234, 1.234]),
-        ("1.234,56 €", [1234.56]),
-        ("12,5 %", [12.5]),
-        ("2.7M", [2.7]),
+        ("$2,742,409", "en-US", [2742409]),
+        ("1,234", "en-US", [1234]),
+        ("1.234", "en-US", [1.234]),
+        ("2.7M", "en-US", [2.7]),
+        # The other convention doesn't read in en-US, so it can't match anything.
+        ("1.234,56 €", "en-US", []),
+        ("12,5 %", "en-US", []),
+        ("1,2345", "en-US", []),
+        ("1.234", "pt-BR", [1234]),
+        ("1.234,56 €", "de-DE", [1234.56]),
+        ("12,5 %", "de-DE", [12.5]),
+        ("1,234.56", "de-DE", []),
+        ("12,34,567.5", "en-IN", [1234567.5]),
+        ("1,234,567.5", "en-IN", []),
     ],
 )
-def test_numbers_are_read_in_either_locale(demo_services, text, readings):
+def test_numbers_are_read_strictly_in_one_locale(demo_services, text, locale, readings):
     def evaluate(browser):
         page = browser.new_page()
         try:
             page.add_script_tag(content=(RUNTIME / "provenance.js").read_text())
             return page.evaluate(
-                """(text) => window.prumiProvenance.numbers(text).flatMap(
-                    (n) => window.prumiProvenance.readings(n.raw).map((r) => r.value))""",
-                text,
+                """([text, locale]) => window.prumiProvenance.numbers(text, locale).flatMap(
+                    (n) => window.prumiProvenance.readings(n.raw, locale).map((r) => r.value))""",
+                [text, locale],
             )
         finally:
             page.close()
@@ -255,21 +264,29 @@ def test_numbers_are_read_in_the_servers_locale(demo_services, text, locale, val
     assert demo_services.checker._submit(evaluate) == pytest.approx(values)
 
 
-def test_the_server_check_reads_numbers_in_the_servers_locale(demo_services):
+RESULTS = {
+    "kpi": {
+        "columns": [{"name": "revenue", "kind": "metric", "label": "Revenue"}],
+        "rows": [{"revenue": 47123}],
+        "total": {"revenue": 2742409.35},
+    }
+}
+
+
+def in_locale(services, locale):
     import dataclasses
 
-    config = demo_services.config
-    demo_services.config = dataclasses.replace(
-        config, server=dataclasses.replace(config.server, locale="pt-BR")
+    config = services.config
+    services.config = dataclasses.replace(
+        config, server=dataclasses.replace(config.server, locale=locale)
     )
+    return services
+
+
+def test_the_server_check_reads_numbers_in_the_servers_locale(demo_services):
+    in_locale(demo_services, "pt-BR")
     spec = DashboardSpec.model_validate(KPI_SPEC)
-    results = {
-        "kpi": {
-            "columns": [{"name": "revenue", "kind": "metric", "label": "Revenue"}],
-            "rows": [{"revenue": 47123}],
-            "total": {"revenue": 2742409.35},
-        }
-    }
+    results = RESULTS
     shown = """prumi.on("kpi", (b) => {
       document.getElementById("compact").textContent =
         prumi.format(b.rows[0].revenue, "revenue", {compact: true});
@@ -282,6 +299,28 @@ def test_the_server_check_reads_numbers_in_the_servers_locale(demo_services):
     [issue] = demo_services.check_page(spec, kpi_page(wrong, body), results)
     assert issue.code == "R8.unverified_number"
     assert WHERE.match(issue.message)[1] == "p#compact"
+
+
+def test_the_other_convention_doesnt_match_in_en_us(demo_services):
+    spec = DashboardSpec.model_validate(KPI_SPEC)
+    script = """prumi.on("kpi", (b) => {
+      document.getElementById("revenue").textContent =
+        new Intl.NumberFormat("pt-BR", {minimumFractionDigits: 2}).format(b.total.revenue);
+    });"""
+    [issue] = demo_services.check_page(spec, kpi_page(script), RESULTS)
+    assert issue.code == "R8.unverified_number"
+    assert WHERE.match(issue.message)[1] == "p#revenue"
+
+
+@pytest.mark.parametrize(
+    ("body", "script"),
+    [("<p>US$ 2.742.409,35</p>", ""), ("", "const total = 2742409.35;")],
+)
+def test_copied_numbers_in_another_locale(demo_services, body, script):
+    in_locale(demo_services, "pt-BR")
+    page = kpi_page(SHOW_REVENUE + script, '<p id="revenue"></p>' + body)
+    report = demo_services.validate(KPI_SPEC, page)
+    assert "R8.copied_number" in codes(report), report.issues
 
 
 # Numbers copied into the source
