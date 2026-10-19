@@ -989,6 +989,18 @@ The browser reports of 19.1b are stored in `page_checks` as they arrive: the tex
 
 **6. README:** "What Prumi stores" adds the check reports and says they keep codes, element paths and counts, never numbers or names from the data.
 
+**Details settled during implementation (2026-10-19):**
+- The registry does the redaction itself: `Registry.record_check(dashboard_id, version, report)` takes the report as posted (`CheckReport`, now in `prumi.registry`, with `text` optional) and stores `PageCheck.of(spec, report)`, so no caller can store a raw report. An unknown version raises `KeyError`.
+- Any filter in a report that isn't a time filter of the spec is stored as `{"selected": n}`; a value that isn't a list counts as 1. Unknown filter ids still get a 400.
+- Time filter values are stored as sent, even when they aren't a valid window.
+- The state key's canonical JSON is ASCII-escaped (`json.dumps` defaults, keys sorted, no whitespace), so any string a browser sends can be hashed; `filters_json` uses the same form. The key is never shown, in `get_dashboard` or `prumi certify`: it's a hash of values that are easy to guess. Two selections with the same count print the same redacted state, one block each.
+- One cleaning rule, `prumi.scrub.scrubber`, shared by the server check and the registry, with a JS copy in `shell.js`: string values of 2 or more characters, longest first (ties alphabetical), then numbers with 3+ digits. On the server, numbers and booleans among filter values are left to the number rule. Cleaned errors aren't de-duplicated. The shell cleans with the results it holds when the report arrives (the latest per block, those of the current state).
+- Stored `flagged` keeps the order of first appearance; reports are listed by `reported_at`, then `state_key`.
+- `get_dashboard` keeps `errors` as a count; only `prumi certify` prints the cleaned messages.
+- Migration 3 is a plain `DROP` and `CREATE`. Rows from before it can remain in SQLite's free pages until they're reused (no `VACUUM`, no `secure_delete`): acceptable because 0.1.0 is the first release, so no install has older reports.
+- The AC 87 test keeps a second connection open so the write stays in `-wal`, checks the report landed there, then searches both files.
+- Suite after section 23: 839 tests in about 243 s.
+
 ## Out of scope
 
 | Not in this milestone | Where it goes |
@@ -1137,7 +1149,7 @@ Each criterion has at least one automated test unless it says otherwise.
 86. *(browser test)* At 390 px, the viewer bar's title is one line with an ellipsis and the full title in `title`, the badge is one line, "Data through" is on a second row, and the page has no horizontal scrolling. At 1280 px, the bar is as before.
 80. A page that formats a bound number with `toLocaleString()` fails validation with `R8.browser_locale`; the same page using `prumi.format` passes.
 81. An unknown `locale` stops `prumi serve` at startup with a message naming the setting.
-87. A report posted to `POST .../check` for a state that selects a sentinel dimension value, with a flagged item whose `text` is a sentinel number and an error message containing both sentinels, stores neither: the sentinels appear nowhere in the bytes of `registry.sqlite3` or its `-wal` file. `prumi certify` and `get_dashboard` show the state as `{"selected": 1}`, the flagged item as code, path and count, and the error with `…` in place of both sentinels.
+87. A report posted to `POST .../check` for a state that selects a sentinel dimension value, with a flagged item whose `text` is a sentinel number and an error message containing both sentinels, stores neither: the sentinels appear nowhere in the bytes of `registry.sqlite3` or its `-wal` file. `prumi certify` and `get_dashboard` show the state as `{"selected": 1}` and the flagged item as code, path and count; `prumi certify` shows the error with `…` in place of both sentinels, and `get_dashboard` gives the errors as a count.
 88. Reports for two different selections of the same dimension filter are stored apart: a clean report for one leaves the version's `needs_attention` set by the other, and a clean report for the same selection clears it.
 89. *(browser test)* On a published page whose number check flags a number for a non-default state, the viewer bar lists the flagged text, and the report the shell posts has no `text` and no `blocks`; an error message that contains a dimension value from that state's block results is posted with `…` in its place.
 90. Opening a registry created before section 23 runs migration 3: earlier reports are gone and new reports are stored as in item 4. The README's "What Prumi stores" names the check reports and says they hold no numbers or names from the data.
