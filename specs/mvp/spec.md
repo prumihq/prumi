@@ -1002,6 +1002,7 @@ The browser reports of 19.1b are stored in `page_checks` as they arrive: the tex
 - Migration 3 is a plain `DROP` and `CREATE`. Rows from before it can remain in SQLite's free pages until they're reused (no `VACUUM`, no `secure_delete`): acceptable because 0.1.0 is the first release, so no install has older reports.
 - The AC 87 test keeps a second connection open so the write stays in `-wal`, checks the report landed there, then searches both files.
 - Suite after section 23: 839 tests in about 243 s.
+- Item 7 (task 84): "parses as a window" is the block API's own check, `TypeAdapter(Window).validate_python` in pydantic's lax mode, so a value is stored exactly when the block API would accept its form (`{"last": "12", "grain": "week"}` counts). `last: 0`, an unknown grain, extra keys, `start` after `end`, `null`, lists, strings and numbers become `{"invalid": true}`. A valid window is stored as sent, with no defaults added and no dates reformatted. Known limit: page code can still choose a valid window to carry a little information (a date range's dates, `last` from 1 to 400); free text no longer gets through.
 
 ### 24. Docs that list the code stay complete (added and accepted 2026-10-19)
 
@@ -1012,6 +1013,12 @@ A docs pass before 0.1.0 found lists in the READMEs that had fallen behind the c
 - Every member of `window.prumi` in `runtime.js` is named in backticks in `packages/prumi-runtime/README.md`, found the same way as the guide's test finds them.
 
 The tests read only shipped files (README files and code), never `specs/`, and run without a browser. When one fails, its message names the missing item and the file to add it to.
+
+**Details settled during implementation (2026-10-19):**
+- Inline code spans count only outside fenced blocks. A CLI command also counts as `prumi <command>` anywhere, code blocks included (`serve`, `list` and `certify` appear only that way). A `window.prumi` member counts as a span `name`, `prumi.name`, or one starting with `prumi.name(`.
+- MCP tools come from `list_tools` through an in-process client on the demo services (the built demo, no browser); CLI commands from the argparse subparsers of `prumi.cli._parser()`. The `window.prumi` members come from a session fixture, `runtime_members`, which the guide's test now uses too.
+- AC 91 is automated: each check also runs on its file with each item removed in turn, and asserts that the message names the item and the file. Messages read, for example, "README.md doesn't name the CLI command `delete`: add it to README.md, in backticks or as `prumi <command>`."
+- Suite after sections 23–24: 857 tests in about 239 s.
 
 ## Out of scope
 
