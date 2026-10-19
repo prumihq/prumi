@@ -1,9 +1,10 @@
-"""What agents may see of a result: its shape, never its values.
+"""What agents may see of a query result: its shape, never its values.
 
-Agent results go to the agent's LLM provider, so every result returned to an agent passes
-through `for_agent`. Prumi never sends company data there: the agent gets counts, empties,
-label lengths and magnitudes to design with, and the numbers and names appear only in the
-dashboard, in the viewer's browser.
+Agent results go to the agent's LLM provider, and Prumi never sends company data there
+(docs/adr/0010). Every query result returned to an agent passes through `for_agent`: the
+agent gets counts, empties, label lengths and magnitudes to design with, and the numbers and
+names appear only in the dashboard, in the viewer's browser. Other agent-facing text, such
+as issue messages and check reports, is cleaned where it's built.
 """
 
 from __future__ import annotations

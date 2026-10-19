@@ -1,8 +1,9 @@
 """The MCP server: the tools agents use, over stateless Streamable HTTP at /mcp.
 
 Built with the official Python SDK (`MCPServer`, which the 1.x SDK called `FastMCP`).
-Results that go to agents pass through `for_agent`; errors are tool errors whose content
-is the issue list.
+Query results that go to agents pass through `for_agent`; issue messages and check reports
+are cleaned where they're built, so no company data reaches the agent (docs/adr/0010).
+Errors are tool errors whose content is the issue list.
 """
 
 from __future__ import annotations
