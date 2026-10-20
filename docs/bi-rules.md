@@ -2,7 +2,7 @@
 
 Dashboards built by AI agents tend to make the same mistakes BI teams spent years learning to avoid: averaging averages, comparing a half month with a full one, totals that don't match their rows. Prumi checks a dashboard against ten rules, **R1 to R10**, before it's published and every time a block runs.
 
-Issue codes start with the rule they belong to: `R6.others_requires_top_n` is a rule-6 problem. Codes that aren't about a BI rule use `spec.*`, `html.*`, `filter.*`, `publish.*`, `validate.*`, `edit.*`, `dashboard.*`, `layout.*` (warnings about the rendered page's layout), `query.failed` and `result.truncated`; the full list is in the [MVP spec, sections 7, 18 and 19](../specs/mvp/spec.md#7-validator-prumivalidate).
+Issue codes start with the rule they belong to: `R6.others_requires_top_n` is a rule-6 problem. Codes that aren't about a BI rule use `spec.*`, `html.*`, `filter.*`, `publish.*`, `validate.*`, `edit.*`, `dashboard.*`, `layout.*` (warnings about the rendered page's layout), `query.failed` and `result.truncated`; they're listed under [Other issue codes](#other-issue-codes).
 
 Every issue has a `code`, a `severity` (`error` blocks publishing; `warning` doesn't), a `path` into the spec (e.g. `data[1].others`), a `message` and a `hint` saying how to fix it.
 
@@ -172,3 +172,70 @@ Formats and units are read from the metric's definition in the source, and the r
 |---|---|---|
 | `R10.no_format` | warning | A metric has no format declared (or an invalid one); it's shown as a plain number |
 | `R10.mixed_units` | warning | One block shows metrics with different units |
+
+## Other issue codes
+
+Codes that aren't about a BI rule. Errors block publishing; warnings don't.
+
+**The spec**
+
+| Code | Severity | When |
+|---|---|---|
+| `spec.invalid` | error | The spec doesn't match the format (a missing field, a wrong type, an unknown key) |
+| `spec.duplicate_id` | error | Two blocks or filters share an id |
+| `spec.unknown_filter` | error | A block or an interaction names a filter the spec doesn't define |
+| `spec.unknown_block` | error | An interaction names a block the spec doesn't define |
+| `spec.invalid_interaction` | error | An interaction can't work as declared |
+| `spec.unsupported_calendar` | error | A time filter asks for a calendar other than `standard` |
+
+**The page's HTML**
+
+| Code | Severity | When |
+|---|---|---|
+| `html.too_large` | error | The HTML is over 2 MB |
+| `html.unknown_block` | error | A `prumi.*` call names a block the spec doesn't define |
+| `html.binding_selector` | error | A binding key isn't an id selector |
+| `html.unbound_block` | warning | A block is neither bound to an element nor drawn with `prumi.on`, so the page never shows it |
+| `html.script_host` | error | A script, stylesheet or font comes from a host the server doesn't allow |
+| `html.unpinned_script` | warning | A script URL has no exact version |
+| `html.network_call` | warning | The page's scripts make network calls, which the dashboard frame blocks |
+| `html.blocked_request` | warning | During the render, the page tried to reach a URL and the frame blocked it |
+| `html.iframe` | error | The page has a frame, which the number check can't read inside |
+| `html.image` | error | The page has an image, whose numbers can't be checked |
+| `html.canvas` | error | The page draws on a `<canvas>`, whose text can't be read |
+| `html.closed_shadow_root` | error | The page makes a closed shadow root, which the number check can't read inside |
+| `html.runtime_error` | error | The page threw an error while rendering |
+| `html.render_timeout` | error | The page didn't finish rendering in time |
+
+**The rendered layout** (from the same render; element paths and boxes, never the page's text)
+
+| Code | Severity | When |
+|---|---|---|
+| `layout.text_overlap` | warning | Pieces of text overlap |
+| `layout.text_clipped` | warning | Text is cut off by its box |
+| `layout.too_wide` | warning | The page is wider than the screen |
+| `layout.small_text` | warning | Text is smaller than 10 px |
+| `layout.empty_block` | warning | A bound element renders empty |
+
+**Running a dashboard** (in the browser, or in validation's dry run)
+
+| Code | Severity | When |
+|---|---|---|
+| `filter.invalid_value` | error | A filter value isn't valid for its filter |
+| `filter.not_listed` | error | A filter value was sent for a block that doesn't list that filter |
+| `query.failed` | error | The source couldn't run a block; the server log has the error type |
+| `result.truncated` | warning | A block has more than 5,000 rows; only the first 5,000 are shown |
+
+**Agent tools** (`validate_spec`, `publish_dashboard`, `get_dashboard`)
+
+| Code | Severity | When |
+|---|---|---|
+| `validate.invalid_arguments` | error | The arguments don't fit together: a spec and HTML, or a `base` with `html_edits` and/or a spec |
+| `validate.invalid_base` | error | `base` isn't a candidate id, a dashboard id or a published version |
+| `edit.no_match` | error | An `html_edits` entry's `old` text doesn't occur in the HTML |
+| `edit.ambiguous` | error | An `html_edits` entry's `old` text occurs more than once |
+| `publish.invalid_arguments` | error | Neither a `candidate_id` nor both a spec and HTML were passed |
+| `publish.unknown_candidate` | error | The `candidate_id` is unknown or has expired |
+| `publish.invalid_candidate` | error | The candidate didn't pass validation |
+| `dashboard.not_found` | error | No dashboard or version has that id |
+| `dashboard.forbidden` | error | The viewer may not change that dashboard |

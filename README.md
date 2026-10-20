@@ -54,7 +54,31 @@ prumi serve --config prumi.toml
 
 `prumi install-chromium` installs the headless Chromium that Prumi checks every dashboard with (add `--with-deps` on Linux if system libraries are missing). With pip, `pip install "prumi[dbt]"` works the same, and the dbt-style `pip install prumi "prumi-adapter-dbt[duckdb]"` gives the same packages.
 
-`prumi.toml` points at your project's `target/semantic_manifest.json` and warehouse, like [the demo's](examples/demo-dbt-project/prumi.toml). See [Preparing your dbt project](packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project) for what Prumi reads and how to declare display formats. This release connects to DuckDB only.
+`prumi.toml` points at your project's `target/semantic_manifest.json` and warehouse. See [Preparing your dbt project](packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project) for what Prumi reads and how to declare display formats. This release connects to DuckDB only.
+
+```toml
+[source]
+adapter = "dbt"
+project = "analytics"  # optional: names the project on the home page
+
+[source.dbt]
+semantic_manifest = "my-dbt-project/target/semantic_manifest.json"
+
+[source.dbt.connection]
+type = "duckdb"
+path = "warehouse.duckdb"
+```
+
+Relative paths resolve against the folder `prumi.toml` is in. Everything under `[server]` is optional:
+
+| Key | Default | What it does |
+|---|---|---|
+| `host` | `127.0.0.1` | Must be a loopback address (`127.0.0.1`, `::1` or `localhost`): this release has no login. |
+| `port` | `8484` | |
+| `data_dir` | `.prumi` | Where `registry.sqlite3` is kept. Use a local disk. |
+| `locale` | `en-US` | How every page shows numbers and dates. |
+| `as_of` | today | Pins "today" to a date, for demos and tests. The [demo's config](examples/demo-dbt-project/prumi.toml) sets it; leave it out for your own data. |
+| `script_hosts`, `style_hosts`, `font_hosts` | jsDelivr, cdnjs and unpkg, plus Google Fonts for styles and fonts | The hosts a page may load scripts, stylesheets and fonts from. |
 
 ## Connect your agent
 
