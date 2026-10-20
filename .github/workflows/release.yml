@@ -37,7 +37,7 @@ jobs:
           PRUMI_REQUIRE_BROWSER: "1"
 
   build:
-    # The install check runs on the very files the upload job gets.
+    # The install check runs on the very files the upload jobs get.
     needs: checks
     runs-on: ubuntu-latest
     steps:
@@ -53,9 +53,11 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  upload:
-    # The only job that can upload: PyPI trusts this workflow in the `pypi` environment
-    # (trusted publishing), so no token is stored anywhere.
+  # One upload job per package, each in that package's own environment: PyPI trusts this
+  # workflow (trusted publishing) per project and environment, and accepts only one pending
+  # publisher for the same repository, workflow and environment. No token is stored anywhere.
+  # --check-url skips files already on PyPI, so rerunning a failed job finishes its upload.
+  upload-prumi:
     needs: build
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -68,5 +70,19 @@ jobs:
           name: dist
           path: dist
       - uses: astral-sh/setup-uv@v10.3.0
-      # --check-url skips files already on PyPI, so a rerun after a partial upload finishes it.
-      - run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/ dist/*
+      - run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/ dist/prumi-*
+
+  upload-prumi-adapter-dbt:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: pypi-adapter-dbt
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: dist
+          path: dist
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/ dist/prumi_adapter_dbt-*

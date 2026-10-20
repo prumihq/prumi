@@ -1,8 +1,10 @@
 """Release: one version everywhere, the builds of both packages, the release workflow."""
 
+import fnmatch
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -267,20 +269,55 @@ def test_the_release_runs_on_version_tags_and_by_hand(release_workflow):
     assert "workflow_dispatch" in triggers
 
 
-def test_only_the_upload_job_gets_an_id_token_in_the_pypi_environment(release_workflow):
+# Each package uploads from its own GitHub environment, where PyPI trusts this workflow for it.
+UPLOADS = {"pypi": CORE, "pypi-adapter-dbt": ADAPTER}
+
+
+def upload_jobs(workflow: dict) -> dict[str, str]:
+    """The jobs that can get an id token, by their environment."""
+    jobs = workflow["jobs"].items()
+    return {
+        job.get("environment"): n for n, job in jobs if "id-token" in job.get("permissions", {})
+    }
+
+
+def test_two_upload_jobs_get_an_id_token_each_in_its_packages_environment(release_workflow):
     jobs = release_workflow["jobs"]
     assert "id-token" not in release_workflow.get("permissions", {})
     with_id_token = [n for n, job in jobs.items() if "id-token" in job.get("permissions", {})]
-    assert with_id_token == ["upload"]
-    assert jobs["upload"]["permissions"] == {"id-token": "write"}
-    assert jobs["upload"]["environment"] == "pypi"
+    assert len(with_id_token) == 2
+    uploads = upload_jobs(release_workflow)
+    assert sorted(uploads) == sorted(UPLOADS)
+    for name in uploads.values():
+        assert jobs[name]["permissions"] == {"id-token": "write"}
     publishing = [
         name
         for name, job in jobs.items()
         for step in job["steps"]
         if "publish" in step.get("run", "") or "publish" in step.get("uses", "")
     ]
-    assert publishing == ["upload"]
+    assert sorted(publishing) == sorted(uploads.values())
+
+
+@pytest.mark.parametrize(("environment", "package"), UPLOADS.items())
+def test_each_upload_job_uploads_only_its_packages_files(release_workflow, environment, package):
+    job = release_workflow["jobs"][upload_jobs(release_workflow)[environment]]
+    [publish] = [s["run"] for s in job["steps"] if "uv publish" in s.get("run", "")]
+    words = shlex.split(publish)
+    # --check-url skips the files already on PyPI, so rerunning the job finishes a partial upload.
+    assert words[:6] == [
+        "uv",
+        "publish",
+        "--trusted-publishing",
+        "always",
+        "--check-url",
+        "https://pypi.org/simple/",
+    ]
+    built = [
+        f"dist/{name}{end}" for name in UPLOADS.values() for end in ("-py3-none-any.whl", ".tar.gz")
+    ]
+    uploaded = [f for f in built if any(fnmatch.fnmatchcase(f, glob) for glob in words[6:])]
+    assert uploaded == [f"dist/{package}-py3-none-any.whl", f"dist/{package}.tar.gz"]
 
 
 def test_no_step_of_the_release_reads_a_token_secret():
@@ -289,8 +326,9 @@ def test_no_step_of_the_release_reads_a_token_secret():
     assert not re.search(r"(?i)password|api.?token|PUBLISH_TOKEN|TWINE_", text)
 
 
-def test_a_manual_run_of_the_release_skips_the_upload(release_workflow):
-    assert release_workflow["jobs"]["upload"]["if"] == "github.event_name == 'push'"
+def test_a_manual_run_of_the_release_skips_both_uploads(release_workflow):
+    for name in upload_jobs(release_workflow).values():
+        assert release_workflow["jobs"][name]["if"] == "github.event_name == 'push'", name
 
 
 def test_the_release_uploads_only_after_the_tag_check_the_checks_and_the_install_check(
@@ -306,7 +344,9 @@ def test_the_release_uploads_only_after_the_tag_check_the_checks_and_the_install
     def runs(name: str) -> list[str]:
         return [step.get("run", "") for step in jobs[name]["steps"]]
 
-    assert needs("checks") == {"tag"} and needs("upload") == {"tag", "checks", "build"}
+    assert needs("checks") == {"tag"}
+    for name in upload_jobs(release_workflow).values():
+        assert needs(name) == {"tag", "checks", "build"}, name
     assert any("scripts/check_release.py" in run for run in runs("tag"))
     for command in ("uv run ruff check", "uv run ruff format --check", "uv run pytest"):
         assert command in runs("checks"), command
