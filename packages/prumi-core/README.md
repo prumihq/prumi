@@ -18,7 +18,7 @@ prumi install-chromium
 prumi serve --config prumi.toml
 ```
 
-`pip install "prumi[dbt]"` installs the same packages. `prumi.toml` points at your dbt project's semantic manifest and warehouse: see [Your own dbt project](https://github.com/prumihq/prumi#your-own-dbt-project).
+`pip install "prumi[dbt]"` installs the same packages. `prumi.toml` points at your dbt project's semantic manifest and warehouse: see [Use it with your metrics](https://github.com/prumihq/prumi#use-it-with-your-metrics) and [every setting](https://github.com/prumihq/prumi/blob/main/docs/configuration.md).
 
 Requirements: Python 3.12 or later, and headless Chromium, which `prumi install-chromium` installs with Playwright (add `--with-deps` on Linux if system libraries are missing); the server won't start without it.
 
