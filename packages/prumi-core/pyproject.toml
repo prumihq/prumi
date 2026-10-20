@@ -5,6 +5,9 @@ description = "Prumi server: MCP endpoint, catalog, query engine, validator and 
 readme = "README.md"
 # An SPDX expression; the packaging metadata standard allows no license classifier with it.
 license = "Apache-2.0"
+# Copies of the repository's LICENSE and NOTICE, which Apache-2.0 asks every redistribution to
+# carry; the root files are the source, and test_release.py checks the copies match them.
+license-files = ["LICENSE", "NOTICE"]
 authors = [{name = "Denner Rodrigues Campelo"}]
 requires-python = ">=3.12"
 keywords = ["bi", "dashboards", "mcp", "ai-agents", "semantic-layer", "metrics", "dbt"]

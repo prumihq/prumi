@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tomllib
 import zipfile
 from importlib.metadata import version
@@ -16,6 +17,7 @@ import pytest
 import yaml
 
 PACKAGES = Path(__file__).parents[2]
+REPO = PACKAGES.parent
 VERSION = "0.1.0"
 # Wheel and sdist names without their suffix, and the wheels' .dist-info folders.
 CORE = f"prumi-{VERSION}"
@@ -112,6 +114,35 @@ def test_the_wheels_carry_what_the_pypi_page_shows(wheels, wheel_name):
     assert "Description-Content-Type: text/markdown" in headers
 
 
+# Apache-2.0 asks every redistribution, PyPI included, to carry these. The repository's are the
+# source; each package folder holds a copy so the build tools pick it up.
+LICENSE_FILES = ("LICENSE", "NOTICE")
+
+
+@pytest.mark.parametrize("folder", ["prumi-core", "prumi-adapter-dbt"])
+def test_the_package_folders_copy_license_and_notice_from_the_repository(folder):
+    for name in LICENSE_FILES:
+        assert (PACKAGES / folder / name).read_bytes() == (REPO / name).read_bytes(), (
+            f"packages/{folder}/{name} differs from {name}: copy the repository's {name} over it."
+        )
+
+
+@pytest.mark.parametrize("name", [CORE, ADAPTER])
+def test_the_wheels_and_sdists_carry_license_and_notice(wheels, name):
+    with zipfile.ZipFile(wheels / f"{name}-py3-none-any.whl") as wheel:
+        for file in LICENSE_FILES:
+            assert wheel.read(f"{name}.dist-info/licenses/{file}") == (REPO / file).read_bytes()
+        metadata = wheel.read(f"{name}.dist-info/METADATA").decode()
+    headers = metadata.split("\n\n", 1)[0].splitlines()
+    assert [h for h in headers if h.startswith("License-File:")] == [
+        "License-File: LICENSE",
+        "License-File: NOTICE",
+    ]
+    with tarfile.open(wheels / f"{name}.tar.gz") as sdist:
+        for file in LICENSE_FILES:
+            assert sdist.extractfile(f"{name}/{file}").read() == (REPO / file).read_bytes()
+
+
 # Markdown links and images, reference definitions, and HTML href/src attributes.
 LINK = re.compile(
     r"!?\[[^\]]*\]\(\s*<?([^)\s>]+)|^\s*\[[^\]]+\]:\s*<?(\S+?)>?\s*$|(?:href|src)=[\"']([^\"']+)",
@@ -165,7 +196,6 @@ def test_ci_runs_the_install_check_in_a_job_of_its_own():
 
 # The release workflow (.github/workflows/release.yml) and its tag check
 
-REPO = PACKAGES.parent
 WORKFLOW = REPO / ".github" / "workflows" / "release.yml"
 
 
