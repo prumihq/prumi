@@ -138,4 +138,4 @@ Ordered. Each task is one commit (or a short series) and ends with its tests pas
 - [x] 87. `prumi install-chromium [--with-deps]`; the startup error and the README use it — done when AC 95 passes. Docs: README (quick start, troubleshooting, development), CHANGELOG
 - [x] 88. The install check script and its CI job — done when the script passes locally (AC 94). Docs: README (Development)
 - [x] 89. Release workflow with the tag check and the manual run; `docs/releasing.md` — done when AC 96 passes. Docs: `docs/releasing.md`, README (Development links it)
-- [ ] 90. LICENSE and NOTICE in both packages' wheels and sdists, from the root files (section 25 item 8) — done when AC 98 passes. Docs: none (draft until accepted)
+- [ ] 90. LICENSE and NOTICE in both packages' wheels and sdists, from the root files (section 25 item 8) — done when AC 98 passes. Docs: none

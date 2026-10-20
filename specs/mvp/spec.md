@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–25 on 2026-10-19; section 25 item 8 draft)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–25 and section 25 item 8 on 2026-10-19)
 
 ## Goal
 
@@ -1061,7 +1061,7 @@ This settles ADR 0001's open question about a `prumi` package.
 - CHANGELOG: installable from PyPI as `prumi` and `prumi-adapter-dbt`, the `dbt` extra, `prumi install-chromium`; the `prumi-core` bullet becomes `prumi`.
 - `AGENTS.md`: the package names.
 
-**8. Both packages carry LICENSE and NOTICE** (added 2026-10-19, draft). Found after tasks 85–89: neither wheel nor sdist contains them, because neither package folder has them. Apache-2.0 asks anyone who redistributes the work to pass on a copy of the license and the NOTICE file, and PyPI is a redistribution. Each package's wheel (in `.dist-info/licenses/`) and sdist carry the repository's `LICENSE` and `NOTICE`, unchanged. The root files stay the only source: copies in the package folders are allowed only with a test that they match the root files byte for byte.
+**8. Both packages carry LICENSE and NOTICE** (added and accepted 2026-10-19). Found after tasks 85–89: neither wheel nor sdist contains them, because neither package folder has them. Apache-2.0 asks anyone who redistributes the work to pass on a copy of the license and the NOTICE file, and PyPI is a redistribution. Each package's wheel (in `.dist-info/licenses/`) and sdist carry the repository's `LICENSE` and `NOTICE`, unchanged. The root files stay the only source: copies in the package folders are allowed only with a test that they match the root files byte for byte.
 
 **Details settled during implementation (2026-10-19):**
 - A missing adapter crashed `prumi serve` with a traceback (`AdapterNotFoundError` wasn't caught). It's now a subclass of `AdapterStartupError` (still a `LookupError`). For an extra that `prumi`'s own metadata declares (`dbt`), the message says `uv tool install "prumi[dbt]"` or `pip install "prumi[dbt]"`; for any other name, `prumi-adapter-<name>` as before.
