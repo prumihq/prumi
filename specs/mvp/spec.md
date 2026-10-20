@@ -1076,6 +1076,7 @@ This settles ADR 0001's open question about a `prumi` package.
 - `test_release.py` builds file names from `VERSION`, so a version bump changes that one line too (`docs/releasing.md` says so).
 - Suite after section 25: 882 tests in about 234–239 s. The install check: 7 s with Chromium and the dependencies cached, 32 s with a Chromium download.
 - Item 8 (task 90): each package folder holds a copy of the root `LICENSE` and `NOTICE`, declared explicitly in `license-files` (hatchling's default patterns would also pick up a later `COPYING*` or `AUTHORS*`). Hatchling puts them in the sdist and in the wheel's `.dist-info/licenses/`, with `License-File` headers. A test fails, naming the file, when a copy differs from the root file by a byte; another checks the built files. Suite: 886 tests in about 240 s.
+- Item 9 (task 91): jobs `upload-prumi` (environment `pypi`) and `upload-prumi-adapter-dbt` (`pypi-adapter-dbt`) download the one `dist` artifact and each publishes its own glob (`dist/prumi-*`, `dist/prumi_adapter_dbt-*`); a test matches the globs against the built file names. `docs/releasing.md` says a rerun of a failed upload job asks for its approval again (not yet seen on GitHub). Suite: 888 tests in about 245 s.
 
 ## Out of scope
 
