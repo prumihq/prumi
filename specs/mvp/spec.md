@@ -1,6 +1,6 @@
 # MVP: prove the core loop on one machine
 
-Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–25 and section 25 item 8 on 2026-10-19)
+Milestone: MVP · Release: 0.1.0 (planned) · Status: accepted (sections 1–17 on 2026-10-17, sections 18–22 on 2026-10-18, sections 23–25 and section 25 item 8 on 2026-10-19; section 25 item 9 draft)
 
 ## Goal
 
@@ -1063,6 +1063,8 @@ This settles ADR 0001's open question about a `prumi` package.
 
 **8. Both packages carry LICENSE and NOTICE** (added and accepted 2026-10-19). Found after tasks 85–89: neither wheel nor sdist contains them, because neither package folder has them. Apache-2.0 asks anyone who redistributes the work to pass on a copy of the license and the NOTICE file, and PyPI is a redistribution. Each package's wheel (in `.dist-info/licenses/`) and sdist carry the repository's `LICENSE` and `NOTICE`, unchanged. The root files stay the only source: copies in the package folders are allowed only with a test that they match the root files byte for byte.
 
+**9. One GitHub environment per package** (added 2026-10-19, draft). PyPI refuses a second pending publisher with the same owner, repository, workflow and environment for another project name (found while registering them), so one `pypi` environment can't create both projects. Each package uploads in its own environment: `prumi` in `pypi`, `prumi-adapter-dbt` in `pypi-adapter-dbt` (a later adapter: `pypi-adapter-<source>`). Each upload job has `id-token: write`, runs in its package's environment and uploads only that package's files, with item 5's rerun rule. This replaces item 5's single upload job. `docs/releasing.md`: the pending-publisher table gives each package's environment, and GitHub gets both environments, each with the maintainer as required reviewer (one "Review deployments" dialog approves both).
+
 **Details settled during implementation (2026-10-19):**
 - A missing adapter crashed `prumi serve` with a traceback (`AdapterNotFoundError` wasn't caught). It's now a subclass of `AdapterStartupError` (still a `LookupError`). For an extra that `prumi`'s own metadata declares (`dbt`), the message says `uv tool install "prumi[dbt]"` or `pip install "prumi[dbt]"`; for any other name, `prumi-adapter-<name>` as before.
 - `install-chromium` is the only command without `--config`; it exits 0, or 1 when Playwright fails. CI and the tests' skip messages use it too.
@@ -1234,3 +1236,4 @@ Each criterion has at least one automated test unless it says otherwise.
 96. The release workflow's tag check refuses a tag that doesn't match both versions and a CHANGELOG without a dated heading for that version (a test runs the check). A test reads `release.yml`: only the upload job has `id-token: write`, it runs in the environment `pypi`, no step reads a token secret, and a manual run skips the upload.
 97. `docs/releasing.md`, the README, the CHANGELOG and `AGENTS.md` say what section 25 items 6 and 7 say. *(review)*
 98. The wheel and the sdist of `prumi` and of `prumi-adapter-dbt` contain `LICENSE` and `NOTICE` identical to the repository's (the wheels in `.dist-info/licenses/`), and the wheel metadata lists them as `License-File`.
+99. A test reads `release.yml`: exactly two jobs have `id-token: write`; the one in the environment `pypi` uploads only the `prumi` files, the one in `pypi-adapter-dbt` only the `prumi-adapter-dbt` files; both need the tag check, the checks and the build, and a manual run skips both. This replaces AC 96's "only the upload job".
