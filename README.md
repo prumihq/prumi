@@ -6,7 +6,10 @@
 
 **Trusted AI dashboards on your company's official metrics.** People build dashboards with their own AI agent; Prumi makes sure every number comes from your semantic layer, and lets the data team certify the result.
 
-![A dashboard an AI agent built from one prompt, certified by the data team](docs/images/dashboard.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/prumi-at-a-glance-dark.svg">
+  <img alt="A Prumi dashboard has three owners: the design comes from your AI agent, every number from your semantic layer, and the certified badge from your data team" src="docs/images/prumi-at-a-glance-light.svg">
+</picture>
 
 > [!NOTE]
 > Prumi 0.1 is a first release. It runs on one machine, for one person, with dbt on DuckDB. There's no login yet, so it can't be shared with a team. See [Status and roadmap](#status-and-roadmap).
@@ -28,14 +31,10 @@ Prumi keeps the speed and fixes the numbers. The agent still designs whatever pa
 
 ## How it works
 
-```mermaid
-flowchart LR
-    agent["AI agent"] -- "MCP: find metrics, design, validate, publish" --> prumi["Prumi"]
-    prumi -- "metric queries" --> source["Semantic layer (dbt)"]
-    source --> warehouse[("Warehouse")]
-    prumi -- "dashboard with checked numbers" --> browser["Browser"]
-    team["Data team"] -- "certify" --> prumi
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/how-it-works-dark.svg">
+  <img alt="The AI agent talks to Prumi over MCP. Prumi sends metric queries to the semantic layer, gets the numbers from the warehouse, and serves the checked dashboard to the browser. The data team certifies it. The data never passes through the agent." src="docs/images/how-it-works-light.svg">
+</picture>
 
 1. The agent finds the official metrics in Prumi's catalog and learns the shape of the data (row counts, label lengths, magnitudes), never the values.
 2. It writes a dashboard: a small spec saying which metrics, dimensions and filters to show, plus any HTML.
