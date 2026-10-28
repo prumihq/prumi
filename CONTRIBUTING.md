@@ -27,6 +27,14 @@ The install check tries Prumi as users get it from PyPI, without uploading anyth
 uv run python scripts/check_install.py
 ```
 
+## The README's diagrams
+
+The two diagrams in the README are drawn by a script, each in a light and a dark version. Edit the script, not the SVGs, and run it again; `--preview DIR` also renders PNGs to look at.
+
+```sh
+uv run python scripts/make_readme_images.py --preview /tmp/readme-images
+```
+
 ## Releases
 
 Releases go to PyPI from GitHub Actions on a version tag; [docs/releasing.md](docs/releasing.md) is the maintainer's checklist.
@@ -41,7 +49,7 @@ Releases go to PyPI from GitHub Actions on a version tag; [docs/releasing.md](do
 | `examples/demo-dbt-project` | Demo dbt project on DuckDB, used for tests and the trial |
 | `specs/` | Specs and task lists, one spec per minor release |
 | `docs/` | The BI rules and issue codes, configuration, releasing, and architecture decision records (`docs/adr/`) |
-| `scripts/` | The install check and the release's tag check |
+| `scripts/` | The install check, the release's tag check and the README's diagrams |
 | `spikes/` | Throwaway experiments |
 
 ## Security

@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/prumi)](https://pypi.org/project/prumi/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-**Trusted AI dashboards on your company's official metrics.** People build dashboards with their own AI agent; Prumi makes sure every number comes from your semantic layer, and lets the data team certify the result.
+**AI dashboards with official numbers.** People build dashboards with their own AI agent and design them however they like. Prumi supplies every number from your semantic layer, checks the page before it's published, and lets the data team certify it.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/prumi-at-a-glance-dark.svg">
@@ -18,18 +18,15 @@
 
 ## Why Prumi
 
-People already build dashboards with AI: paste a spreadsheet into a chat, and a good-looking page appears in minutes. But the numbers are often wrong (averages of averages, a half month compared with a full one, totals that don't match their rows), the data is a frozen copy, and nobody knows where it came from. The data team can't stop it, and can't trust it.
+People already build dashboards with AI: paste a spreadsheet into a chat, and a good-looking page appears in minutes. The data team can't stop it, and can't trust it. Prumi keeps the speed and fixes the numbers.
 
-Prumi keeps the speed and fixes the numbers. The agent still designs whatever page it likes, but every number on it comes from Prumi, which gets it from your semantic layer and checks the page before publishing it. The AI never sees your data: it gets metric definitions and the shape of the results, not the values. The data team reviews and certifies dashboards, and viewers can see which ones are certified.
-
-## Highlights
-
-- **Free design, governed numbers.** The agent writes any HTML. Every number on the page must be a value Prumi delivered, computed by your semantic layer at the grain it's shown: Prumi renders each page in a headless browser and refuses numbers it didn't deliver ([R8](docs/bi-rules.md#r8-every-number-shown-is-a-value-prumi-delivered)).
-- **No company data goes to the AI.** The agent sees metric definitions and the shape of the data, never the values: no value or name from your data reaches its LLM provider ([where your data goes](#where-your-data-goes)).
-- **BI rules, checked.** No re-aggregated averages or ratios, partial periods flagged, comparisons aligned, totals computed by the source: see the [BI rules](docs/bi-rules.md).
-- **Draft until certified.** A new dashboard is a draft. The data team certifies a version, and any later change makes it a draft again. The badge comes from Prumi, so a page can't fake it.
-- **Your metrics, your access rules.** Prumi reads metrics from your semantic layer and never re-implements them, and it never decides who sees which rows.
-- **Your agent, over MCP.** Agents connect over MCP, the open protocol AI agents use for tools. 0.1 is tested with Claude Code.
+| | AI dashboards today | With Prumi |
+|---|---|---|
+| **The page** | Whatever the agent designs | Still whatever the agent designs: any HTML |
+| **The numbers** | Worked out by the AI: averages of averages, a half month compared with a full one, totals that don't match their rows | Computed by your semantic layer at the grain shown. Prumi checks the [BI rules](docs/bi-rules.md) and refuses any number it didn't deliver ([R8](docs/bi-rules.md#r8-every-number-shown-is-a-value-prumi-delivered)) |
+| **The data** | A frozen copy, pasted into the chat | Read from your warehouse, and never sent to the AI: it sees metric definitions and the shape of the data, not the values ([where your data goes](#where-your-data-goes)) |
+| **The definitions** | Whatever the AI guessed revenue means | Your semantic layer's, never re-implemented. Prumi never decides who sees which rows |
+| **Trust** | Nobody knows where it came from | A draft until the data team certifies a version. Any change makes it a draft again, and the page can't fake the badge |
 
 ## How it works
 
@@ -38,10 +35,10 @@ Prumi keeps the speed and fixes the numbers. The agent still designs whatever pa
   <img alt="The AI agent talks to Prumi over MCP. Prumi sends metric queries to the semantic layer, gets the numbers from the warehouse, and serves the checked dashboard to the browser. The data team certifies it. The data never passes through the agent." src="docs/images/how-it-works-light.svg">
 </picture>
 
-1. The agent finds the official metrics in Prumi's catalog and learns the shape of the data (row counts, label lengths, magnitudes), never the values.
+1. The agent connects to Prumi over MCP, the open protocol AI agents use for tools. It finds the official metrics in Prumi's catalog and learns the shape of the data: row counts, label lengths, magnitudes.
 2. It writes a dashboard: a small spec saying which metrics, dimensions and filters to show, plus any HTML.
 3. Prumi checks the spec against the BI rules, renders the page with real data, checks every number, and publishes it as a draft.
-4. Viewers open it in the browser. Data goes warehouse → Prumi → browser, never through the agent.
+4. Viewers open it in the browser, with data that goes warehouse → Prumi → browser.
 5. The data team certifies it, and the badge shows who certified it and when.
 
 ## Use it with your metrics
@@ -129,7 +126,7 @@ The dashboard's HTML runs in a sandboxed frame that can't call any server, and t
 0.1 proves the whole loop on one machine: an agent finds the official metrics, builds and publishes a dashboard, a browser shows it with checked numbers, and the data team certifies it. It doesn't have login or sharing yet (it only listens on your own machine), and it connects to DuckDB only. The [changelog](CHANGELOG.md) lists what's in it and its known limits.
 
 Planned, in this order:
-- **Installable:** `docker compose` and a five-minute trial, login and sharing with a team, dbt on Snowflake, BigQuery, Databricks and Postgres, and fiscal calendars.
+- **Installable:** `docker compose`, with a trial mode on the demo that needs no clone, login and sharing with a team, dbt on Snowflake, BigQuery, Databricks and Postgres, and fiscal calendars.
 - **Power BI:** an adapter for Power BI semantic models.
 
 Releases stay 0.x until the dashboard spec, the adapter protocol and the MCP tools are stable.

@@ -24,18 +24,18 @@
 <text x="96" y="270.0" font-size="12" font-weight="600" text-anchor="end" fill="#58a6ff">$150K</text>
 <line x1="104" y1="318.0" x2="424" y2="318.0" stroke="#3d444d" stroke-width="1"/>
 <text x="96" y="322.0" font-size="12" font-weight="600" text-anchor="end" fill="#58a6ff">$0</text>
-<rect x="112" y="247.87428571428572" width="16" height="70.12571428571428" rx="2" fill="#6e50a8"/>
-<rect x="138" y="251.44" width="16" height="66.56" rx="2" fill="#6e50a8"/>
-<rect x="164" y="245.49714285714288" width="16" height="72.50285714285714" rx="2" fill="#6e50a8"/>
-<rect x="190" y="243.12" width="16" height="74.88" rx="2" fill="#6e50a8"/>
-<rect x="216" y="239.5542857142857" width="16" height="78.44571428571429" rx="2" fill="#6e50a8"/>
-<rect x="242" y="235.98857142857145" width="16" height="82.01142857142857" rx="2" fill="#6e50a8"/>
-<rect x="268" y="238.3657142857143" width="16" height="79.63428571428571" rx="2" fill="#6e50a8"/>
-<rect x="294" y="237.17714285714285" width="16" height="80.82285714285715" rx="2" fill="#6e50a8"/>
-<rect x="320" y="234.8" width="16" height="83.2" rx="2" fill="#6e50a8"/>
-<rect x="346" y="228.85714285714286" width="16" height="89.14285714285714" rx="2" fill="#6e50a8"/>
-<rect x="372" y="225.29142857142858" width="16" height="92.70857142857143" rx="2" fill="#6e50a8"/>
-<rect x="398" y="218.16" width="16" height="99.84" rx="2" fill="#6e50a8"/>
+<rect x="112" y="247.87428571428572" width="16" height="70.12571428571428" rx="2" fill="#1f6feb"/>
+<rect x="138" y="251.44" width="16" height="66.56" rx="2" fill="#1f6feb"/>
+<rect x="164" y="245.49714285714288" width="16" height="72.50285714285714" rx="2" fill="#1f6feb"/>
+<rect x="190" y="243.12" width="16" height="74.88" rx="2" fill="#1f6feb"/>
+<rect x="216" y="239.5542857142857" width="16" height="78.44571428571429" rx="2" fill="#1f6feb"/>
+<rect x="242" y="235.98857142857145" width="16" height="82.01142857142857" rx="2" fill="#1f6feb"/>
+<rect x="268" y="238.3657142857143" width="16" height="79.63428571428571" rx="2" fill="#1f6feb"/>
+<rect x="294" y="237.17714285714285" width="16" height="80.82285714285715" rx="2" fill="#1f6feb"/>
+<rect x="320" y="234.8" width="16" height="83.2" rx="2" fill="#1f6feb"/>
+<rect x="346" y="228.85714285714286" width="16" height="89.14285714285714" rx="2" fill="#1f6feb"/>
+<rect x="372" y="225.29142857142858" width="16" height="92.70857142857143" rx="2" fill="#1f6feb"/>
+<rect x="398" y="218.16" width="16" height="99.84" rx="2" fill="#1f6feb"/>
 <rect x="496" y="28" width="5" height="100" rx="2.5" fill="#bc8cff"/>
 <text x="518" y="50" font-size="20" font-weight="700" fill="#bc8cff">Design by your AI agent</text>
 <text x="518" y="78" font-size="15" fill="#9198a1">Any HTML it likes: layout, charts, words.</text>
