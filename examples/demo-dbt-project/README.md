@@ -2,7 +2,34 @@
 
 A stand-in "customer" project: a synthetic online shop on DuckDB, with dbt models, semantic models and metrics. Prumi's tests and the demo run against it. It is not product code and is not part of the uv workspace.
 
-## Build
+## Try Prumi on it
+
+See Prumi work in about five minutes, without a project of your own. The shop's metrics plant the usual BI traps ([listed below](#metrics-and-the-traps-they-plant)), so you can watch what Prumi does with them. You need [uv](https://docs.astral.sh/uv/) and an AI agent that supports MCP, such as [Claude Code](https://claude.com/claude-code).
+
+```sh
+git clone https://github.com/prumihq/prumi && cd prumi
+uv sync
+uv run prumi install-chromium   # Prumi checks every page in headless Chromium
+uv run --project examples/demo-dbt-project python examples/demo-dbt-project/build.py
+uv run prumi serve --config examples/demo-dbt-project/prumi.toml
+```
+
+In another terminal, connect your agent, then start a new agent session:
+
+```sh
+claude mcp add --scope user --transport http prumi http://127.0.0.1:8484/mcp
+```
+
+Ask it: *"Build a dashboard of weekly revenue by region, with average order value."* It replies with a link such as `http://127.0.0.1:8484/d/weekly-revenue-by-region`, and [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard with its status. To certify it as the data team:
+
+```sh
+uv run prumi list --config examples/demo-dbt-project/prumi.toml
+uv run prumi certify <id> 1 --config examples/demo-dbt-project/prumi.toml
+```
+
+If the agent has no Prumi tools, see [Troubleshooting](../../README.md#troubleshooting). To run Prumi on your own metrics, see [Use it with your metrics](../../README.md#use-it-with-your-metrics).
+
+## How it's built
 
 From the repository root:
 

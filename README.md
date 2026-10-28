@@ -11,6 +11,8 @@
   <img alt="A Prumi dashboard has three owners: the design comes from your AI agent, every number from your semantic layer, and the certified badge from your data team" src="docs/images/prumi-at-a-glance-light.svg">
 </picture>
 
+**Want to see it first?** [Try Prumi on a demo shop](examples/demo-dbt-project/README.md) in about five minutes, with the usual BI traps planted in its data. No project of your own needed.
+
 > [!NOTE]
 > Prumi 0.1 is a first release. It runs on one machine, for one person, with dbt on DuckDB. There's no login yet, so it can't be shared with a team. See [Status and roadmap](#status-and-roadmap).
 
@@ -42,34 +44,12 @@ Prumi keeps the speed and fixes the numbers. The agent still designs whatever pa
 4. Viewers open it in the browser. Data goes warehouse → Prumi → browser, never through the agent.
 5. The data team certifies it, and the badge shows who certified it and when.
 
-## Try it
-
-Try Prumi on a demo shop with the usual BI traps planted in its data, in about five minutes. You need [uv](https://docs.astral.sh/uv/) and an AI agent that supports MCP, such as [Claude Code](https://claude.com/claude-code).
-
-```sh
-git clone https://github.com/prumihq/prumi && cd prumi
-uv sync
-uv run prumi install-chromium   # Prumi checks every page in headless Chromium
-uv run --project examples/demo-dbt-project python examples/demo-dbt-project/build.py
-uv run prumi serve --config examples/demo-dbt-project/prumi.toml
-```
-
-In another terminal, connect your agent, then start a new agent session:
-
-```sh
-claude mcp add --scope user --transport http prumi http://127.0.0.1:8484/mcp
-```
-
-Ask it: *"Build a dashboard of weekly revenue by region, with average order value."* It replies with a link such as `http://127.0.0.1:8484/d/weekly-revenue-by-region`, and [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard with its status. To certify it as the data team:
-
-```sh
-uv run prumi list --config examples/demo-dbt-project/prumi.toml
-uv run prumi certify <id> 1 --config examples/demo-dbt-project/prumi.toml
-```
-
 ## Use it with your metrics
 
 Prumi reads metrics from your semantic layer through an adapter, one per source.
+
+> [!TIP]
+> Not on a supported source yet, or just looking? [Try Prumi on the demo shop](examples/demo-dbt-project/README.md#try-prumi-on-it) first: it's a dbt project on DuckDB that comes with the repo.
 
 | Source | Status |
 |---|---|
@@ -107,6 +87,8 @@ path = "warehouse.duckdb"
 ```sh
 prumi serve --config prumi.toml
 ```
+
+**Ask** your agent for a dashboard on your metrics. It replies with a link such as `http://127.0.0.1:8484/d/weekly-revenue-by-region`, and [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard with its status.
 
 **Review and certify.** A new dashboard is a draft. `prumi list` shows every dashboard and its status, `prumi certify <id> <version>` certifies a version after review, and `prumi uncertify <id>` withdraws it. `prumi requests` lists the metrics agents asked for that don't exist yet, `prumi validate` checks a spec file and its HTML, and `prumi delete` removes a dashboard. Each command takes `--config prumi.toml`.
 
@@ -158,35 +140,9 @@ Releases stay 0.x until the dashboard spec, the adapter protocol and the MCP too
 - **Restart your agent sessions after upgrading Prumi.** An open session keeps the tool list and the instructions it loaded when it started.
 - **`prumi serve` stops at startup:** the message names what to fix: Chromium isn't installed (`prumi install-chromium`, or `uv run prumi install-chromium` in a clone; add `--with-deps` on Linux if system libraries are missing), the semantic manifest is missing or unreadable (build the demo, or run `dbt parse` in your project), a table in the manifest doesn't exist on the connection, `host` isn't a loopback address, or `locale` isn't a tag the browser knows.
 
-## Development
+## Contributing
 
-```sh
-uv sync
-uv run pytest        # builds the demo project on first use
-uv run ruff check
-uv run ruff format
-```
-
-Like the server, the tests need headless Chromium: `uv run prumi install-chromium --with-deps`. The full suite takes about 4 minutes, because most tests render a page in Chromium. [AGENTS.md](AGENTS.md) describes how work is organized (specs, ADRs, code style), for people and coding agents alike.
-
-The install check tries Prumi as users get it from PyPI, without uploading anything: it builds both packages, installs them with `uv tool install "prumi[dbt]"` into a temporary tool directory (never your own), runs `prumi install-chromium`, starts `prumi serve` on the demo and opens its home page, and runs `twine check` on the built files. It isn't part of `uv run pytest`; CI runs it as a job of its own.
-
-```sh
-uv run python scripts/check_install.py
-```
-
-Releases go to PyPI from GitHub Actions on a version tag; [docs/releasing.md](docs/releasing.md) is the maintainer's checklist.
-
-| Path | What it is |
-|---|---|
-| `packages/prumi-core` | The `prumi` package: the server and the `prumi` command (MCP endpoint, catalog, query engine, validator, registry) |
-| `packages/prumi-adapter-dbt` | The `prumi-adapter-dbt` package: dbt adapter (MetricFlow compiles, Prumi executes) |
-| `packages/prumi-runtime` | Browser runtime that dashboards load; the `prumi` package carries a copy |
-| `examples/demo-dbt-project` | Demo dbt project on DuckDB, used for tests and the trial |
-| `specs/` | Specs and task lists, one spec per minor release |
-| `docs/` | The BI rules and issue codes, configuration, releasing, and architecture decision records (`docs/adr/`) |
-| `scripts/` | The install check and the release's tag check |
-| `spikes/` | Throwaway experiments |
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to set up the repository, run the tests and find your way around the code.
 
 ## Security
 

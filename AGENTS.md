@@ -35,6 +35,8 @@ A task isn't done until the docs it affects match the code, in the same commit:
 
 - `CHANGELOG.md`: a line for each change a user can see: an MCP tool, a CLI command, a config key, a page, a rule or issue code, a limitation.
 - `README.md`: when the quick start, a command, an MCP tool, a config key or where data goes changes.
+- `examples/demo-dbt-project/README.md`: when the demo trial's steps change.
+- `CONTRIBUTING.md`: when a development command or the repository layout changes.
 - A package's `README.md`: when its public API changes (`window.prumi`, the adapter protocol, `config.meta.prumi`).
 - `docs/bi-rules.md`: when a BI rule or an issue code changes.
 - `docs/adr/`: never edit an accepted ADR. If your change makes one wrong, write it in `questions.md` and stop.

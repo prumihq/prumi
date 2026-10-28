@@ -22,4 +22,4 @@ prumi serve --config prumi.toml
 
 Requirements: Python 3.12 or later, and headless Chromium, which `prumi install-chromium` installs with Playwright (add `--with-deps` on Linux if system libraries are missing); the server won't start without it.
 
-The quick start on a demo project, configuration and where data goes are in [the Prumi README](https://github.com/prumihq/prumi#readme); the BI rules Prumi checks are in [`docs/bi-rules.md`](https://github.com/prumihq/prumi/blob/main/docs/bi-rules.md).
+A [five-minute trial on a demo project](https://github.com/prumihq/prumi/blob/main/examples/demo-dbt-project/README.md#try-prumi-on-it) needs no project of your own. Configuration and where data goes are in [the Prumi README](https://github.com/prumihq/prumi#readme); the BI rules Prumi checks are in [`docs/bi-rules.md`](https://github.com/prumihq/prumi/blob/main/docs/bi-rules.md).
