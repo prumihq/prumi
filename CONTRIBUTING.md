@@ -17,7 +17,9 @@ uv run ruff format
 
 Like the server, the tests need headless Chromium. The full suite takes about 4 minutes, because most tests render a page in Chromium.
 
-[AGENTS.md](AGENTS.md) describes how work is organized (specs, ADRs, code style, which docs a change must update), for people and coding agents alike.
+[AGENTS.md](AGENTS.md) describes how work is organized (branches, designs and plans, ADRs, code style, which docs a change must update), for people and coding agents alike.
+
+Prumi is developed with the [Superpowers](https://github.com/obra/superpowers) skills, and they're recommended for AI-assisted work here. They're available for Claude Code, Codex, Cursor, Gemini and others (see their README). With Claude Code, the repo enables the plugin in `.claude/settings.json`; install it once with `claude plugin install superpowers@claude-plugins-official --scope project`. What every change needs, however it was made, is a passing CI and the maintainer's review.
 
 ## The install check
 
@@ -47,7 +49,7 @@ Releases go to PyPI from GitHub Actions on a version tag; [docs/releasing.md](do
 | `packages/prumi-adapter-dbt` | The `prumi-adapter-dbt` package: dbt adapter (MetricFlow compiles, Prumi executes) |
 | `packages/prumi-runtime` | Browser runtime that dashboards load; the `prumi` package carries a copy |
 | `examples/demo-dbt-project` | Demo dbt project on DuckDB, used for tests and the trial |
-| `specs/` | Specs and task lists, one spec per minor release |
+| `docs/superpowers/` | Designs and implementation plans |
 | `docs/` | The BI rules and issue codes, configuration, releasing, and architecture decision records (`docs/adr/`) |
 | `scripts/` | The install check, the release's tag check and the README's diagrams |
 | `spikes/` | Throwaway experiments |

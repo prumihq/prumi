@@ -4,7 +4,7 @@ All notable changes to Prumi. Versions stay 0.x until the maintainer says otherw
 
 ## 0.1.0 — 2026-10-19
 
-The first release: it proves the core loop on one machine, for one local user, against a demo dbt project on DuckDB ([MVP spec](specs/mvp/spec.md)). An agent connected over MCP finds the official metrics, explores them, writes a dashboard and publishes it; a browser shows it with every number computed by the source; the data team certifies it from the CLI, and any later edit makes it a draft again.
+The first release: it proves the core loop on one machine, for one local user, against a demo dbt project on DuckDB ([MVP spec](https://github.com/prumihq/prumi/blob/v0.1.0/specs/mvp/spec.md)). An agent connected over MCP finds the official metrics, explores them, writes a dashboard and publishes it; a browser shows it with every number computed by the source; the data team certifies it from the CLI, and any later edit makes it a draft again.
 
 ### Added
 
