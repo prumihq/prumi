@@ -19,6 +19,8 @@ Like the server, the tests need headless Chromium. The full suite takes about 4 
 
 [AGENTS.md](AGENTS.md) describes how work is organized (branches, designs and plans, ADRs, code style, which docs a change must update), for people and coding agents alike.
 
+With Claude Code, the repo enables the [Superpowers](https://github.com/obra/superpowers) plugin in `.claude/settings.json`. Install it once with `claude plugin install superpowers@claude-plugins-official --scope project`.
+
 ## The install check
 
 The install check tries Prumi as users get it from PyPI, without uploading anything: it builds both packages, installs them with `uv tool install "prumi[dbt]"` into a temporary tool directory (never your own), runs `prumi install-chromium`, starts `prumi serve` on the demo and opens its home page, and runs `twine check` on the built files. It isn't part of `uv run pytest`; CI runs it as a job of its own.
