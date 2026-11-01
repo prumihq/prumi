@@ -19,7 +19,7 @@ Like the server, the tests need headless Chromium. The full suite takes about 4 
 
 [AGENTS.md](AGENTS.md) describes how work is organized (branches, designs and plans, ADRs, code style, which docs a change must update), for people and coding agents alike.
 
-With Claude Code, the repo enables the [Superpowers](https://github.com/obra/superpowers) plugin in `.claude/settings.json`. Install it once with `claude plugin install superpowers@claude-plugins-official --scope project`.
+Prumi is developed with the [Superpowers](https://github.com/obra/superpowers) skills, and they're recommended for AI-assisted work here. They're available for Claude Code, Codex, Cursor, Gemini and others (see their README). With Claude Code, the repo enables the plugin in `.claude/settings.json`; install it once with `claude plugin install superpowers@claude-plugins-official --scope project`. What every change needs, however it was made, is a passing CI and the maintainer's review.
 
 ## The install check
 
