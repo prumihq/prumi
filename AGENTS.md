@@ -13,9 +13,9 @@ uv run ruff format      # format
 
 ## How work is organized
 
-- **Specs drive the work.** Each planned minor release has a spec folder named by goal, `specs/<goal>/` with `spec.md` (what and why) and `tasks.md` (ordered steps); see `specs/README.md` for the terms and when a spec may change. Implement from the current spec, and only from its accepted sections. Don't build anything the spec doesn't ask for, and never edit a spec whose status is `done`.
-- **Don't change scope or fill gaps by guessing.** If a spec is unclear, contradicts itself or turns out to be wrong, write the question in `specs/<goal>/questions.md` (what you found, the options you see, which task is blocked) and stop. The maintainer answers and updates the spec.
-- **Milestones are not version numbers.** Releases stay 0.x; never tag 1.0 unless the maintainer says so.
+- **Branches.** Work on a branch named for the work (`feat/…`, `fix/…`, `chore/…`), never directly on `main`. Pushing and opening a pull request are fine; how a branch gets merged is the maintainer's choice.
+- **Designs and plans.** Designs live in `docs/superpowers/specs/`, implementation plans in `docs/superpowers/plans/`. Don't build what the current design doesn't ask for; if it's unclear or wrong, ask instead of guessing.
+- **Releases stay 0.x;** never tag 1.0 unless the maintainer says so.
 - **ADRs record technical decisions** in `docs/adr/`. Add one when a decision would surprise a future reader. Agents propose ADRs with status Proposed; only the maintainer accepts them. Never rewrite an accepted ADR; supersede it with a new one.
 - **Spikes are throwaway.** Code in `spikes/` answers one question and is never imported by `packages/`.
 - This repo holds code and technical docs only.
@@ -39,7 +39,7 @@ A task isn't done until the docs it affects match the code, in the same commit:
 - `CONTRIBUTING.md`: when a development command or the repository layout changes.
 - A package's `README.md`: when its public API changes (`window.prumi`, the adapter protocol, `config.meta.prumi`).
 - `docs/bi-rules.md`: when a BI rule or an issue code changes.
-- `docs/adr/`: never edit an accepted ADR. If your change makes one wrong, write it in `questions.md` and stop.
+- `docs/adr/`: never edit an accepted ADR. If your change makes one wrong, say so and propose a superseding ADR.
 
 Your report lists the docs you changed, or says that none were affected.
 
@@ -54,12 +54,12 @@ Your report lists the docs you changed, or says that none were affected.
 
 - Python 3.12+, type hints on public functions, ruff for lint and format.
 - Tests live next to each package in `tests/`.
-- **Code never cites specs.** Specs are plans for one release and freeze when it ships; the code outlives them. Comments explain the *why* in their own words, without "spec section N" or "AC N". When a pointer helps, point to something lasting: an ADR (`docs/adr/0002`), a BI rule (`R6`) or an issue code, all documented in `docs/`.
-- Tests are named after the behavior they check. Which task serves which acceptance criterion is recorded in `tasks.md`, not in the code.
-- **Tests never read files under `specs/`.** Text the product ships (such as the MCP instructions) lives in the code or in a file shipped with the package, and tests compare against that.
+- **Code never cites designs or plans.** They're plans for one piece of work; the code outlives them. Comments explain the *why* in their own words, without "see the design" or "task N". When a pointer helps, point to something lasting: an ADR (`docs/adr/0002`), a BI rule (`R6`) or an issue code, all documented in `docs/`.
+- Tests are named after the behavior they check.
+- **Tests never read files under `docs/superpowers/`.** Text the product ships (such as the MCP instructions) lives in the code or in a file shipped with the package, and tests compare against that.
 
 ## Commits
 
 - Short imperative subject line; explain why in the body when it isn't obvious.
 - AI-assisted commits end with a `Co-Authored-By:` trailer naming the model.
-- Commit when a task is done. Don't push unless the maintainer asks.
+- Commit when a task is done.
