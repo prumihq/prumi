@@ -16,7 +16,7 @@ uv run ruff format      # format
 - **Superpowers.** This repo is developed with the Superpowers plugin for Claude Code (enabled in `.claude/settings.json`); its skills are the workflow, and `docs/superpowers/` holds the designs and plans they produce. The rules in this file apply to any agent, with or without it.
 - **Branches.** Work on a branch named for the work (`feat/…`, `fix/…`, `chore/…`), never directly on `main`. Pushing and opening a pull request are fine; how a branch gets merged is the maintainer's choice.
 - **Designs and plans.** Designs live in `docs/superpowers/specs/`, implementation plans in `docs/superpowers/plans/`. Don't build what the current design doesn't ask for; if it's unclear or wrong, ask instead of guessing.
-- **Releases stay 0.x;** never tag 1.0 unless the maintainer says so.
+- **Releases stay 0.x;** never tag 1.0 unless the maintainer says so. Releases come from the release PR that release-please keeps open; `docs/releasing.md` is the maintainer's manual.
 - **ADRs record technical decisions** in `docs/adr/`. Add one when a decision would surprise a future reader. Agents propose ADRs with status Proposed; only the maintainer accepts them. Never rewrite an accepted ADR; supersede it with a new one.
 - **Spikes are throwaway.** Code in `spikes/` answers one question and is never imported by `packages/`.
 - This repo holds code and technical docs only.
@@ -34,8 +34,8 @@ The BI rules R1–R10 and their issue codes are explained in `docs/bi-rules.md`.
 
 A task isn't done until the docs it affects match the code, in the same commit:
 
-- `CHANGELOG.md`: a line for each change a user can see: an MCP tool, a CLI command, a config key, a page, a rule or issue code, a limitation.
-- `README.md`: when the quick start, a command, an MCP tool, a config key or where data goes changes.
+- `CHANGELOG.md`: not edited by hand; the PR title is the changelog entry (see Commits).
+- `README.md`: when the quick start, a command, an MCP tool, a config key or where data goes changes; its Status and roadmap section, when a known limitation is added or removed.
 - `examples/demo-dbt-project/README.md`: when the demo trial's steps change.
 - `CONTRIBUTING.md`: when a development command or the repository layout changes.
 - A package's `README.md`: when its public API changes (`window.prumi`, the adapter protocol, `config.meta.prumi`).
@@ -61,6 +61,8 @@ Your report lists the docs you changed, or says that none were affected.
 
 ## Commits
 
-- Short imperative subject line; explain why in the body when it isn't obvious.
+- **The PR title follows Conventional Commits** (`type: description`, scope optional; types `feat`, `fix`, `perf`, `revert`, `docs`, `refactor`, `test`, `build`, `ci`, `chore`, `style`). Merges are squashed, so the title becomes the commit on `main` and the changelog line. A change a user can see (an MCP tool, a CLI command, a config key, a page, a rule or issue code, a limitation) gets a `feat` or `fix` title a user would understand. `!` before the colon marks a breaking change.
+- Branch commits need no type prefix: a short imperative subject line; explain why in the body when it isn't obvious.
+- Never create or push tags, never change version numbers, and never edit the release PR.
 - AI-assisted commits end with a `Co-Authored-By:` trailer naming the model.
 - Commit when a task is done.
