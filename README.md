@@ -123,7 +123,19 @@ The dashboard's HTML runs in a sandboxed frame that can't call any server, and t
 
 ## Status and roadmap
 
-0.1 proves the whole loop on one machine: an agent finds the official metrics, builds and publishes a dashboard, a browser shows it with checked numbers, and the data team certifies it. It doesn't have login or sharing yet (it only listens on your own machine), and it connects to DuckDB only. The [changelog](CHANGELOG.md) lists what's in it and its known limits.
+0.1 proves the whole loop on one machine: an agent finds the official metrics, builds and publishes a dashboard, a browser shows it with checked numbers, and the data team certifies it. It doesn't have login or sharing yet (it only listens on your own machine), and it connects to DuckDB only. The [changelog](CHANGELOG.md) lists what each release contains.
+
+Known limitations of 0.1:
+- The server needs headless Chromium (`prumi install-chromium`) and won't start without it.
+- Canvas charts aren't allowed: their text can't be checked.
+- No login: every viewer is the local user, and the DuckDB connection is a shared account.
+- One source: dbt on DuckDB only, with the legacy `measures:` YAML.
+- `metric_time` is the only time dimension, with the standard calendar.
+- Comparisons (`compare`) only work on blocks without a time grain, and `total` and `others` carry no comparison values.
+- Manifest changes need a restart.
+- One display locale per server: every viewer sees numbers formatted the same way, whatever their browser's language.
+- Tested with Claude Code only. Clients that connect from their vendor's cloud can't reach a server on your machine.
+- On a phone, a long "Certified by" badge leaves little room for the dashboard title.
 
 Planned, in this order:
 - **Installable:** `docker compose`, with a trial mode on the demo that needs no clone, login and sharing with a team, dbt on Snowflake, BigQuery, Databricks and Postgres, and fiscal calendars.

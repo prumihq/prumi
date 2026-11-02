@@ -355,7 +355,6 @@ def test_the_tag_check_refuses_a_runtime_with_another_version(release_tree):
     )
 
 
-@pytest.mark.xfail(strict=True, reason="CHANGELOG.md is rewritten in release-please's format")
 def test_the_repositorys_changelog_has_a_heading_for_the_current_version():
     result = subprocess.run(
         [sys.executable, str(REPO / "scripts" / "check_release.py")], capture_output=True, text=True
