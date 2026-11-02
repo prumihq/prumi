@@ -316,12 +316,14 @@ def shell(version: Version, status: VersionStatus, source: Source) -> str:
   #prumi-unverified summary {{ cursor: pointer; font-weight: 600; }}
   #prumi-unverified ul {{ margin: 4px 0; color: var(--prumi-text); }}
   #prumi-frame {{ flex: 1; border: 0; width: 100%; }}
-  /* A phone: title and badge on the first row, each on one line; "Data through" below. */
+  /* A phone: title and badge on the first row, the title on one line; "Data through" below.
+     The title keeps room for a few words: a badge that doesn't fit beside it, such as
+     "Certified by" a long email, moves to a row of its own and wraps there if it must. */
   @media (max-width: 480px) {{
     #prumi-bar {{ flex-wrap: wrap; row-gap: 4px; column-gap: 8px; padding: 8px 12px; }}
-    #prumi-title {{ flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden;
+    #prumi-title {{ flex: 1 1 10em; min-width: 0; white-space: nowrap; overflow: hidden;
                    text-overflow: ellipsis; }}
-    #prumi-badge {{ flex: none; white-space: nowrap; }}
+    #prumi-badge {{ flex: 0 1 auto; max-width: 100%; overflow-wrap: anywhere; }}
     #prumi-freshness {{ order: 1; flex-basis: 100%; }}
     #prumi-details {{ order: 2; margin-left: 0; }}
     #prumi-details ul {{ left: 0; right: auto; width: auto; max-width: calc(100vw - 24px); }}
