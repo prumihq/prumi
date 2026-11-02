@@ -16,7 +16,7 @@ jobs:
     # CHANGELOG dates it. A manual run has no tag and checks the version both packages have.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: astral-sh/setup-uv@v10.3.0  # no floating major tags after v7
       - run: uv run --no-project python scripts/check_release.py ${TAG:+"$TAG"}
         env:
@@ -26,7 +26,7 @@ jobs:
     needs: tag
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: astral-sh/setup-uv@v10.3.0
       - run: uv sync --locked
       - run: uv run prumi install-chromium --with-deps
@@ -41,7 +41,7 @@ jobs:
     needs: checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: astral-sh/setup-uv@v10.3.0
       - run: uv sync --locked
       - run: uv build --package prumi --out-dir dist

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "draft": true,
+  "force-tag-creation": true,
+  "changelog-sections": [
+    {"type": "feat", "section": "Features"},
+    {"type": "fix", "section": "Bug Fixes"},
+    {"type": "perf", "section": "Performance"},
+    {"type": "revert", "section": "Reverts"},
+    {"type": "docs", "section": "Documentation", "hidden": true},
+    {"type": "refactor", "section": "Code Refactoring", "hidden": true},
+    {"type": "test", "section": "Tests", "hidden": true},
+    {"type": "build", "section": "Build System", "hidden": true},
+    {"type": "ci", "section": "Continuous Integration", "hidden": true},
+    {"type": "chore", "section": "Miscellaneous Chores", "hidden": true},
+    {"type": "style", "section": "Styles", "hidden": true}
+  ],
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "prumi",
+      "extra-files": [
+        {"type": "generic", "path": "packages/prumi-core/src/prumi/__init__.py"},
+        {"type": "generic", "path": "packages/prumi-adapter-dbt/src/prumi_adapter_dbt/__init__.py"},
+        {"type": "generic", "path": "packages/prumi-core/pyproject.toml"},
+        {"type": "generic", "path": "packages/prumi-adapter-dbt/pyproject.toml"},
+        {"type": "json", "path": "packages/prumi-runtime/package.json", "jsonpath": "$.version"}
+      ]
+    }
+  }
+}

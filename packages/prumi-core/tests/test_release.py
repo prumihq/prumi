@@ -460,3 +460,92 @@ def test_the_release_uploads_only_after_the_tag_check_the_checks_and_the_install
     builds = [run for run in runs("build") if run.startswith("uv build")]
     assert [b.split()[3] for b in builds] == ["prumi", "prumi-adapter-dbt"]
     assert "uv run python scripts/check_install.py --dist dist --with-deps" in runs("build")
+
+
+# The release PR: release-please-config.json and .github/workflows/release-please.yml
+
+CONFIG = REPO / "release-please-config.json"
+
+
+def test_release_please_versions_the_whole_repo_as_one_package():
+    config = json.loads(CONFIG.read_text())
+    assert list(config["packages"]) == ["."]
+    assert config["include-component-in-tag"] is False
+    assert config["bump-minor-pre-major"] is True
+    assert config.get("bump-patch-for-minor-pre-major", False) is False
+    assert config["draft"] is True and config["force-tag-creation"] is True
+    assert json.loads((REPO / ".release-please-manifest.json").read_text()) == {".": VERSION}
+
+
+def test_the_changelog_shows_features_fixes_performance_and_reverts_only():
+    sections = json.loads(CONFIG.read_text())["changelog-sections"]
+    shown = {s["type"]: s["section"] for s in sections if not s.get("hidden")}
+    assert shown == {
+        "feat": "Features",
+        "fix": "Bug Fixes",
+        "perf": "Performance",
+        "revert": "Reverts",
+    }
+    hidden = {s["type"] for s in sections if s.get("hidden")}
+    assert hidden == {"docs", "refactor", "test", "build", "ci", "chore", "style"}
+
+
+def test_every_file_release_please_bumps_has_its_marker_on_the_current_version():
+    extra = json.loads(CONFIG.read_text())["packages"]["."]["extra-files"]
+    paths = sorted(e if isinstance(e, str) else e["path"] for e in extra)
+    assert paths == sorted(
+        [
+            "packages/prumi-core/src/prumi/__init__.py",
+            "packages/prumi-adapter-dbt/src/prumi_adapter_dbt/__init__.py",
+            "packages/prumi-core/pyproject.toml",
+            "packages/prumi-adapter-dbt/pyproject.toml",
+            "packages/prumi-runtime/package.json",
+        ]
+    )
+    for entry in extra:
+        path = entry if isinstance(entry, str) else entry["path"]
+        if path.endswith(".json"):
+            assert entry == {"type": "json", "path": path, "jsonpath": "$.version"}
+            continue
+        marked = [
+            line
+            for line in (REPO / path).read_text().splitlines()
+            if "x-release-please-version" in line
+        ]
+        assert len(marked) == 1 and VERSION in marked[0], path
+
+
+def test_the_release_pr_runs_as_the_release_app_on_pushes_to_main():
+    workflow = yaml.safe_load((REPO / ".github/workflows/release-please.yml").read_text())
+    assert workflow.get("on", workflow.get(True)) == {"push": {"branches": ["main"]}}
+    assert workflow["permissions"] == {}
+    steps = workflow["jobs"]["release-pr"]["steps"]
+    token, release = steps[0], steps[1]
+    assert token["uses"].startswith("actions/create-github-app-token@v")
+    assert token["with"]["client-id"] == "${{ vars.RELEASE_APP_CLIENT_ID }}"
+    assert token["with"]["private-key"] == "${{ secrets.RELEASE_APP_PRIVATE_KEY }}"
+    assert release["uses"].startswith("googleapis/release-please-action@v")
+    assert release["with"]["token"] == f"${{{{ steps.{token['id']}.outputs.token }}}}"
+
+
+def test_the_release_pr_job_skips_until_the_app_is_configured():
+    workflow = yaml.safe_load((REPO / ".github/workflows/release-please.yml").read_text())
+    assert workflow["jobs"]["release-pr"]["if"] == "vars.RELEASE_APP_CLIENT_ID != ''"
+
+
+def workflow_actions() -> dict[str, list[str]]:
+    """Every `uses:` of every workflow, by the workflow's file name."""
+    found = {}
+    for path in sorted((REPO / ".github" / "workflows").glob("*.yml")):
+        jobs = yaml.safe_load(path.read_text())["jobs"].values()
+        found[path.name] = [s["uses"] for job in jobs for s in job["steps"] if "uses" in s]
+    return found
+
+
+def test_every_action_is_pinned_to_an_exact_version():
+    # A bare major such as @v4 moves under us; an exact tag changes only when we change it.
+    actions = workflow_actions()
+    assert {"ci.yml", "release.yml", "release-please.yml"} <= set(actions)
+    for name, uses in actions.items():
+        loose = [u for u in uses if not re.fullmatch(r"[\w.-]+/[\w.-]+@v\d+\.\d+\.\d+", u)]
+        assert not loose, f"{name} uses actions without an exact version: {loose}"
