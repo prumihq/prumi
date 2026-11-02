@@ -1,6 +1,6 @@
 [project]
 name = "prumi-adapter-dbt"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Prumi adapter for dbt semantic models: MetricFlow compiles, Prumi executes"
 readme = "README.md"
 # An SPDX expression; the packaging metadata standard allows no license classifier with it.
@@ -20,8 +20,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 dependencies = [
-    # The adapter protocol may change between 0.x releases.
-    "prumi>=0.1.0,<0.2",
+    # The adapter protocol may change between 0.x releases. release-please bumps this range
+    # with each release.
+    "prumi~=0.1.0",  # x-release-please-version
     # Exact pin: MetricFlow's engine API isn't stable (ADR 0002). Bumping it means rerunning
     # the contract test and rechecking the license.
     "metricflow==0.213.0",
@@ -41,6 +42,13 @@ dbt = "prumi_adapter_dbt.adapter:create_adapter"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/prumi_adapter_dbt/__init__.py"
+
+# Without these keys uv would not notice a bumped version, since the file is not in pyproject.toml.
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "src/prumi_adapter_dbt/__init__.py" }]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/prumi_adapter_dbt"]

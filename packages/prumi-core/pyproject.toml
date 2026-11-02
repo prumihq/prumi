@@ -1,6 +1,6 @@
 [project]
 name = "prumi"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Prumi server: MCP endpoint, catalog, query engine, validator and registry"
 readme = "README.md"
 # An SPDX expression; the packaging metadata standard allows no license classifier with it.
@@ -34,7 +34,8 @@ dependencies = [
 [project.optional-dependencies]
 # One extra per first-party adapter, so `uv tool install "prumi[dbt]"` gives a server that
 # starts. The adapter depends on prumi in turn; resolvers and the lockfile handle the cycle.
-dbt = ["prumi-adapter-dbt[duckdb]>=0.1.0,<0.2"]
+# release-please bumps this range with each release.
+dbt = ["prumi-adapter-dbt[duckdb]~=0.1.0"]  # x-release-please-version
 
 [project.urls]
 Repository = "https://github.com/prumihq/prumi"
@@ -47,6 +48,13 @@ prumi = "prumi.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/prumi/__init__.py"
+
+# Without these keys uv would not notice a bumped version, since the file is not in pyproject.toml.
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "src/prumi/__init__.py" }]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/prumi"]

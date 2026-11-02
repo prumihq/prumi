@@ -20,22 +20,57 @@ import yaml
 
 PACKAGES = Path(__file__).parents[2]
 REPO = PACKAGES.parent
-VERSION = "0.1.0"
+
+
+def source_version(init: Path) -> str:
+    """The `__version__ = "..."` value in an `__init__.py`, which is where a version lives."""
+    found = re.search(r'^__version__ = "([^"]+)"', init.read_text(), re.MULTILINE)
+    assert found, init
+    return found.group(1)
+
+
+VERSION = source_version(PACKAGES / "prumi-core" / "src" / "prumi" / "__init__.py")
+# The range each package asks of the other: compatible releases of the same minor.
+NEXT_RANGE = f"~={VERSION}"
 # Wheel and sdist names without their suffix, and the wheels' .dist-info folders.
 CORE = f"prumi-{VERSION}"
 ADAPTER = f"prumi_adapter_dbt-{VERSION}"
 
 
-def test_versions():
+def test_each_package_takes_its_version_from_its_init_file():
     for folder in ("prumi-core", "prumi-adapter-dbt"):
         with (PACKAGES / folder / "pyproject.toml").open("rb") as f:
-            assert tomllib.load(f)["project"]["version"] == VERSION, folder
+            project = tomllib.load(f)
+        assert "version" not in project["project"], folder
+        assert project["project"]["dynamic"] == ["version"], folder
+        assert project["tool"]["hatch"]["version"]["path"].endswith("/__init__.py"), folder
+
+
+def test_all_three_packages_have_one_version():
+    adapter_init = PACKAGES / "prumi-adapter-dbt" / "src" / "prumi_adapter_dbt" / "__init__.py"
+    assert source_version(adapter_init) == VERSION
     assert prumi.__version__ == VERSION
     assert version("prumi") == version("prumi-adapter-dbt") == VERSION
-    adapter_init = PACKAGES / "prumi-adapter-dbt" / "src" / "prumi_adapter_dbt" / "__init__.py"
-    assert f'__version__ = "{VERSION}"' in adapter_init.read_text()
     runtime = json.loads((PACKAGES / "prumi-runtime" / "package.json").read_text())
     assert runtime["version"] == VERSION
+
+
+def test_the_packages_require_each_other_within_the_released_minor():
+    with (PACKAGES / "prumi-adapter-dbt" / "pyproject.toml").open("rb") as f:
+        assert f"prumi{NEXT_RANGE}" in tomllib.load(f)["project"]["dependencies"]
+    with (PACKAGES / "prumi-core" / "pyproject.toml").open("rb") as f:
+        extras = tomllib.load(f)["project"]["optional-dependencies"]
+    assert extras["dbt"] == [f"prumi-adapter-dbt[duckdb]{NEXT_RANGE}"]
+
+
+def test_uv_watches_the_init_file_so_a_bump_reaches_the_dev_environment():
+    for folder, init in (
+        ("prumi-core", "src/prumi/__init__.py"),
+        ("prumi-adapter-dbt", "src/prumi_adapter_dbt/__init__.py"),
+    ):
+        with (PACKAGES / folder / "pyproject.toml").open("rb") as f:
+            keys = tomllib.load(f)["tool"]["uv"]["cache-keys"]
+        assert {"file": "pyproject.toml"} in keys and {"file": init} in keys, folder
 
 
 @pytest.fixture(scope="module")
@@ -91,7 +126,7 @@ def test_the_prumi_wheel_offers_the_dbt_adapter_as_an_extra(wheels):
         metadata = wheel.read(f"{CORE}.dist-info/METADATA").decode()
     assert "Name: prumi\n" in metadata
     assert "Provides-Extra: dbt" in metadata
-    assert "Requires-Dist: prumi-adapter-dbt[duckdb]<0.2,>=0.1.0; extra == 'dbt'" in metadata
+    assert f"Requires-Dist: prumi-adapter-dbt[duckdb]{NEXT_RANGE}; extra == 'dbt'" in metadata
 
 
 @pytest.mark.parametrize("wheel_name", [CORE, ADAPTER])
@@ -182,7 +217,7 @@ def test_the_adapter_wheel_registers_itself(wheels):
         metadata = wheel.read(f"{ADAPTER}.dist-info/METADATA").decode()
     assert "[prumi.adapters]\ndbt = prumi_adapter_dbt.adapter:create_adapter" in entry_points
     assert "Requires-Dist: metricflow==0.213.0" in metadata
-    assert "Requires-Dist: prumi<0.2,>=0.1.0" in metadata
+    assert f"Requires-Dist: prumi{NEXT_RANGE}" in metadata
     assert "Requires-Dist: duckdb; extra == 'duckdb'" in metadata
 
 

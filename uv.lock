@@ -932,7 +932,6 @@ wheels = [
 
 [[package]]
 name = "prumi"
-version = "0.1.0"
 source = { editable = "packages/prumi-core" }
 dependencies = [
     { name = "mcp" },
@@ -962,7 +961,6 @@ provides-extras = ["dbt"]
 
 [[package]]
 name = "prumi-adapter-dbt"
-version = "0.1.0"
 source = { editable = "packages/prumi-adapter-dbt" }
 dependencies = [
     { name = "metricflow" },
