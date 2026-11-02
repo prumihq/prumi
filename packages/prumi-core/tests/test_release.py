@@ -533,6 +533,12 @@ def test_the_release_pr_runs_as_the_release_app_on_pushes_to_main():
     assert token["uses"].startswith("actions/create-github-app-token@v")
     assert token["with"]["client-id"] == "${{ vars.RELEASE_APP_CLIENT_ID }}"
     assert token["with"]["private-key"] == "${{ secrets.RELEASE_APP_PRIVATE_KEY }}"
+    permissions = {k: v for k, v in token["with"].items() if k.startswith("permission-")}
+    assert permissions == {
+        "permission-contents": "write",
+        "permission-pull-requests": "write",
+        "permission-issues": "write",
+    }
     assert release["uses"].startswith("googleapis/release-please-action@v")
     assert release["with"]["token"] == f"${{{{ steps.{token['id']}.outputs.token }}}}"
 
@@ -572,7 +578,7 @@ def test_pr_titles_must_follow_conventional_commits():
 
 def test_the_pr_template_explains_the_title_format():
     text = (REPO / ".github" / "pull_request_template.md").read_text()
-    assert "feat:" in text and "fix:" in text and "!" in text and "Closes #" in text
+    assert "feat:" in text and "fix:" in text and "feat!:" in text and "Closes #" in text
 
 
 def workflow_actions() -> dict[str, list[str]]:
