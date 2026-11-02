@@ -22,7 +22,7 @@ classifiers = [
 dependencies = [
     # The adapter protocol may change between 0.x releases. release-please bumps this range
     # with each release.
-    "prumi~=0.1.0",  # x-release-please-version
+    "prumi~=0.1.1",  # x-release-please-version
     # Exact pin: MetricFlow's engine API isn't stable (ADR 0002). Bumping it means rerunning
     # the contract test and rechecking the license.
     "metricflow==0.213.0",

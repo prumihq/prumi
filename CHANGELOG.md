@@ -2,6 +2,13 @@
 
 All notable changes to Prumi. Versions stay 0.x until the maintainer says otherwise. Entries come from pull request titles, through release-please.
 
+## [0.1.1](https://github.com/prumihq/prumi/compare/v0.1.0...v0.1.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* keep the dashboard title readable on phones when the badge is long ([#13](https://github.com/prumihq/prumi/issues/13)) ([b5d682d](https://github.com/prumihq/prumi/commit/b5d682da1f71dcc7a33ab11d64b92ab6a5b00596))
+
 ## [0.1.0](https://github.com/prumihq/prumi/releases/tag/v0.1.0) (2026-10-19)
 
 The first release: it proves the core loop on one machine, for one local user, against a demo dbt project on DuckDB ([MVP spec](https://github.com/prumihq/prumi/blob/v0.1.0/specs/mvp/spec.md)). An agent connected over MCP finds the official metrics, explores them, writes a dashboard and publishes it; a browser shows it with every number computed by the source; the data team certifies it from the CLI, and any later edit makes it a draft again.
