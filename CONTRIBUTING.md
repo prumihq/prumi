@@ -64,7 +64,7 @@ uv run python scripts/make_readme_images.py --preview /tmp/readme-images
 | `docs/` | The BI rules and issue codes, configuration, releasing, and architecture decision records (`docs/adr/`) |
 | `scripts/` | The install check, the release's tag check and the README's diagrams |
 | `release-please-config.json`, `.release-please-manifest.json` | What the release PR bumps, and the current version |
-| `.github/` | The workflows (CI, the PR title check, the release PR and the release) and the issue and pull request templates |
+| `.github/` | The workflows (CI, the PR title check, the release PR and the release), the issue and pull request templates, and the Dependabot config for the actions |
 | `spikes/` | Throwaway experiments |
 
 ## Security

@@ -530,7 +530,7 @@ def test_the_release_pr_runs_as_the_release_app_on_pushes_to_main():
     assert workflow["permissions"] == {}
     steps = workflow["jobs"]["release-pr"]["steps"]
     token, release = steps[0], steps[1]
-    assert token["uses"].startswith("actions/create-github-app-token@v")
+    assert token["uses"].startswith("actions/create-github-app-token@")
     assert token["with"]["client-id"] == "${{ vars.RELEASE_APP_CLIENT_ID }}"
     assert token["with"]["private-key"] == "${{ secrets.RELEASE_APP_PRIVATE_KEY }}"
     permissions = {k: v for k, v in token["with"].items() if k.startswith("permission-")}
@@ -539,7 +539,7 @@ def test_the_release_pr_runs_as_the_release_app_on_pushes_to_main():
         "permission-pull-requests": "write",
         "permission-issues": "write",
     }
-    assert release["uses"].startswith("googleapis/release-please-action@v")
+    assert release["uses"].startswith("googleapis/release-please-action@")
     assert release["with"]["token"] == f"${{{{ steps.{token['id']}.outputs.token }}}}"
 
 
@@ -559,7 +559,7 @@ def test_pr_titles_must_follow_conventional_commits():
     }
     assert workflow["permissions"] == {"pull-requests": "read"}
     [step] = workflow["jobs"]["pr-title"]["steps"]
-    assert step["uses"].startswith("amannn/action-semantic-pull-request@v")
+    assert step["uses"].startswith("amannn/action-semantic-pull-request@")
     assert step["with"]["types"].split() == [
         "feat",
         "fix",
@@ -590,10 +590,25 @@ def workflow_actions() -> dict[str, list[str]]:
     return found
 
 
-def test_every_action_is_pinned_to_an_exact_version():
-    # A bare major such as @v4 moves under us; an exact tag changes only when we change it.
+def test_every_action_is_pinned_to_a_commit_with_its_version_beside_it():
+    # A tag, even an exact one, can be moved by whoever controls the action's repository;
+    # a commit can't. The version comment keeps the pin readable, and Dependabot updates both.
     actions = workflow_actions()
     assert {"ci.yml", "release.yml", "release-please.yml", "pr-title.yml"} <= set(actions)
     for name, uses in actions.items():
-        loose = [u for u in uses if not re.fullmatch(r"[\w.-]+/[\w.-]+@v\d+\.\d+\.\d+", u)]
-        assert not loose, f"{name} uses actions without an exact version: {loose}"
+        loose = [u for u in uses if not re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", u)]
+        assert not loose, f"{name} uses actions not pinned to a commit: {loose}"
+        text = (REPO / ".github" / "workflows" / name).read_text()
+        for use in uses:
+            assert re.search(re.escape(use) + r" # v\d+\.\d+\.\d+$", text, re.M), (
+                f"{name}: {use} needs its version in a comment, as `# vX.Y.Z`"
+            )
+
+
+def test_dependabot_keeps_the_actions_current_without_making_a_release():
+    config = yaml.safe_load((REPO / ".github" / "dependabot.yml").read_text())
+    (actions,) = [u for u in config["updates"] if u["package-ecosystem"] == "github-actions"]
+    # `ci` passes the PR title check and stays out of the changelog, so a bump never releases.
+    assert actions["commit-message"]["prefix"] == "ci"
+    # A version must be a week old before we take it, time for a compromised release to be caught.
+    assert actions["cooldown"]["default-days"] >= 7

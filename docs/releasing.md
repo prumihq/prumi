@@ -9,141 +9,27 @@ Two workflows do the work:
 
 What release-please bumps is listed in [`release-please-config.json`](../release-please-config.json); [`.release-please-manifest.json`](../.release-please-manifest.json) holds the current version. Never edit either by hand to make a release.
 
-## 1. One-time setup
+## 1. How the repository is set up
 
-Do these in order. Each step says why it comes where it does.
+Everything below lives in GitHub's or PyPI's settings, not in git, so this list is the record of what's set and why. All of it was set up on 2026-11-02 and has worked through a release (0.1.1).
 
-### PyPI publishers and the two environments
-
-**On PyPI**, add a pending publisher for each package (your account → Publishing → Add a new pending publisher), so the first upload can create the projects. Each package has its own GitHub environment, because PyPI refuses a second pending publisher with the same owner, repository, workflow and environment:
-
-| Field | `prumi` | `prumi-adapter-dbt` |
+| Setting | Where | Why |
 |---|---|---|
-| PyPI project name | `prumi` | `prumi-adapter-dbt` |
-| Owner | `prumihq` | `prumihq` |
-| Repository name | `prumi` | `prumi` |
-| Workflow name | `release.yml` | `release.yml` |
-| Environment name | `pypi` | `pypi-adapter-dbt` |
+| Trusted publishers for `prumi` (environment `pypi`) and `prumi-adapter-dbt` (environment `pypi-adapter-dbt`), both on workflow `release.yml` | PyPI → each project → Publishing | PyPI trusts that workflow in that environment, for that package only, so no token is stored anywhere. PyPI refuses two publishers with the same owner, repository, workflow and environment, hence one environment per package. |
+| Environments `pypi` and `pypi-adapter-dbt`, with you as required reviewer | Settings → Environments | Nothing uploads until you approve. |
+| The App `prumi-release`, installed on `prumi` only: Contents, Pull requests and Issues read and write, webhook off | `prumihq` → Settings → Developer settings → GitHub Apps | release-please acts with its token. GitHub starts no workflows for events made with the workflow's own `GITHUB_TOKEN`, so without the App CI wouldn't run on the release PR and the tag wouldn't start `release.yml`. Issues is for the `autorelease:` labels. |
+| Variable `RELEASE_APP_CLIENT_ID`, secret `RELEASE_APP_PRIVATE_KEY` | Settings → Secrets and variables → Actions | The App's client ID and private key, for `release-please.yml`. |
+| Squash merging only, commit title = PR title, body blank, head branches deleted on merge | Settings → General → Pull Requests | One PR, one commit on `main`, one changelog line. The body stays blank because release-please reads Conventional Commits in it too: stray `fix:` lines from branch commits would become changelog lines. |
+| Branch protection on `main`: a pull request (0 approvals), checks `python`, `install-check` and `pr-title`, linear history, admins included, no force pushes or deletion | Settings → Branches | `pr-title` keeps every title readable by release-please. `pr-title` runs the workflow file from the PR's own branch, so review any change under `.github/workflows/` and read the title yourself before merging. |
+| Ruleset "Version tags" on `refs/tags/v*`: no creation, update, deletion or force push, except repository admins and `prumi-release` | Settings → Rules → Rulesets | Only a release, or you, can make or remove a version tag. |
+| Immutable releases | Settings → General → Releases | A published release's tag and files can't change. `release.yml` publishes the draft only after both uploads, so that's when it locks. |
+| Dependabot for `github-actions` ([`.github/dependabot.yml`](../.github/dependabot.yml)) | in git | Every action is pinned to a commit SHA with its version in a comment; a tag can be moved by whoever controls the action, a commit can't. Dependabot opens one `ci(deps):` pull request a week with the updates, which never makes a release. It only proposes versions at least 7 days old, so a compromised release has time to be caught first. |
 
-A later first-party adapter gets its own environment the same way, `pypi-adapter-<source>`.
+Check the protection with `gh api repos/prumihq/prumi/branches/main/protection` and the ruleset with `gh api repos/prumihq/prumi/rulesets`.
 
-**On GitHub**, create both environments, `pypi` and `pypi-adapter-dbt` (the repository's Settings → Environments → New environment), and add yourself as a required reviewer of each. Each package's upload job runs in its environment, so nothing uploads until you approve it. GitHub offers required reviewers on public repositories.
+**Rotating the App's key** (if it leaks, or as a habit): on the App's page, Private keys → Generate a private key, store it with `gh secret set RELEASE_APP_PRIVATE_KEY --repo prumihq/prumi < prumi-release.*.private-key.pem`, delete the old key on the same page, and delete the `.pem` file from your machine.
 
-No token or password is stored anywhere: PyPI trusts the workflow running in each package's environment, for that package only (trusted publishing).
-
-### The release App
-
-release-please acts with a GitHub App's token, not the workflow's own `GITHUB_TOKEN`. GitHub starts no workflows for events made with `GITHUB_TOKEN`: CI wouldn't run on the release PR, and the tag wouldn't start `release.yml`. Until the App is set up, the `Release PR` workflow skips.
-
-1. **Create the App** in the organization: the `prumihq` organization's Settings → Developer settings → GitHub Apps → New GitHub App.
-   - GitHub App name: `prumi-release`.
-   - Homepage URL: `https://github.com/prumihq/prumi`.
-   - Webhook: clear **Active**. The App never receives events; the workflow only borrows its token.
-   - Repository permissions: **Contents** Read and write (to create the tag and the release), **Pull requests** Read and write (to open and update the release PR) and **Issues** Read and write (release-please marks the release PR with its `autorelease: pending` and `autorelease: tagged` labels, and GitHub handles labels through the Issues API). These are the permissions release-please-action documents. Leave everything else at No access; Metadata read-only is added on its own.
-   - Where can this GitHub App be installed: Only on this account.
-   - Create GitHub App.
-2. **Note its two IDs.** The App's settings page (General) shows the **App ID**, a number, which the tag ruleset needs later, and the **Client ID**, which starts with `Iv`. You can also read the App ID with `gh api apps/prumi-release --jq .id`.
-3. **Generate a private key** on the same page (Private keys → Generate a private key). It downloads a `.pem` file.
-4. **Install it on `prumi` only:** Install App (left menu) → Install next to `prumihq` → Only select repositories → `prumi` → Install.
-5. **Store the client ID and the key in the repository** (Settings → Secrets and variables → Actions): the client ID as the repository **variable** `RELEASE_APP_CLIENT_ID` (Variables tab), the whole `.pem` file as the repository **secret** `RELEASE_APP_PRIVATE_KEY` (Secrets tab). Or from a clone:
-
-   ```sh
-   gh variable set RELEASE_APP_CLIENT_ID --repo prumihq/prumi --body "Iv23li..."
-   gh secret set RELEASE_APP_PRIVATE_KEY --repo prumihq/prumi < prumi-release.*.private-key.pem
-   ```
-
-   Then delete the `.pem` file from your machine. If the key leaks, delete it on the App's page and generate a new one.
-
-### Merge settings
-
-Do this after the release workflows are on `main`. Pull requests are then merged as one squash commit whose message is the PR title alone, which is what release-please reads: one PR, one commit, one changelog line.
-
-```sh
-gh api -X PATCH repos/prumihq/prumi \
-  -F allow_merge_commit=false \
-  -F allow_rebase_merge=false \
-  -F allow_squash_merge=true \
-  -f squash_merge_commit_title=PR_TITLE \
-  -f squash_merge_commit_message=BLANK \
-  -F delete_branch_on_merge=true
-```
-
-In the web UI: Settings → General → Pull Requests. Clear "Allow merge commits" and "Allow rebase merging", keep "Allow squash merging" with the default message "Pull request title", and select "Automatically delete head branches".
-
-### Branch protection on `main`
-
-`main` uses classic branch protection (Settings → Branches), which already requires a pull request with 0 approvals and the checks `python` and `install-check`, for admins too, and blocks force pushes and deletion. Two additions:
-
-1. **Require the PR title check, `pr-title`,** so a pull request can't merge with a title release-please can't read. Do this after `.github/workflows/pr-title.yml` is on `main` and has run on a pull request; a required check that nothing reports blocks every merge.
-
-   The check runs on `pull_request`, so it uses the workflow file from the pull request's own branch: a pull request can change the check it's judged by. Review any change under `.github/workflows/` in a pull request before merging it, and read the title yourself; the squash commit's title is what release-please reads.
-
-   ```sh
-   gh api -X POST repos/prumihq/prumi/branches/main/protection/required_status_checks/contexts \
-     -f 'contexts[]=pr-title'
-   ```
-
-2. **Require linear history,** so `main` only ever gets squash commits. Do this after the merge settings above, so that squash, the method linear history allows, is the only one left on the merge button. The API can only change it by sending the whole protection again, so the web UI is simpler: Settings → Branches → Edit next to `main` → select **Require linear history** → Save changes.
-
-   The same with `gh api`, which replaces the whole protection and therefore restates everything `main` already has:
-
-   ```sh
-   gh api -X PUT repos/prumihq/prumi/branches/main/protection --input - <<'EOF'
-   {
-     "required_status_checks": {
-       "strict": false,
-       "checks": [
-         {"context": "python", "app_id": 15368},
-         {"context": "install-check", "app_id": 15368},
-         {"context": "pr-title", "app_id": 15368}
-       ]
-     },
-     "enforce_admins": true,
-     "required_pull_request_reviews": {"required_approving_review_count": 0},
-     "restrictions": null,
-     "required_linear_history": true,
-     "allow_force_pushes": false,
-     "allow_deletions": false
-   }
-   EOF
-   ```
-
-   `15368` is the GitHub Actions app, which reports the checks. Before running it, compare with what `main` has now (`gh api repos/prumihq/prumi/branches/main/protection`); anything that differs and isn't in the body above would be dropped.
-
-Check the result with `gh api repos/prumihq/prumi/branches/main/protection --jq '{checks: .required_status_checks.contexts, linear: .required_linear_history.enabled}'`.
-
-### After the first release has worked end to end
-
-Two protections come last, on purpose. Until then, a misfire on the first release can still be cleaned up by deleting the draft release and the tag (section 4). Once they're on, a tag can't be deleted by mistake, and neither can a published release's.
-
-1. **A tag ruleset for `refs/tags/v*`:** only repository admins (you) and the release App can create, move or delete a version tag, and nobody can force-push one. Replace `APP_ID` with the App ID from "The release App" (`gh api apps/prumi-release --jq .id`); `5` is GitHub's id for the repository admin role.
-
-   ```sh
-   gh api -X POST repos/prumihq/prumi/rulesets --input - <<'EOF'
-   {
-     "name": "Version tags",
-     "target": "tag",
-     "enforcement": "active",
-     "conditions": {
-       "ref_name": {"include": ["refs/tags/v*"], "exclude": []}
-     },
-     "rules": [
-       {"type": "creation"},
-       {"type": "update"},
-       {"type": "deletion"},
-       {"type": "non_fast_forward"}
-     ],
-     "bypass_actors": [
-       {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"},
-       {"actor_id": APP_ID, "actor_type": "Integration", "bypass_mode": "always"}
-     ]
-   }
-   EOF
-   ```
-
-   Then open Settings → Rules → Rulesets → Version tags and check that the bypass list shows "Repository admin" and `prumi-release`. The same ruleset can be made there by hand (New ruleset → New tag ruleset).
-
-2. **Immutable releases:** Settings → General → Releases → select **Enable release immutability**. From then on, a published release's tag and files can't change. It applies to releases published after you turn it on, which is why `release.yml` publishes the draft only once both uploads are done.
+**A new first-party adapter package** gets its own environment, `pypi-adapter-<source>`, with you as required reviewer, a pending trusted publisher on PyPI with that environment, and its own upload job in `release.yml`. Don't move the uploads into a reusable workflow (`workflow_call`): PyPI doesn't accept a reusable workflow as a trusted publisher.
 
 ## 2. Each release
 
@@ -155,8 +41,6 @@ Two protections come last, on purpose. Until then, a misfire on the first releas
    - The GitHub Release `v<version>` turned from draft to published and is marked Latest (the Releases page). The run's last job, `publish-release`, does that once both uploads finish.
    - Both PyPI pages, [pypi.org/project/prumi](https://pypi.org/project/prumi/) and [pypi.org/project/prumi-adapter-dbt](https://pypi.org/project/prumi-adapter-dbt/), show the new version.
    - A fresh install works: `uv tool install "prumi[dbt]"` (add `--force` if Prumi is installed already), `prumi install-chromium`, then `prumi serve` on a project.
-
-**The first release under this process only:** check that merging the release PR started exactly one `Release` run, from the tag `v<version>` (Actions → Release). If none started, or two did, reject any deployments waiting for approval and fix the trigger in `release.yml` so that merging starts it exactly once, following "The fix is a change to the repository" in section 4: the draft and the tag stay until the fix is on `main`. Changing the trigger doesn't touch the PyPI trust: the trusted publishers depend only on the file name `release.yml` and the environments. Don't move the uploads into a reusable workflow (`workflow_call`): PyPI doesn't accept a reusable workflow as a trusted publisher. Once one release has gone through end to end, do the setup in "After the first release has worked end to end".
 
 ## 3. Fixing a changelog line after merge
 
@@ -183,13 +67,11 @@ The release PR changes the next time release-please runs, which is on the next p
 
 ## 4. When something fails
 
-**Before you approve the deployments:** if they are waiting for you, reject them (Review deployments → Reject). Nothing is uploaded, and the release stays a draft that nobody else sees. Find the cause in the run's log. If it was a passing hiccup (a network error, a flaky test), rerun the failed jobs on the same run (Re-run failed jobs); nothing needs cleaning up. Otherwise, clean up and retry as below: the first release and later ones differ only in the tag ruleset.
+**Before you approve the deployments:** if they are waiting for you, reject them (Review deployments → Reject). Nothing is uploaded, and the release stays a draft that nobody else sees. Find the cause in the run's log. If it was a passing hiccup (a network error, a flaky test), rerun the failed jobs on the same run (Re-run failed jobs); nothing needs cleaning up. Otherwise, clean up and retry as below.
 
 **An upload that stopped halfway** (one package is on PyPI and the other isn't, or a package has only one of its two files there): rerun the failed jobs (the run's page → Re-run failed jobs) and approve their deployments again. Each skips the files already on PyPI and uploads the rest. Then `publish-release` publishes the draft.
 
-**The first release, before the tag ruleset and immutable releases are on:** until then, everything can still be cleaned up. Follow the steps below.
-
-**A later release that stopped before the uploads** (the checks or the build failed, or you rejected the deployments): it can still be cleaned up too. Immutability starts only when a release is published, and this one is still a draft. The tag ruleset blocks deleting and creating `v*` tags, but you bypass it as a repository admin, so the commands below work for you, not for other contributors. Recommended: follow the steps below and release the same version, so the changelog never lists a version that isn't on PyPI. Leaving the draft and the tag, and letting the next release supersede them, also works, but leaves a draft, a tag and a changelog entry for a version nobody can install.
+**A release that stopped before the uploads** (the checks or the build failed, or you rejected the deployments): it can still be cleaned up too. Immutability starts only when a release is published, and this one is still a draft. The tag ruleset blocks deleting and creating `v*` tags, but you bypass it as a repository admin, so the commands below work for you, not for other contributors. Recommended: follow the steps below and release the same version, so the changelog never lists a version that isn't on PyPI. Leaving the draft and the tag, and letting the next release supersede them, also works, but leaves a draft, a tag and a changelog entry for a version nobody can install.
 
 **Never merge to `main` while a version's tag is missing.** release-please finds the last release by its tag and its GitHub Release. If both are gone when it runs, it falls back to the version in `.release-please-manifest.json`, has nothing to stop at, reads back through the whole history and opens a release PR for the next version that repeats every line of the failed one. So the steps below keep the draft and the tag until the moment they are recreated, and delete and recreate them in one sitting. If such a release PR appears anyway, don't merge it: close it, recreate the tag and the draft as below, and release-please opens a correct one with the next `feat` or `fix`.
 
@@ -234,7 +116,7 @@ Fix the cause, then follow the case that matches it:
 
 The examples use `v0.2.0`; use the version of the failed release.
 
-**After immutable releases are on, some things can't be undone:**
+**Some things can't be undone:**
 
 - A published release's tag can't be moved or deleted while the release exists.
 - If a published release is deleted, its tag name can't be used again.
