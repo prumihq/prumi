@@ -610,3 +610,5 @@ def test_dependabot_keeps_the_actions_current_without_making_a_release():
     (actions,) = [u for u in config["updates"] if u["package-ecosystem"] == "github-actions"]
     # `ci` passes the PR title check and stays out of the changelog, so a bump never releases.
     assert actions["commit-message"]["prefix"] == "ci"
+    # A version must be a week old before we take it, time for a compromised release to be caught.
+    assert actions["cooldown"]["default-days"] >= 7
