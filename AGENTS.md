@@ -14,6 +14,7 @@ uv run ruff format      # format
 ## How work is organized
 
 - **Superpowers.** This repo is developed with the Superpowers plugin for Claude Code (enabled in `.claude/settings.json`); its skills are the workflow, and `docs/superpowers/` holds the designs and plans they produce. The rules in this file apply to any agent, with or without it.
+- **Issues.** Work starts from a GitHub issue. If there's none for what you're asked to do, say so and suggest one before you start. A pull request links its issue with `Closes #N` in its description.
 - **Branches.** Work on a branch named for the work (`feat/…`, `fix/…`, `chore/…`), never directly on `main`. Pushing and opening a pull request are fine; how a branch gets merged is the maintainer's choice.
 - **Designs and plans.** Designs live in `docs/superpowers/specs/`, implementation plans in `docs/superpowers/plans/`. Don't build what the current design doesn't ask for; if it's unclear or wrong, ask instead of guessing.
 - **Releases stay 0.x;** never tag 1.0 unless the maintainer says so. Releases come from the release PR that release-please keeps open; `docs/releasing.md` is the maintainer's manual.

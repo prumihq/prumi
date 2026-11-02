@@ -1,0 +1,45 @@
+name: Bug report
+description: Something in Prumi doesn't work the way the docs say it should.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please check the [open issues](https://github.com/prumihq/prumi/issues) first, in case it's already there.
+        Found a security problem? Don't post it here: use **Report a security vulnerability** on the previous page.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw. Paste error messages and logs as text, not screenshots.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of steps that makes it happen. The demo project (`examples/demo-dbt-project`) is the easiest place to show it.
+      placeholder: |
+        1. Run `prumi serve` in ...
+        2. Ask the agent to ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+  - type: input
+    id: version
+    attributes:
+      label: Prumi version
+      description: The output of `pip show prumi` (or `uv tool list` if you installed it with uv).
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Python version, and the MCP client you connect with.
+      placeholder: "macOS 15, Python 3.12, Claude Code"

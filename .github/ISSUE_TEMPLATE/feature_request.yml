@@ -1,0 +1,26 @@
+name: Feature request
+description: Something Prumi doesn't do yet, or doesn't do well enough for you.
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the [open issues](https://github.com/prumihq/prumi/issues) and the README's **Status and roadmap** first; it may already be planned.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what gets in the way? Describe the situation, not a solution yet.
+      placeholder: "My BI team can't see the dashboards I publish, because ..."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you'd like
+      description: How you picture Prumi solving it, if you have an idea.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Workarounds you use today, or other tools that solve it.
