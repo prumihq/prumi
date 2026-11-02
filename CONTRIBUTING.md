@@ -2,6 +2,10 @@
 
 [README.md](README.md) says what Prumi is and how to use it. This file is for working on Prumi itself.
 
+## Start with an issue
+
+Before working on anything bigger than a typo, open an [issue](https://github.com/prumihq/prumi/issues/new/choose), or comment on an existing one, so we agree on the problem before you write code. Issues marked `good first issue` are a good place to start. In your pull request, link the issue with `Closes #N`; merging then closes it.
+
 ## Set up and run the tests
 
 You need [uv](https://docs.astral.sh/uv/).
@@ -56,7 +60,7 @@ uv run python scripts/make_readme_images.py --preview /tmp/readme-images
 | `docs/` | The BI rules and issue codes, configuration, releasing, and architecture decision records (`docs/adr/`) |
 | `scripts/` | The install check, the release's tag check and the README's diagrams |
 | `release-please-config.json`, `.release-please-manifest.json` | What the release PR bumps, and the current version |
-| `.github/` | The workflows (CI, the PR title check, the release PR and the release) and the pull request template |
+| `.github/` | The workflows (CI, the PR title check, the release PR and the release) and the issue and pull request templates |
 | `spikes/` | Throwaway experiments |
 
 ## Security
