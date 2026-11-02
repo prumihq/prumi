@@ -4,7 +4,7 @@ The maintainer's manual for publishing `prumi` and `prumi-adapter-dbt` on PyPI. 
 
 Two workflows do the work:
 
-- [`.github/workflows/release-please.yml`](../.github/workflows/release-please.yml) runs on every push to `main`. It keeps one pull request open, the **release PR** (`chore: release X.Y.Z`), which bumps every version and adds the next entry to `CHANGELOG.md`. The entry is built from the titles of the pull requests merged since the last release: `feat` titles under Features, `fix` under Bug Fixes, `perf` and `revert` in their own sections, every other type left out. `feat` makes the next version a minor one (0.1.0 → 0.2.0), `fix` and `perf` a patch (0.1.0 → 0.1.1); while Prumi is 0.x, a breaking change (`feat!:`) also gives a minor one. Merging the release PR creates the tag `v<version>` and a **draft** GitHub Release.
+- [`.github/workflows/release-please.yml`](../.github/workflows/release-please.yml) runs on every push to `main`. It keeps one pull request open, the **release PR** (`chore(main): release X.Y.Z`; release-please puts the target branch in the scope), which bumps every version and adds the next entry to `CHANGELOG.md`. The entry is built from the titles of the pull requests merged since the last release: `feat` titles under Features, `fix` under Bug Fixes, `perf` and `revert` in their own sections, every other type left out. `feat` makes the next version a minor one (0.1.0 → 0.2.0), `fix` and `perf` a patch (0.1.0 → 0.1.1); while Prumi is 0.x, a breaking change (`feat!:`) also gives a minor one. Merging the release PR creates the tag `v<version>` and a **draft** GitHub Release.
 - [`.github/workflows/release.yml`](../.github/workflows/release.yml) runs on that tag. It checks that the tag matches all three versions (both `__init__.py` files and `packages/prumi-runtime/package.json`), that the version is below 1.0 and that `CHANGELOG.md` has a dated heading for it ([`scripts/check_release.py`](../scripts/check_release.py)). Then it runs the checks (ruff, the full suite with browser tests), builds a wheel and an sdist of each package, runs the install check on those files ([`scripts/check_install.py`](../scripts/check_install.py)) and uploads them, each package from a job of its own, after you approve. Last, it publishes the draft release. A manual run (Actions → Release → Run workflow) does everything except the uploads and the publishing.
 
 What release-please bumps is listed in [`release-please-config.json`](../release-please-config.json); [`.release-please-manifest.json`](../.release-please-manifest.json) holds the current version. Never edit either by hand to make a release.
@@ -76,6 +76,8 @@ In the web UI: Settings → General → Pull Requests. Clear "Allow merge commit
 
 1. **Require the PR title check, `pr-title`,** so a pull request can't merge with a title release-please can't read. Do this after `.github/workflows/pr-title.yml` is on `main` and has run on a pull request; a required check that nothing reports blocks every merge.
 
+   The check runs on `pull_request`, so it uses the workflow file from the pull request's own branch: a pull request can change the check it's judged by. Review any change under `.github/workflows/` in a pull request before merging it, and read the title yourself; the squash commit's title is what release-please reads.
+
    ```sh
    gh api -X POST repos/prumihq/prumi/branches/main/protection/required_status_checks/contexts \
      -f 'contexts[]=pr-title'
@@ -145,16 +147,16 @@ Two protections come last, on purpose. Until then, a misfire on the first releas
 
 ## 2. Each release
 
-1. **Open the release PR.** After any `feat`, `fix`, `perf` or `revert` pull request merges, release-please opens or updates the pull request `chore: release X.Y.Z` (Pull requests tab). It changes `CHANGELOG.md`, `.release-please-manifest.json`, both `__init__.py` files, the version ranges in both `pyproject.toml` files and `packages/prumi-runtime/package.json`. CI runs on it like on any pull request.
+1. **Open the release PR.** After any `feat`, `fix`, `perf` or `revert` pull request merges, release-please opens or updates the pull request `chore(main): release X.Y.Z` (Pull requests tab). It changes `CHANGELOG.md`, `.release-please-manifest.json`, both `__init__.py` files, the version ranges in both `pyproject.toml` files and `packages/prumi-runtime/package.json`. CI runs on it like on any pull request.
 2. **Read the changelog entry** in the PR's Files changed, as a user would. If a line's wording is wrong, the lasting fix is the one in section 3: it corrects the merged PR the line came from, and release-please rewrites the release PR. To fix only this release's text instead, right before merging edit both the entry in `CHANGELOG.md` on the release PR's branch and the same text in the release PR's description (the description becomes the GitHub Release's notes). Do it last: every push to `main` regenerates the release PR and drops such edits.
 3. **Merge it** (Squash and merge). release-please then creates the tag `v<version>` and a draft GitHub Release, and the tag starts the `Release` workflow.
-4. **Approve both deployments.** On the `Release` run's page (Actions → Release, the run named after the tag), once the checks and the build pass, Review deployments lists `pypi` and `pypi-adapter-dbt`; select both and approve, in one dialog. The uploads start then.
+4. **Approve both deployments.** On the `Release` run's page (Actions → Release: the run is titled with the merge commit, `chore(main): release X.Y.Z (#N)`, and shows the tag `vX.Y.Z` as its ref), once the checks and the build pass, Review deployments lists `pypi` and `pypi-adapter-dbt`; select both and approve, in one dialog. The uploads start then.
 5. **Check the result:**
    - The GitHub Release `v<version>` turned from draft to published and is marked Latest (the Releases page). The run's last job, `publish-release`, does that once both uploads finish.
    - Both PyPI pages, [pypi.org/project/prumi](https://pypi.org/project/prumi/) and [pypi.org/project/prumi-adapter-dbt](https://pypi.org/project/prumi-adapter-dbt/), show the new version.
    - A fresh install works: `uv tool install "prumi[dbt]"` (add `--force` if Prumi is installed already), `prumi install-chromium`, then `prumi serve` on a project.
 
-**The first release under this process only:** check that merging the release PR started exactly one `Release` run, from the tag `v<version>` (Actions → Release). If none started, or two did, reject any deployments waiting for approval, clean up as in section 4, and fix the trigger in `release.yml` so that merging starts it exactly once. Changing the trigger doesn't touch the PyPI trust: the trusted publishers depend only on the file name `release.yml` and the environments. Don't move the uploads into a reusable workflow (`workflow_call`): PyPI doesn't accept a reusable workflow as a trusted publisher. Once one release has gone through end to end, do the setup in "After the first release has worked end to end".
+**The first release under this process only:** check that merging the release PR started exactly one `Release` run, from the tag `v<version>` (Actions → Release). If none started, or two did, reject any deployments waiting for approval and fix the trigger in `release.yml` so that merging starts it exactly once, following "The fix is a change to the repository" in section 4: the draft and the tag stay until the fix is on `main`. Changing the trigger doesn't touch the PyPI trust: the trusted publishers depend only on the file name `release.yml` and the environments. Don't move the uploads into a reusable workflow (`workflow_call`): PyPI doesn't accept a reusable workflow as a trusted publisher. Once one release has gone through end to end, do the setup in "After the first release has worked end to end".
 
 ## 3. Fixing a changelog line after merge
 
@@ -185,21 +187,50 @@ The release PR changes the next time release-please runs, which is on the next p
 
 **An upload that stopped halfway** (one package is on PyPI and the other isn't, or a package has only one of its two files there): rerun the failed jobs (the run's page → Re-run failed jobs) and approve their deployments again. Each skips the files already on PyPI and uploads the rest. Then `publish-release` publishes the draft.
 
-**The first release, before the tag ruleset and immutable releases are on:** nothing published can't be cleaned up yet. Follow the steps below.
+**The first release, before the tag ruleset and immutable releases are on:** until then, everything can still be cleaned up. Follow the steps below.
 
 **A later release that stopped before the uploads** (the checks or the build failed, or you rejected the deployments): it can still be cleaned up too. Immutability starts only when a release is published, and this one is still a draft. The tag ruleset blocks deleting and creating `v*` tags, but you bypass it as a repository admin, so the commands below work for you, not for other contributors. Recommended: follow the steps below and release the same version, so the changelog never lists a version that isn't on PyPI. Leaving the draft and the tag, and letting the next release supersede them, also works, but leaves a draft, a tag and a changelog entry for a version nobody can install.
 
-1. Copy the draft release's notes somewhere (Releases → the draft → Edit), then delete the draft and its tag:
+**Never merge to `main` while a version's tag is missing.** release-please finds the last release by its tag and its GitHub Release. If both are gone when it runs, it falls back to the version in `.release-please-manifest.json`, has nothing to stop at, reads back through the whole history and opens a release PR for the next version that repeats every line of the failed one. So the steps below keep the draft and the tag until the moment they are recreated, and delete and recreate them in one sitting. If such a release PR appears anyway, don't merge it: close it, recreate the tag and the draft as below, and release-please opens a correct one with the next `feat` or `fix`.
 
-   ```sh
-   gh release delete v0.2.0 --repo prumihq/prumi --cleanup-tag --yes
-   git push --delete origin v0.2.0   # only if the tag is still there
-   git tag -d v0.2.0                 # only if you fetched it
-   ```
+Fix the cause, then follow the case that matches it:
 
-2. Fix the cause. Then one of:
-   - **The fix is in a setting, not in the repository** (an environment, the App, a secret): on the merged release PR, replace the label `autorelease: tagged` with `autorelease: pending`, then rerun the latest `Release PR` run (Actions → Release PR → Re-run all jobs). release-please creates the tag and the draft again, on the same commit, and `Release` starts.
-   - **The fix is a change to the repository,** such as `release.yml`: it has to be in the tagged commit, so merge it to `main` first. Then either merge the next release PR when one comes (the unreleased version is simply skipped; it never reached PyPI), or release the same version from the fixed `main` by hand: create the draft with the notes you copied (`gh release create v0.2.0 --repo prumihq/prumi --draft --title v0.2.0 --notes-file notes.md`), then tag and push (`git fetch origin && git tag v0.2.0 origin/main && git push origin v0.2.0`). `CHANGELOG.md` on `main` already has the version's heading, so the tag check passes.
+- **The fix is in a setting, not in the repository** (an environment, the App, a secret). Fix the setting first. Then, one step right after the other:
+
+  1. Delete the draft and its tag:
+
+     ```sh
+     gh release delete v0.2.0 --repo prumihq/prumi --cleanup-tag --yes
+     git push --delete origin v0.2.0   # only if the tag is still there
+     git tag -d v0.2.0                 # only if you fetched it
+     ```
+
+  2. On the merged release PR, replace the label `autorelease: tagged` with `autorelease: pending`.
+  3. Rerun the latest `Release PR` run (Actions → Release PR → the latest run → Re-run all jobs). release-please creates the tag and the draft again, on the same commit, with the same notes, and `Release` starts.
+
+- **The fix is a change to the repository,** such as `release.yml`. It has to be in the tagged commit, so the tag moves to the commit that fixes it.
+
+  1. **Keep the draft and the tag for now.** Merge the fix to `main` through a pull request as usual. Give it a type that stays out of the changelog (`ci:` for a workflow, `build:` or `chore:` otherwise), so it doesn't open a release PR of its own. With the tag and the draft still there, release-please treats the version as released, so the next release PR starts after it.
+  2. Once the fix is on `main`, save the draft's notes, delete the draft and its tag, and tag the new `main`:
+
+     ```sh
+     gh release view v0.2.0 --repo prumihq/prumi --json body --jq .body > notes.md
+     gh release delete v0.2.0 --repo prumihq/prumi --cleanup-tag --yes
+     git push --delete origin v0.2.0   # only if the tag is still there
+     git tag -d v0.2.0                 # only if you have it locally
+     git fetch origin
+     git tag v0.2.0 origin/main
+     git push origin v0.2.0
+     ```
+
+     Pushing the tag starts `Release`, on the fixed commit.
+  3. Right away, create the draft again with the saved notes:
+
+     ```sh
+     gh release create v0.2.0 --repo prumihq/prumi --draft --verify-tag --title v0.2.0 --notes-file notes.md
+     ```
+
+     This is the order release-please uses too: the tag first, then the draft on it. `--verify-tag` makes `gh` stop if the tag isn't on GitHub, instead of creating a release for a tag of its own at the latest `main`. The draft has to exist before `publish-release` runs, which is only after you approve the uploads, so create it before approving. `CHANGELOG.md` on `main` already has the version's heading, so the tag check passes.
 
 The examples use `v0.2.0`; use the version of the failed release.
 

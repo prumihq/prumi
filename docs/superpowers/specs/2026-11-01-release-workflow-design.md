@@ -74,8 +74,8 @@ Anything about how the repo works today may change: the commit style, the change
   - `packages/prumi-core/src/prumi/__init__.py`: `__version__`
   - `packages/prumi-adapter-dbt/src/prumi_adapter_dbt/__init__.py`: `__version__`
   - `packages/prumi-runtime/package.json`: `version`
-  - `packages/prumi-adapter-dbt/pyproject.toml`: the dependency on `prumi`, written as `prumi~=X.Y.0`
-  - `packages/prumi-core/pyproject.toml`: the `dbt` extra, written as `prumi-adapter-dbt[duckdb]~=X.Y.0`
+  - `packages/prumi-adapter-dbt/pyproject.toml`: the dependency on `prumi`, written as `prumi~=X.Y.Z`
+  - `packages/prumi-core/pyproject.toml`: the `dbt` extra, written as `prumi-adapter-dbt[duckdb]~=X.Y.Z`
   - `CHANGELOG.md`: a new section at the top
   - `.release-please-manifest.json`
 
@@ -116,7 +116,7 @@ Anything about how the repo works today may change: the commit style, the change
 - **`packages/prumi-core/tests/test_release.py` changes:**
   - The expected version is read from `prumi/__init__.py`, not written as a literal.
   - It checks that the adapter's `__init__.py`, `package.json`, both installed versions and both built wheels match that version.
-  - It checks that both cross-package ranges are `~=X.Y.0` for the current version.
+  - It checks that both cross-package ranges are `~=X.Y.Z` for the current version.
   - Its tag-check tests use the new changelog heading.
   - Each check is named after the behavior it checks.
 
