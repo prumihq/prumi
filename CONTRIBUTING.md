@@ -4,7 +4,11 @@
 
 ## Start with an issue
 
-Before working on anything bigger than a typo, open an [issue](https://github.com/prumihq/prumi/issues/new/choose), or comment on an existing one, so we agree on the problem before you write code. Issues marked `good first issue` are a good place to start. In your pull request, link the issue with `Closes #N`; merging then closes it.
+For anything bigger than a small fix, [open an issue](https://github.com/prumihq/prumi/issues/new/choose) or comment on an existing one before you start, and say you're working on it. Then others know it's taken, and we can agree on the approach early, before you spend time on code. Small fixes (a typo, a broken link, a one-line bug fix) can go straight to a pull request. Link the issue in your pull request with `Closes #N`; merging then closes it.
+
+## Using AI tools
+
+Prumi is itself developed with AI assistance, and AI-assisted contributions are welcome on three conditions: say in the pull request which tools you used, understand every line you submit, and answer review comments yourself. You're responsible for the change, whoever typed it.
 
 ## Set up and run the tests
 
