@@ -542,6 +542,39 @@ def test_the_release_pr_job_skips_until_the_app_is_configured():
     assert workflow["jobs"]["release-pr"]["if"] == "vars.RELEASE_APP_CLIENT_ID != ''"
 
 
+def test_pr_titles_must_follow_conventional_commits():
+    workflow = yaml.safe_load((REPO / ".github/workflows/pr-title.yml").read_text())
+    triggers = workflow.get("on", workflow.get(True))
+    assert set(triggers["pull_request"]["types"]) == {
+        "opened",
+        "edited",
+        "synchronize",
+        "reopened",
+    }
+    assert workflow["permissions"] == {"pull-requests": "read"}
+    [step] = workflow["jobs"]["pr-title"]["steps"]
+    assert step["uses"].startswith("amannn/action-semantic-pull-request@v")
+    assert step["with"]["types"].split() == [
+        "feat",
+        "fix",
+        "perf",
+        "revert",
+        "docs",
+        "refactor",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "style",
+    ]
+    assert step["with"].get("requireScope", False) is False
+
+
+def test_the_pr_template_explains_the_title_format():
+    text = (REPO / ".github" / "pull_request_template.md").read_text()
+    assert "feat:" in text and "fix:" in text and "!" in text and "Closes #" in text
+
+
 def workflow_actions() -> dict[str, list[str]]:
     """Every `uses:` of every workflow, by the workflow's file name."""
     found = {}
@@ -554,7 +587,7 @@ def workflow_actions() -> dict[str, list[str]]:
 def test_every_action_is_pinned_to_an_exact_version():
     # A bare major such as @v4 moves under us; an exact tag changes only when we change it.
     actions = workflow_actions()
-    assert {"ci.yml", "release.yml", "release-please.yml"} <= set(actions)
+    assert {"ci.yml", "release.yml", "release-please.yml", "pr-title.yml"} <= set(actions)
     for name, uses in actions.items():
         loose = [u for u in uses if not re.fullmatch(r"[\w.-]+/[\w.-]+@v\d+\.\d+\.\d+", u)]
         assert not loose, f"{name} uses actions without an exact version: {loose}"
