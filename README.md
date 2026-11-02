@@ -135,7 +135,6 @@ Known limitations of 0.1:
 - Manifest changes need a restart.
 - One display locale per server: every viewer sees numbers formatted the same way, whatever their browser's language.
 - Tested with Claude Code only. Clients that connect from their vendor's cloud can't reach a server on your machine.
-- On a phone, a long "Certified by" badge leaves little room for the dashboard title.
 
 Planned, in this order:
 - **Installable:** `docker compose`, with a trial mode on the demo that needs no clone, login and sharing with a team, dbt on Snowflake, BigQuery, Databricks and Postgres, and fiscal calendars.

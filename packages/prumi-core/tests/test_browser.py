@@ -761,6 +761,20 @@ def long_title(services):
     return "long-title"
 
 
+@pytest.fixture(scope="module")
+def certified_by(services):
+    """Save one long-titled dashboard per certifier, keyed by the certifier's name."""
+    probe = load_spec_file(FIXTURES / "browser" / "probe.yaml")
+    html = (FIXTURES / "browser" / "probe.html").read_text()
+    ids = {}
+    for n, name in enumerate(["ana.costa@acme.io", "maria.silva@company.com"]):
+        ids[name] = f"badge-{n}"
+        probe["dashboard"] = {"id": ids[name], "title": LONG_TITLE}
+        services.registry.save(DashboardSpec.model_validate(probe), html)
+        services.registry.certify(ids[name], 1, by=name)
+    return ids
+
+
 BAR = """() => {
   const box = (id) => document.getElementById(id).getBoundingClientRect();
   const lines = (id) => {  // distinct line tops of the element's text
@@ -769,12 +783,14 @@ BAR = """() => {
     return new Set(Array.from(range.getClientRects(), (r) => Math.round(r.top))).size;
   };
   const title = document.getElementById("prumi-title");
+  const badge = document.getElementById("prumi-badge");
   return {
     title: box("prumi-title"), badge: box("prumi-badge"), freshness: box("prumi-freshness"),
     titleLines: lines("prumi-title"), badgeLines: lines("prumi-badge"),
     ellipsis: getComputedStyle(title).textOverflow === "ellipsis" &&
               title.scrollWidth > title.clientWidth,
     titleAttribute: title.getAttribute("title"),
+    badgeCut: badge.scrollWidth > badge.clientWidth,
     scroll: [document.documentElement.scrollWidth, document.documentElement.clientWidth],
   };
 }"""
@@ -802,5 +818,27 @@ def test_the_viewer_bar_on_a_phone(browser, server, long_title, width):
             assert not bar["ellipsis"]
             assert bar["freshness"]["left"] > bar["badge"]["right"]
             assert abs(bar["freshness"]["top"] - bar["badge"]["top"]) < 8
+    finally:
+        context.close()
+
+
+# A badge that fits beside the title used to squeeze it to "…"; one wider than the
+# screen used to run past its edge.
+@pytest.mark.parametrize("name", ["ana.costa@acme.io", "maria.silva@company.com"])
+def test_a_long_badge_moves_below_the_title_on_a_phone(browser, server, certified_by, name):
+    context = browser.new_context(locale="en-US", viewport={"width": 390, "height": 844})
+    try:
+        page = context.new_page()
+        page.set_default_timeout(TIMEOUT)
+        open_dashboard(page, server, certified_by[name])
+        page.wait_for_function("() => document.getElementById('prumi-freshness').textContent")
+        bar = page.evaluate(BAR)
+        # The title keeps real room instead of shrinking to an ellipsis.
+        assert bar["titleLines"] == 1 and bar["title"]["width"] >= 150
+        # The badge gets its own row and shows in full, wrapping if it must.
+        assert bar["badge"]["top"] >= bar["title"]["bottom"]
+        assert not bar["badgeCut"] and bar["badge"]["right"] <= 390
+        assert bar["freshness"]["top"] >= bar["badge"]["bottom"]
+        assert bar["scroll"][0] <= bar["scroll"][1]
     finally:
         context.close()
