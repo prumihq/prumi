@@ -51,6 +51,8 @@
 
   ```python
   def source_version(init: Path) -> str: ...  # the `__version__ = "..."` value in that file
+
+
   VERSION = source_version(PACKAGES / "prumi-core" / "src" / "prumi" / "__init__.py")
   NEXT_RANGE = f"~={VERSION}"
   ```
@@ -68,6 +70,7 @@
           assert project["project"]["dynamic"] == ["version"], folder
           assert project["tool"]["hatch"]["version"]["path"].endswith("/__init__.py"), folder
 
+
   def test_all_three_packages_have_one_version():
       adapter_init = PACKAGES / "prumi-adapter-dbt" / "src" / "prumi_adapter_dbt" / "__init__.py"
       assert source_version(adapter_init) == VERSION
@@ -76,6 +79,7 @@
       runtime = json.loads((PACKAGES / "prumi-runtime" / "package.json").read_text())
       assert runtime["version"] == VERSION
 
+
   def test_the_packages_require_each_other_within_the_released_minor():
       with (PACKAGES / "prumi-adapter-dbt" / "pyproject.toml").open("rb") as f:
           assert f"prumi{NEXT_RANGE}" in tomllib.load(f)["project"]["dependencies"]
@@ -83,9 +87,12 @@
           extras = tomllib.load(f)["project"]["optional-dependencies"]
       assert extras["dbt"] == [f"prumi-adapter-dbt[duckdb]{NEXT_RANGE}"]
 
+
   def test_uv_watches_the_init_file_so_a_bump_reaches_the_dev_environment():
-      for folder, init in (("prumi-core", "src/prumi/__init__.py"),
-                           ("prumi-adapter-dbt", "src/prumi_adapter_dbt/__init__.py")):
+      for folder, init in (
+          ("prumi-core", "src/prumi/__init__.py"),
+          ("prumi-adapter-dbt", "src/prumi_adapter_dbt/__init__.py"),
+      ):
           with (PACKAGES / folder / "pyproject.toml").open("rb") as f:
               keys = tomllib.load(f)["tool"]["uv"]["cache-keys"]
           assert {"file": "pyproject.toml"} in keys and {"file": init} in keys, folder
@@ -163,8 +170,10 @@
   def test_the_tag_check_accepts_a_patch_version(release_tree):
       set_versions(release_tree, "0.2.1")
       (release_tree / "CHANGELOG.md").write_text(
-          "# Changelog\n\n## [0.2.1](https://github.com/prumihq/prumi/compare/v0.2.0...v0.2.1) (2026-12-01)\n")
+          "# Changelog\n\n## [0.2.1](https://github.com/prumihq/prumi/compare/v0.2.0...v0.2.1) (2026-12-01)\n"
+      )
       assert check_release(release_tree, "v0.2.1")[0] == 0
+
 
   def test_the_tag_check_refuses_version_one_or_above(release_tree):
       set_versions(release_tree, "1.0.0")
@@ -172,14 +181,20 @@
       code, out = check_release(release_tree, "v1.0.0")
       assert code == 1 and "1.0 or above; Prumi releases stay 0.x" in out
 
+
   def test_the_tag_check_refuses_a_runtime_with_another_version(release_tree):
       set_versions(release_tree, VERSION, runtime="0.1.99")
       code, out = check_release(release_tree, f"v{VERSION}")
-      assert code == 1 and "prumi-runtime is version 0.1.99 in packages/prumi-runtime/package.json" in out
+      assert (
+          code == 1
+          and "prumi-runtime is version 0.1.99 in packages/prumi-runtime/package.json" in out
+      )
+
 
   def test_the_repositorys_changelog_has_a_heading_for_the_current_version():
-      result = subprocess.run([sys.executable, str(REPO / "scripts" / "check_release.py")],
-                              capture_output=True, text=True)
+      result = subprocess.run(
+          [sys.executable, str(REPO / "scripts" / "check_release.py")], capture_output=True, text=True
+      )
       assert result.returncode == 0, result.stderr
   ```
 
@@ -227,6 +242,7 @@
   ```python
   CONFIG = REPO / "release-please-config.json"
 
+
   def test_release_please_versions_the_whole_repo_as_one_package():
       config = json.loads(CONFIG.read_text())
       assert list(config["packages"]) == ["."]
@@ -236,31 +252,42 @@
       assert config["draft"] is True and config["force-tag-creation"] is True
       assert json.loads((REPO / ".release-please-manifest.json").read_text()) == {".": VERSION}
 
+
   def test_the_changelog_shows_features_fixes_performance_and_reverts_only():
       sections = json.loads(CONFIG.read_text())["changelog-sections"]
       shown = {s["type"]: s["section"] for s in sections if not s.get("hidden")}
-      assert shown == {"feat": "Features", "fix": "Bug Fixes",
-                       "perf": "Performance", "revert": "Reverts"}
+      assert shown == {
+          "feat": "Features",
+          "fix": "Bug Fixes",
+          "perf": "Performance",
+          "revert": "Reverts",
+      }
       hidden = {s["type"] for s in sections if s.get("hidden")}
       assert hidden == {"docs", "refactor", "test", "build", "ci", "chore", "style"}
+
 
   def test_every_file_release_please_bumps_has_its_marker_on_the_current_version():
       extra = json.loads(CONFIG.read_text())["packages"]["."]["extra-files"]
       paths = sorted(e if isinstance(e, str) else e["path"] for e in extra)
-      assert paths == sorted([
-          "packages/prumi-core/src/prumi/__init__.py",
-          "packages/prumi-adapter-dbt/src/prumi_adapter_dbt/__init__.py",
-          "packages/prumi-core/pyproject.toml",
-          "packages/prumi-adapter-dbt/pyproject.toml",
-          "packages/prumi-runtime/package.json",
-      ])
+      assert paths == sorted(
+          [
+              "packages/prumi-core/src/prumi/__init__.py",
+              "packages/prumi-adapter-dbt/src/prumi_adapter_dbt/__init__.py",
+              "packages/prumi-core/pyproject.toml",
+              "packages/prumi-adapter-dbt/pyproject.toml",
+              "packages/prumi-runtime/package.json",
+          ]
+      )
       for entry in extra:
           path = entry if isinstance(entry, str) else entry["path"]
           if path.endswith(".json"):
               assert entry == {"type": "json", "path": path, "jsonpath": "$.version"}
               continue
-          marked = [l for l in (REPO / path).read_text().splitlines() if "x-release-please-version" in l]
+          marked = [
+              l for l in (REPO / path).read_text().splitlines() if "x-release-please-version" in l
+          ]
           assert len(marked) == 1 and VERSION in marked[0], path
+
 
   def test_the_release_pr_runs_as_the_release_app_on_pushes_to_main():
       workflow = yaml.safe_load((REPO / ".github/workflows/release-please.yml").read_text())
@@ -273,6 +300,7 @@
       assert token["with"]["private-key"] == "${{ secrets.RELEASE_APP_PRIVATE_KEY }}"
       assert release["uses"].startswith("googleapis/release-please-action@v")
       assert release["with"]["token"] == f"${{{{ steps.{token['id']}.outputs.token }}}}"
+
 
   def test_the_release_pr_job_skips_until_the_app_is_configured():
       workflow = yaml.safe_load((REPO / ".github/workflows/release-please.yml").read_text())
@@ -433,8 +461,20 @@
       [step] = workflow["jobs"]["pr-title"]["steps"]
       assert step["uses"].startswith("amannn/action-semantic-pull-request@v")
       assert step["with"]["types"].split() == [
-          "feat", "fix", "perf", "revert", "docs", "refactor", "test", "build", "ci", "chore", "style"]
+          "feat",
+          "fix",
+          "perf",
+          "revert",
+          "docs",
+          "refactor",
+          "test",
+          "build",
+          "ci",
+          "chore",
+          "style",
+      ]
       assert step["with"].get("requireScope", False) is False
+
 
   def test_the_pr_template_explains_the_title_format():
       text = (REPO / ".github" / "pull_request_template.md").read_text()
