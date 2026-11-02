@@ -11,7 +11,7 @@ GitHub starts no workflows for events made with the workflow's own `GITHUB_TOKEN
 ## Decision
 
 - **Releases come from a release PR kept open by release-please.** Pull requests are squash-merged with their title as the commit message, and titles follow Conventional Commits, checked on every pull request. release-please reads those commits, bumps every version, writes the changelog entry from the titles, and merging its pull request creates the tag `v<version>`.
-- **release-please acts with a GitHub App's token** (`prumi-release`, Contents and Pull requests only, installed on this repository only), so CI runs on the release PR and the tag starts `release.yml`.
+- **release-please acts with a GitHub App's token** (`prumi-release`, Contents, Pull requests and Issues only, installed on this repository only), so CI runs on the release PR and the tag starts `release.yml`.
 - **The GitHub Release is created as a draft and published by `release.yml` after both uploads,** so the Releases page never shows a version PyPI doesn't have, and the release becomes immutable only once it's complete.
 - **Each package's version is dynamic, read from its `__init__.py`** (hatchling), so a bump doesn't change `uv.lock` and the release PR needs no relock.
 

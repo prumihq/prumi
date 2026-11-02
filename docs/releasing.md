@@ -39,7 +39,7 @@ release-please acts with a GitHub App's token, not the workflow's own `GITHUB_TO
    - GitHub App name: `prumi-release`.
    - Homepage URL: `https://github.com/prumihq/prumi`.
    - Webhook: clear **Active**. The App never receives events; the workflow only borrows its token.
-   - Repository permissions: **Contents** Read and write (to create the tag and the release) and **Pull requests** Read and write (to open and update the release PR). Leave everything else at No access; Metadata read-only is added on its own.
+   - Repository permissions: **Contents** Read and write (to create the tag and the release), **Pull requests** Read and write (to open and update the release PR) and **Issues** Read and write (release-please marks the release PR with its `autorelease: pending` and `autorelease: tagged` labels, and GitHub handles labels through the Issues API). These are the permissions release-please-action documents. Leave everything else at No access; Metadata read-only is added on its own.
    - Where can this GitHub App be installed: Only on this account.
    - Create GitHub App.
 2. **Note its two IDs.** The App's settings page (General) shows the **App ID**, a number, which the tag ruleset needs later, and the **Client ID**, which starts with `Iv`. You can also read the App ID with `gh api apps/prumi-release --jq .id`.
@@ -181,11 +181,13 @@ The release PR changes the next time release-please runs, which is on the next p
 
 ## 4. When something fails
 
-**Before you approve the deployments:** reject them (Review deployments → Reject). Nothing is uploaded, and the release stays a draft that nobody else sees. Find the cause in the run's log, fix it on `main` through a pull request, and continue as below.
+**Before you approve the deployments:** if they are waiting for you, reject them (Review deployments → Reject). Nothing is uploaded, and the release stays a draft that nobody else sees. Find the cause in the run's log. If it was a passing hiccup (a network error, a flaky test), rerun the failed jobs on the same run (Re-run failed jobs); nothing needs cleaning up. Otherwise, clean up and retry as below: the first release and later ones differ only in the tag ruleset.
 
 **An upload that stopped halfway** (one package is on PyPI and the other isn't, or a package has only one of its two files there): rerun the failed jobs (the run's page → Re-run failed jobs) and approve their deployments again. Each skips the files already on PyPI and uploads the rest. Then `publish-release` publishes the draft.
 
-**The first release, before the tag ruleset and immutable releases are on:** nothing published can't be cleaned up yet.
+**The first release, before the tag ruleset and immutable releases are on:** nothing published can't be cleaned up yet. Follow the steps below.
+
+**A later release that stopped before the uploads** (the checks or the build failed, or you rejected the deployments): it can still be cleaned up too. Immutability starts only when a release is published, and this one is still a draft. The tag ruleset blocks deleting and creating `v*` tags, but you bypass it as a repository admin, so the commands below work for you, not for other contributors. Recommended: follow the steps below and release the same version, so the changelog never lists a version that isn't on PyPI. Leaving the draft and the tag, and letting the next release supersede them, also works, but leaves a draft, a tag and a changelog entry for a version nobody can install.
 
 1. Copy the draft release's notes somewhere (Releases → the draft → Edit), then delete the draft and its tag:
 
