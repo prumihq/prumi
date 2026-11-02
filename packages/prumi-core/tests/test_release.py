@@ -435,6 +435,16 @@ def test_a_manual_run_of_the_release_skips_both_uploads(release_workflow):
         assert release_workflow["jobs"][name]["if"] == "github.event_name == 'push'", name
 
 
+def test_the_release_is_published_only_after_both_uploads(release_workflow):
+    job = release_workflow["jobs"]["publish-release"]
+    assert set(job["needs"]) == set(upload_jobs(release_workflow).values())
+    assert job["if"] == "github.event_name == 'push'"
+    assert job["permissions"] == {"contents": "write"}
+    [run] = [s["run"] for s in job["steps"] if "run" in s]
+    assert run.split()[:3] == ["gh", "release", "edit"] and "--draft=false" in run
+    assert release_workflow["permissions"] == {"contents": "read"}
+
+
 def test_the_release_uploads_only_after_the_tag_check_the_checks_and_the_install_check(
     release_workflow,
 ):

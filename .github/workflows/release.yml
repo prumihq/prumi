@@ -1,7 +1,9 @@
 name: Release
 
-# A pushed tag v<version> checks, builds and uploads both packages to PyPI. A manual run
-# does everything except the upload. The maintainer's checklist is docs/releasing.md.
+# The tag v<version> comes from the merged release PR (release-please), which also leaves a
+# draft GitHub Release. Pushing the tag checks, builds and uploads both packages to PyPI, then
+# publishes the draft. A manual run does everything except the upload and the publishing.
+# The maintainer's manual is docs/releasing.md.
 on:
   push:
     tags: ["v*"]
@@ -86,3 +88,17 @@ jobs:
           path: dist
       - uses: astral-sh/setup-uv@v10.3.0
       - run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/ dist/prumi_adapter_dbt-*
+
+  # The release stays a draft until PyPI has both packages, so nobody sees a release whose
+  # files are missing. Publishing it is also what makes it immutable.
+  publish-release:
+    needs: [upload-prumi, upload-prumi-adapter-dbt]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
