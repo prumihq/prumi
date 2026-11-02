@@ -1,8 +1,10 @@
-"""Before a release builds anything: the tag is v<version> of both packages, and CHANGELOG.md
-has a dated heading for that version.
+"""Before a release builds anything: the tag is v<version> of all three packages, the version
+is 0.x, and CHANGELOG.md has a release-please heading for it.
+
+The versions live in the two `__init__.py` files and in the runtime's package.json.
 
     python scripts/check_release.py v0.1.0   # a pushed tag
-    python scripts/check_release.py          # a manual run: the version both packages have
+    python scripts/check_release.py          # a manual run: the version prumi has
 
 Exits 1 and says what to fix when something doesn't match.
 """
@@ -10,21 +12,32 @@ Exits 1 and says what to fix when something doesn't match.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
 import sys
-import tomllib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-# Package name → its folder. Both are released together, always with the same version.
-PACKAGES = {"prumi": "packages/prumi-core", "prumi-adapter-dbt": "packages/prumi-adapter-dbt"}
+# Package name → the file that holds its version. All three are released together.
+PACKAGES = {
+    "prumi": "packages/prumi-core/src/prumi/__init__.py",
+    "prumi-adapter-dbt": "packages/prumi-adapter-dbt/src/prumi_adapter_dbt/__init__.py",
+    "prumi-runtime": "packages/prumi-runtime/package.json",
+}
+
+
+def _read_version(file: str) -> str:
+    text = (REPO / file).read_text(encoding="utf-8")
+    if file.endswith(".json"):
+        return json.loads(text)["version"]
+    found = re.search(r'^__version__ = "([^"]+)"', text, re.M)
+    if found is None:
+        raise SystemExit(f"check_release: no __version__ in {file}.")
+    return found.group(1)
 
 
 def problems(tag: str | None) -> list[str]:
-    versions = {}
-    for name, folder in PACKAGES.items():
-        with (REPO / folder / "pyproject.toml").open("rb") as f:
-            versions[name] = tomllib.load(f)["project"]["version"]
+    versions = {name: _read_version(file) for name, file in PACKAGES.items()}
     if tag is None:
         version = versions["prumi"]
     elif tag.startswith("v"):
@@ -32,15 +45,21 @@ def problems(tag: str | None) -> list[str]:
     else:
         return [f"The tag {tag} isn't v<version>, e.g. v{versions['prumi']}."]
     found = [
-        f"{name} is version {have} in {PACKAGES[name]}/pyproject.toml, not {version}."
+        f"{name} is version {have} in {PACKAGES[name]}, not {version}."
         for name, have in versions.items()
         if have != version
     ]
-    heading = re.compile(rf"^## {re.escape(version)} — (\S+)\s*$", re.M)
+    # Releases stay 0.x until the maintainer decides otherwise.
+    if version.split(".")[0] != "0":
+        found.append(f"Version {version} is 1.0 or above; Prumi releases stay 0.x.")
+    heading = re.compile(
+        rf"^## \[{re.escape(version)}\]\(\S+\) \((\d{{4}}-\d{{2}}-\d{{2}})\)\s*$", re.M
+    )
     match = heading.search((REPO / "CHANGELOG.md").read_text(encoding="utf-8"))
     if match is None or not _is_date(match.group(1)):
         found.append(
-            f"CHANGELOG.md has no dated heading for {version}: write `## {version} — YYYY-MM-DD`."
+            f"CHANGELOG.md has no heading for {version}: "
+            f"release-please writes `## [{version}](link) (YYYY-MM-DD)`."
         )
     return found
 
@@ -61,7 +80,7 @@ def main(argv: list[str]) -> int:
     for problem in found:
         print(f"check_release: {problem}", file=sys.stderr)
     if not found:
-        print("check_release: the tag, both versions and CHANGELOG.md match.")
+        print("check_release: the tag, all three versions and CHANGELOG.md match.")
     return 1 if found else 0
 
 

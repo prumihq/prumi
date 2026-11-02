@@ -37,9 +37,12 @@ The two diagrams in the README are drawn by a script, each in a light and a dark
 uv run python scripts/make_readme_images.py --preview /tmp/readme-images
 ```
 
-## Releases
+## How releases work
 
-Releases go to PyPI from GitHub Actions on a version tag; [docs/releasing.md](docs/releasing.md) is the maintainer's checklist.
+- Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat: add the X tool`), and a check enforces it. The pull request template lists the types.
+- A `feat` title gives a minor release, a `fix` title a patch.
+- The title becomes the pull request's line in the changelog, so write it for the people who use Prumi.
+- A maintainer releases by merging the release PR; [docs/releasing.md](docs/releasing.md) is the maintainer's manual.
 
 ## Repository layout
 
@@ -52,6 +55,8 @@ Releases go to PyPI from GitHub Actions on a version tag; [docs/releasing.md](do
 | `docs/superpowers/` | Designs and implementation plans |
 | `docs/` | The BI rules and issue codes, configuration, releasing, and architecture decision records (`docs/adr/`) |
 | `scripts/` | The install check, the release's tag check and the README's diagrams |
+| `release-please-config.json`, `.release-please-manifest.json` | What the release PR bumps, and the current version |
+| `.github/` | The workflows (CI, the PR title check, the release PR and the release) and the pull request template |
 | `spikes/` | Throwaway experiments |
 
 ## Security

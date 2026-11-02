@@ -1,0 +1,37 @@
+name: Release PR
+
+# Keeps one release PR open that bumps every version and the CHANGELOG. Merging it tags
+# v<version> and drafts the GitHub Release; the tag starts release.yml.
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-pr:
+    # Until the release App is set up there is no token to act with, so the job skips.
+    if: vars.RELEASE_APP_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      # The App's token, not GITHUB_TOKEN: events made with GITHUB_TOKEN start no workflows,
+      # so CI wouldn't run on the release PR and the tag wouldn't start release.yml.
+      - uses: actions/create-github-app-token@v3.3.0
+        id: app-token
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Only what release-please uses: contents for the tag and the release, pull
+          # requests for the release PR, issues for its autorelease labels.
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+      - uses: googleapis/release-please-action@v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

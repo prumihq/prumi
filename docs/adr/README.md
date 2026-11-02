@@ -18,3 +18,4 @@ Short records of technical decisions: context, decision, consequences. Numbered,
 | [0012](0012-dashboard-spec-format.md) | The dashboard spec is Prumi's own format: what a dashboard shows, never what a metric means | Accepted |
 | [0013](0013-registry-sqlite.md) | The registry is SQLite, in WAL mode, with plain-SQL migrations | Accepted |
 | [0014](0014-package-names-on-pypi.md) | Package names on PyPI: the server is `prumi`, adapters stay separate, `prumi[dbt]` installs both | Accepted |
+| [0015](0015-releases-from-release-please.md) | Releases come from a release-please release PR, driven by Conventional Commit PR titles | Proposed |

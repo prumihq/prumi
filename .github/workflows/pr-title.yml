@@ -1,0 +1,33 @@
+name: PR title
+
+# The title of a pull request becomes its line in the changelog, so it has to follow
+# Conventional Commits. The action only reads the title, which is why this is safe to run
+# on pull_request (not pull_request_target) with read access.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            revert
+            docs
+            refactor
+            test
+            build
+            ci
+            chore
+            style
+          requireScope: false
