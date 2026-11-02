@@ -89,6 +89,9 @@ prumi serve --config prumi.toml
 
 **Review and certify.** A new dashboard is a draft. `prumi list` shows every dashboard and its status, `prumi certify <id> <version>` certifies a version after review, and `prumi uncertify <id>` withdraws it. `prumi requests` lists the metrics agents asked for that don't exist yet, `prumi validate` checks a spec file and its HTML, and `prumi delete` removes a dashboard. Each command takes `--config prumi.toml`.
 
+**Check your version.** `prumi --version` prints the installed version (for example,
+`prumi 0.1.0`) and exits successfully. It needs no project, configuration file or running server.
+
 ## Connect your agent
 
 Prumi's MCP endpoint is `http://127.0.0.1:8484/mcp` (Streamable HTTP). With Claude Code:

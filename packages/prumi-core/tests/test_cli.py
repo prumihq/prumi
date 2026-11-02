@@ -8,6 +8,7 @@ import sys
 
 import pytest
 import yaml
+from prumi import __version__
 from prumi.cli import main
 from prumi.services import Services
 
@@ -30,6 +31,42 @@ def prumi(capsys, *args) -> tuple[int, str]:
     code = main([*args])
     out = capsys.readouterr()
     return code, out.out + out.err
+
+
+def test_version_prints_the_package_version_without_loading_config(capsys, tmp_path, monkeypatch):
+    from prumi import cli
+
+    def unexpected_config(*args, **kwargs):
+        pytest.fail("--version must not load project configuration")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "load_config", unexpected_config)
+    with pytest.raises(SystemExit) as exc:
+        main(["--version"])
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert captured.out == f"prumi {__version__}\n"
+    assert captured.err == ""
+
+
+def test_version_works_as_a_cli_process_without_a_project(tmp_path):
+    result = subprocess.run(
+        [sys.executable, "-m", "prumi.cli", "--version"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert result.stdout == f"prumi {__version__}\n"
+    assert result.stderr == ""
+
+
+def test_help_lists_the_version_flag(capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["--help"])
+    assert exc.value.code == 0
+    assert "--version" in capsys.readouterr().out
 
 
 def test_validate_a_spec_file(capsys, config, tmp_path, demo_dashboard):
