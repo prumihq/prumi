@@ -123,7 +123,7 @@ Anything about how the repo works today may change: the commit style, the change
 ### Protection and GitHub settings
 
 **The release App.** A GitHub App owned by the `prumihq` organization, installed on `prumi` only.
-- Permissions: Contents read/write and Pull requests read/write, nothing else.
+- Permissions: Contents read/write, Pull requests read/write and Issues read/write, nothing else. Issues is needed because release-please manages its `autorelease:` labels through the Issues API (added during implementation, approved by the maintainer).
 - Its client ID is stored as a repository variable and its private key as a repository secret. Names are the builder's call; document them.
 - Tokens come from `actions/create-github-app-token`, pinned to an exact version.
 
