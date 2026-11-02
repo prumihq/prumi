@@ -136,9 +136,11 @@ Known limitations of 0.1:
 - One display locale per server: every viewer sees numbers formatted the same way, whatever their browser's language.
 - Tested with Claude Code only. Clients that connect from their vendor's cloud can't reach a server on your machine.
 
-Planned, in this order:
-- **Installable:** `docker compose`, with a trial mode on the demo that needs no clone, login and sharing with a team, dbt on Snowflake, BigQuery, Databricks and Postgres, and fiscal calendars.
+Where it's going, in this order:
+- **Team use:** dbt on Postgres, login and sharing with a team, `docker compose` with a trial mode on the demo that needs no clone, dbt on Snowflake, BigQuery and Databricks, and fiscal calendars.
 - **Power BI:** an adapter for Power BI semantic models.
+
+The [milestones](https://github.com/prumihq/prumi/milestones) hold what's scheduled for each release, issue by issue.
 
 Releases stay 0.x until the dashboard spec, the adapter protocol and the MCP tools are stable.
 
