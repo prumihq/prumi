@@ -1,6 +1,6 @@
 # 0015. Releases come from a release-please release PR
 
-Status: Proposed · 2026-11-01
+Status: Accepted · 2026-11-02
 
 ## Context
 
