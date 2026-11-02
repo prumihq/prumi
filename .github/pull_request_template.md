@@ -19,3 +19,4 @@ Closes #
 
 - [ ] The tests pass (`uv run pytest`).
 - [ ] The docs that `AGENTS.md` lists are updated, or none were affected.
+- [ ] If AI tools helped, the description says which.
