@@ -236,16 +236,49 @@ def test_ci_runs_the_install_check_in_a_job_of_its_own():
 WORKFLOW = REPO / ".github" / "workflows" / "release.yml"
 
 
+INITS = {
+    "prumi-core": "src/prumi/__init__.py",
+    "prumi-adapter-dbt": "src/prumi_adapter_dbt/__init__.py",
+}
+
+
 @pytest.fixture
 def release_tree(tmp_path):
-    """A copy of what the tag check reads: itself, both pyproject files and a CHANGELOG."""
+    """A copy of what the tag check reads: itself, the three version sources and a CHANGELOG."""
     (tmp_path / "scripts").mkdir()
     shutil.copy(REPO / "scripts" / "check_release.py", tmp_path / "scripts")
-    for folder in ("prumi-core", "prumi-adapter-dbt"):
-        (tmp_path / "packages" / folder).mkdir(parents=True)
-        shutil.copy(PACKAGES / folder / "pyproject.toml", tmp_path / "packages" / folder)
-    (tmp_path / "CHANGELOG.md").write_text(f"# Changelog\n\n## {VERSION} — 2026-10-20\n\n- New.\n")
+    for folder, init in INITS.items():
+        target = tmp_path / "packages" / folder / init
+        target.parent.mkdir(parents=True)
+        shutil.copy(PACKAGES / folder / init, target)
+    (tmp_path / "packages" / "prumi-runtime").mkdir(parents=True)
+    shutil.copy(
+        PACKAGES / "prumi-runtime" / "package.json", tmp_path / "packages" / "prumi-runtime"
+    )
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n"
+        f"## [{VERSION}](https://github.com/prumihq/prumi/compare/v0.0.9...v{VERSION})"
+        " (2026-10-20)\n"
+    )
     return tmp_path
+
+
+def set_versions(tree: Path, version: str, *, runtime: str | None = None) -> None:
+    """Rewrite the three version sources; `runtime` gives package.json another version."""
+    for folder, init in INITS.items():
+        path = tree / "packages" / folder / init
+        path.write_text(
+            re.sub(
+                r'^__version__ = "[^"]+"',
+                f'__version__ = "{version}"',
+                path.read_text(),
+                flags=re.M,
+            )
+        )
+    package = tree / "packages" / "prumi-runtime" / "package.json"
+    data = json.loads(package.read_text())
+    data["version"] = runtime or version
+    package.write_text(json.dumps(data))
 
 
 def check_release(tree: Path, *args: str) -> tuple[int, str]:
@@ -259,18 +292,22 @@ def test_the_tag_check_accepts_the_tag_of_both_versions(release_tree):
     assert check_release(release_tree)[0] == 0  # a manual run: no tag
 
 
-def test_the_tag_check_refuses_a_tag_that_doesnt_match_both_versions(release_tree):
+def test_the_tag_check_refuses_a_tag_that_doesnt_match_the_versions(release_tree):
     code, out = check_release(release_tree, "v0.1.99")
     assert code == 1
-    assert f"prumi is version {VERSION} in packages/prumi-core/pyproject.toml, not 0.1.99" in out
+    assert (
+        f"prumi is version {VERSION} in packages/prumi-core/src/prumi/__init__.py, not 0.1.99"
+        in out
+    )
     assert f"prumi-adapter-dbt is version {VERSION}" in out
+    assert f"prumi-runtime is version {VERSION} in packages/prumi-runtime/package.json" in out
     code, out = check_release(release_tree, VERSION)
     assert code == 1 and "isn't v<version>" in out
 
 
 def test_the_tag_check_refuses_packages_with_different_versions(release_tree):
-    adapter = release_tree / "packages" / "prumi-adapter-dbt" / "pyproject.toml"
-    adapter.write_text(adapter.read_text().replace(f'version = "{VERSION}"', 'version = "0.1.99"'))
+    adapter = release_tree / "packages" / "prumi-adapter-dbt" / INITS["prumi-adapter-dbt"]
+    adapter.write_text(adapter.read_text().replace(f'"{VERSION}"', '"0.1.99"'))
     for args in ([f"v{VERSION}"], []):
         code, out = check_release(release_tree, *args)
         assert code == 1 and "prumi-adapter-dbt is version 0.1.99" in out, args
@@ -279,18 +316,51 @@ def test_the_tag_check_refuses_packages_with_different_versions(release_tree):
 @pytest.mark.parametrize(
     "heading",
     [
-        f"## {VERSION} — unreleased",
-        f"## {VERSION}",
-        f"## {VERSION} — 2026-13-01",
-        "## 0.0.9 — 2026-10-01",
-        f"### {VERSION} — 2026-10-20",
+        f"## {VERSION} — 2026-10-20",
+        f"## [{VERSION}](x) (2026-13-01)",
+        "## [0.0.9](x) (2026-10-01)",
+        f"### [{VERSION}](x) (2026-10-20)",
+        f"## [{VERSION}](x)",
     ],
 )
-def test_the_tag_check_refuses_a_changelog_without_a_dated_heading(release_tree, heading):
+def test_the_tag_check_refuses_a_changelog_without_a_release_please_heading(release_tree, heading):
     (release_tree / "CHANGELOG.md").write_text(f"# Changelog\n\n{heading}\n\n- New.\n")
     code, out = check_release(release_tree, f"v{VERSION}")
     assert code == 1
-    assert f"CHANGELOG.md has no dated heading for {VERSION}" in out
+    assert f"CHANGELOG.md has no heading for {VERSION}" in out
+
+
+def test_the_tag_check_accepts_a_patch_version(release_tree):
+    set_versions(release_tree, "0.2.1")
+    (release_tree / "CHANGELOG.md").write_text(
+        "# Changelog\n\n"
+        "## [0.2.1](https://github.com/prumihq/prumi/compare/v0.2.0...v0.2.1) (2026-12-01)\n"
+    )
+    assert check_release(release_tree, "v0.2.1")[0] == 0
+
+
+def test_the_tag_check_refuses_version_one_or_above(release_tree):
+    set_versions(release_tree, "1.0.0")
+    (release_tree / "CHANGELOG.md").write_text("# Changelog\n\n## [1.0.0](x) (2026-12-01)\n")
+    code, out = check_release(release_tree, "v1.0.0")
+    assert code == 1 and "1.0 or above; Prumi releases stay 0.x" in out
+
+
+def test_the_tag_check_refuses_a_runtime_with_another_version(release_tree):
+    set_versions(release_tree, VERSION, runtime="0.1.99")
+    code, out = check_release(release_tree, f"v{VERSION}")
+    assert (
+        code == 1
+        and "prumi-runtime is version 0.1.99 in packages/prumi-runtime/package.json" in out
+    )
+
+
+@pytest.mark.xfail(strict=True, reason="CHANGELOG.md is rewritten in release-please's format")
+def test_the_repositorys_changelog_has_a_heading_for_the_current_version():
+    result = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "check_release.py")], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.fixture(scope="module")
