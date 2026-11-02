@@ -1,0 +1,16 @@
+# Keeps the actions the workflows pin current. Each pin is a commit SHA with its version in a
+# comment; Dependabot updates both. All bumps of a week come as one pull request.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      # PR titles come out as `ci(deps): bump …`: they pass the title check, and release-please
+      # leaves `ci` out of the changelog, so an update never makes a release on its own.
+      prefix: ci
+      include: scope
