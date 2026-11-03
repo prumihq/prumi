@@ -234,6 +234,15 @@ def test_ci_runs_the_install_check_in_a_job_of_its_own():
     assert not [c for c in runs["install-check"] if "pytest" in c]
 
 
+@pytest.mark.parametrize(("workflow", "job"), [("ci.yml", "python"), ("release.yml", "checks")])
+def test_the_full_suite_runs_on_postgres_in_ci_and_before_a_release(workflow, job):
+    jobs = yaml.safe_load((REPO / ".github" / "workflows" / workflow).read_text())["jobs"]
+    assert jobs[job]["services"]["postgres"]["image"] == "postgres:18"
+    step = next(s for s in jobs[job]["steps"] if s.get("run") == "uv run pytest")
+    assert step["env"]["PRUMI_REQUIRE_POSTGRES"] == "1"
+    assert step["env"]["PRUMI_TEST_POSTGRES_HOST"] == "localhost"
+
+
 # The release workflow (.github/workflows/release.yml) and its tag check
 
 WORKFLOW = REPO / ".github" / "workflows" / "release.yml"
@@ -430,6 +439,8 @@ def test_each_upload_job_uploads_only_its_packages_files(release_workflow, envir
 def test_no_step_of_the_release_reads_a_token_secret():
     text = WORKFLOW.read_text()
     assert "secrets." not in text and "secrets[" not in text
+    # The throwaway Postgres service of the checks job needs a password; it guards nothing.
+    text = text.replace("POSTGRES_PASSWORD: postgres", "")
     assert not re.search(r"(?i)password|api.?token|PUBLISH_TOKEN|TWINE_", text)
 
 
