@@ -9,13 +9,11 @@ results must be identical.
 from __future__ import annotations
 
 import datetime as dt
-import importlib.util
-import sys
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 from prumi.adapters import LOCAL_VIEWER, DateRange, Filter, OrderBy, SemanticQuery
+from prumi.time import GRAINS
 from prumi_adapter_dbt.adapter import DbtAdapter
 
 WINDOW = DateRange(dt.date(2025, 7, 1), dt.date(2026, 9, 30))
@@ -23,32 +21,29 @@ FAR_FROM_UTC = "Pacific/Kiritimati"  # UTC+14
 REGION = "customer__region"
 
 
-def _duckdb_adapter() -> DbtAdapter:
-    """The DuckDB demo's adapter, built on demand: the queries are generated from its catalog
-    when this module is collected, before any fixture runs."""
-    root_conftest = Path(__file__).resolve().parents[3] / "conftest.py"
-    spec = importlib.util.spec_from_file_location("_prumi_root_conftest", root_conftest)
-    assert spec and spec.loader
-    root = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = root  # dataclasses look their module up here
-    spec.loader.exec_module(root)
-    if root.demo_is_stale():
-        root.build_demo()
-    config = {
-        "semantic_manifest": str(root.DEMO_OUTPUTS[1]),
-        "connection": {"type": "duckdb", "path": str(root.DEMO_OUTPUTS[0])},
-    }
-    return DbtAdapter.from_config(config, root.DEMO_DIR)
+# Listed here so collecting the tests builds nothing; a test checks the list against the catalog.
+METRICS = (
+    "average_order_value",
+    "cost",
+    "customers",
+    "discount_rate",
+    "discounts",
+    "gross_margin",
+    "gross_margin_pct",
+    "gross_sales",
+    "orders",
+    "revenue",
+    "units_on_hand",
+    "units_sold",
+)
 
 
-def _queries(adapter: DbtAdapter) -> list[SemanticQuery]:
+def _queries() -> list[SemanticQuery]:
     queries: list[SemanticQuery] = []
-    grains = adapter.capabilities().time_grains
-    for metric in adapter.discover().metrics:
-        queries.append(SemanticQuery(metrics=(metric.name,), window=WINDOW))
+    for metric in METRICS:
+        queries.append(SemanticQuery(metrics=(metric,), window=WINDOW))
         queries += [
-            SemanticQuery(metrics=(metric.name,), time_grain=grain, window=WINDOW)
-            for grain in grains
+            SemanticQuery(metrics=(metric,), time_grain=grain, window=WINDOW) for grain in GRAINS
         ]
     queries += [
         SemanticQuery(metrics=("revenue",), dimensions=(REGION,)),
@@ -86,7 +81,7 @@ def query_id(query: SemanticQuery) -> str:
     return "-".join(parts)
 
 
-QUERIES = _queries(_duckdb_adapter())
+QUERIES = _queries()
 
 
 def normalized(result) -> tuple[tuple[str, ...], list[tuple[tuple[str, object], ...]]]:
@@ -94,17 +89,26 @@ def normalized(result) -> tuple[tuple[str, ...], list[tuple[tuple[str, object], 
     against a `float` for the same number counts as a difference."""
 
     def cell(value: object) -> tuple[str, object]:
+        name = type(value).__name__
         if isinstance(value, float | Decimal):
             value = round(float(value), 6)
-        return type(value).__name__, value
+        return name, value
 
     rows = [tuple(cell(v) for v in row) for row in result.rows]
     return tuple(c.name for c in result.columns), sorted(rows, key=repr)
 
 
 @pytest.fixture(scope="module")
-def duck() -> DbtAdapter:
-    return _duckdb_adapter()
+def duck(demo_project) -> DbtAdapter:
+    config = {
+        "semantic_manifest": str(demo_project.manifest_path),
+        "connection": {"type": "duckdb", "path": str(demo_project.db_path)},
+    }
+    return DbtAdapter.from_config(config, demo_project.root)
+
+
+def test_the_metric_list_is_the_demo_catalog(duck):
+    assert set(METRICS) == {m.name for m in duck.discover().metrics}
 
 
 @pytest.fixture(scope="module")
@@ -130,6 +134,7 @@ def postgres_far_from_utc(postgres_demo) -> DbtAdapter:
 
 
 @pytest.mark.parametrize("query", QUERIES, ids=query_id)
+@pytest.mark.postgres
 def test_postgres_gives_duckdb_s_numbers(duck, postgres, postgres_far_from_utc, query):
     expected = normalized(duck.execute(query, LOCAL_VIEWER))
     for adapter in (postgres, postgres_far_from_utc):
