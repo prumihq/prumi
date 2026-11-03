@@ -1,6 +1,6 @@
 # 0016. Prumi's warehouse connection is its own, and its password stays out of `prumi.toml`
 
-Status: Proposed · 2026-11-02
+Status: Accepted · 2026-11-03
 
 ## Context
 
