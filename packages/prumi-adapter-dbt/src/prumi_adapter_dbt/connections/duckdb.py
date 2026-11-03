@@ -8,6 +8,8 @@ from typing import Any
 
 from prumi.adapters import AdapterStartupError, IdentityMode, Viewer
 
+from prumi_adapter_dbt.connections import refuse_unknown_keys
+
 try:
     import duckdb
 except ImportError as exc:  # the `duckdb` extra isn't installed
@@ -19,6 +21,7 @@ except ImportError as exc:  # the `duckdb` extra isn't installed
 class DuckDBConnection:
     # One file, one account: every viewer reads the same data.
     identity_mode: IdentityMode = "shared_account"
+    missing_hint = "For DuckDB the database name is the file name without its extension."
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -26,6 +29,7 @@ class DuckDBConnection:
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any], config_dir: Path) -> DuckDBConnection:
+        refuse_unknown_keys(config, {"type", "path"}, "duckdb")
         if not isinstance(config.get("path"), str):
             raise AdapterStartupError(
                 "[source.dbt.connection] needs `path`, the DuckDB file dbt built."

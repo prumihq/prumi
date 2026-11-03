@@ -81,8 +81,8 @@ class DbtAdapter:
             raise AdapterStartupError(
                 f"These tables from the semantic manifest don't exist on "
                 f"{connection.description}: {listed}. dbt writes the database, schema and table "
-                "names into the manifest when it parses the project; for DuckDB the database "
-                "name is the file name without its extension. Point the connection at the "
+                "names into the manifest when it parses the project. "
+                f"{connection.missing_hint} Point the connection at the "
                 "database dbt built, or run `dbt parse` against this one."
             )
         return cls(compiler, connection, connection_type)
