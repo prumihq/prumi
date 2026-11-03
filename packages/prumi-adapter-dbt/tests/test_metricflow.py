@@ -6,6 +6,7 @@ from prumi_adapter_dbt._metricflow import (
     CompileRequest,
     ManifestError,
     MetricFlowCompiler,
+    SqlEngine,
     UnsupportedDialectError,
 )
 
@@ -26,8 +27,12 @@ def test_the_client_refuses_to_run_sql(method):
 
 
 def test_an_unknown_connection_type_has_no_dialect():
-    with pytest.raises(UnsupportedDialectError, match="'oracle'.*duckdb"):
+    with pytest.raises(UnsupportedDialectError, match="'oracle'.*duckdb.*postgres"):
         CompileOnlySqlClient("oracle")
+
+
+def test_postgres_has_a_dialect():
+    assert CompileOnlySqlClient("postgres").sql_engine_type is SqlEngine.POSTGRES
 
 
 def test_a_missing_manifest_names_the_file(tmp_path):

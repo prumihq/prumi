@@ -2,7 +2,7 @@
 
 Prumi adapter for dbt semantic models. MetricFlow compiles a semantic query into SQL for the warehouse; Prumi executes that SQL over its own connection; the warehouse enforces access rules.
 
-Install it with Prumi: `uv tool install "prumi[dbt]"` installs both, with DuckDB; the dbt-style `pip install prumi "prumi-adapter-dbt[duckdb]"` gives the same packages. Import name: `prumi_adapter_dbt`.
+Install it with Prumi: `uv tool install "prumi[dbt]"` installs both, with the DuckDB and Postgres drivers; the dbt-style `pip install prumi "prumi-adapter-dbt[duckdb,postgres]"` gives the same packages. Each driver is an extra of its own (`[duckdb]`, `[postgres]`), so `pip install prumi-adapter-dbt[postgres]` brings only psycopg. Import name: `prumi_adapter_dbt`.
 
 ## Preparing your dbt project
 

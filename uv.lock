@@ -944,14 +944,14 @@ dependencies = [
 
 [package.optional-dependencies]
 dbt = [
-    { name = "prumi-adapter-dbt", extra = ["duckdb"] },
+    { name = "prumi-adapter-dbt", extra = ["duckdb", "postgres"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=2.3,<3" },
     { name = "playwright", specifier = ">=1.64,<2" },
-    { name = "prumi-adapter-dbt", extras = ["duckdb"], marker = "extra == 'dbt'", editable = "packages/prumi-adapter-dbt" },
+    { name = "prumi-adapter-dbt", extras = ["duckdb", "postgres"], marker = "extra == 'dbt'", editable = "packages/prumi-adapter-dbt" },
     { name = "pydantic", specifier = ">=2.14,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "starlette", specifier = ">=1.8,<2" },
@@ -971,14 +971,18 @@ dependencies = [
 duckdb = [
     { name = "duckdb" },
 ]
+postgres = [
+    { name = "psycopg", extra = ["binary"] },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "duckdb", marker = "extra == 'duckdb'" },
     { name = "metricflow", specifier = "==0.213.0" },
     { name = "prumi", editable = "packages/prumi-core" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'" },
 ]
-provides-extras = ["duckdb"]
+provides-extras = ["duckdb", "postgres"]
 
 [[package]]
 name = "prumi-workspace"
@@ -989,8 +993,7 @@ source = { virtual = "." }
 dev = [
     { name = "httpx2" },
     { name = "prumi" },
-    { name = "prumi-adapter-dbt", extra = ["duckdb"] },
-    { name = "psycopg", extra = ["binary"] },
+    { name = "prumi-adapter-dbt", extra = ["duckdb", "postgres"] },
     { name = "pytest" },
     { name = "ruff" },
     { name = "twine" },
@@ -1002,8 +1005,7 @@ dev = [
 dev = [
     { name = "httpx2" },
     { name = "prumi", editable = "packages/prumi-core" },
-    { name = "prumi-adapter-dbt", extras = ["duckdb"], editable = "packages/prumi-adapter-dbt" },
-    { name = "psycopg", extras = ["binary"] },
+    { name = "prumi-adapter-dbt", extras = ["duckdb", "postgres"], editable = "packages/prumi-adapter-dbt" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },
     { name = "twine", specifier = ">=6" },

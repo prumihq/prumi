@@ -18,6 +18,7 @@ from metricflow.engine.models import Dimension as MfDimension
 from metricflow.engine.models import Metric as MfMetric
 from metricflow.protocols.sql_client import SqlEngine
 from metricflow.sql.render.duckdb_renderer import DuckDbSqlPlanRenderer
+from metricflow.sql.render.postgres import PostgresSQLSqlPlanRenderer
 from metricflow.sql.render.sql_plan_renderer import SqlPlanRenderer
 from metricflow_semantic_interfaces.implementations.semantic_manifest import (
     PydanticSemanticManifest,
@@ -34,6 +35,7 @@ for _name in ("metricflow", "metricflow_semantics", "metricflow_semantic_interfa
 # Connection type -> MetricFlow's dialect for it.
 _DIALECTS: dict[str, tuple[SqlEngine, type[SqlPlanRenderer]]] = {
     "duckdb": (SqlEngine.DUCKDB, DuckDbSqlPlanRenderer),
+    "postgres": (SqlEngine.POSTGRES, PostgresSQLSqlPlanRenderer),
 }
 
 

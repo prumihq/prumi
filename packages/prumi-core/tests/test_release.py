@@ -60,7 +60,7 @@ def test_the_packages_require_each_other_within_the_released_minor():
         assert f"prumi{NEXT_RANGE}" in tomllib.load(f)["project"]["dependencies"]
     with (PACKAGES / "prumi-core" / "pyproject.toml").open("rb") as f:
         extras = tomllib.load(f)["project"]["optional-dependencies"]
-    assert extras["dbt"] == [f"prumi-adapter-dbt[duckdb]{NEXT_RANGE}"]
+    assert extras["dbt"] == [f"prumi-adapter-dbt[duckdb,postgres]{NEXT_RANGE}"]
 
 
 def test_uv_watches_the_init_file_so_a_bump_reaches_the_dev_environment():
@@ -126,7 +126,9 @@ def test_the_prumi_wheel_offers_the_dbt_adapter_as_an_extra(wheels):
         metadata = wheel.read(f"{CORE}.dist-info/METADATA").decode()
     assert "Name: prumi\n" in metadata
     assert "Provides-Extra: dbt" in metadata
-    assert f"Requires-Dist: prumi-adapter-dbt[duckdb]{NEXT_RANGE}; extra == 'dbt'" in metadata
+    assert (
+        f"Requires-Dist: prumi-adapter-dbt[duckdb,postgres]{NEXT_RANGE}; extra == 'dbt'" in metadata
+    )
 
 
 @pytest.mark.parametrize("wheel_name", [CORE, ADAPTER])
@@ -219,6 +221,7 @@ def test_the_adapter_wheel_registers_itself(wheels):
     assert "Requires-Dist: metricflow==0.213.0" in metadata
     assert f"Requires-Dist: prumi{NEXT_RANGE}" in metadata
     assert "Requires-Dist: duckdb; extra == 'duckdb'" in metadata
+    assert "Requires-Dist: psycopg[binary]; extra == 'postgres'" in metadata
 
 
 def test_ci_runs_the_install_check_in_a_job_of_its_own():

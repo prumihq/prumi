@@ -22,12 +22,10 @@ prumi-adapter-dbt = { workspace = true }
 [dependency-groups]
 dev = [
     "prumi",
-    "prumi-adapter-dbt[duckdb]",
+    "prumi-adapter-dbt[duckdb,postgres]",
     "httpx2",
     "pytest>=8",
     "ruff>=0.6",
-    # The Postgres test fixtures and the demo-on-Postgres test talk to the server directly.
-    "psycopg[binary]",
     # `twine check` in the install check: the package READMEs must render on PyPI.
     "twine>=6",
 ]
