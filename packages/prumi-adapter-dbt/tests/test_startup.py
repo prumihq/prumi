@@ -31,6 +31,18 @@ def test_relative_paths_resolve_against_the_config_folder(demo_project):
     assert DbtAdapter.from_config(config, demo_project.root).name == "dbt"
 
 
+def test_the_adapter_watches_its_resolved_manifest(demo_project):
+    manifest = demo_project.manifest_path
+    config = {
+        "semantic_manifest": f"{manifest.parent.name}/{manifest.name}",
+        "connection": {"type": "duckdb", "path": "demo.duckdb"},
+    }
+    adapter = DbtAdapter.from_config(config, manifest.parent.parent)
+    assert adapter.watched_files() == (
+        (manifest.parent.parent / config["semantic_manifest"]).resolve(),
+    )
+
+
 def test_unknown_connection_key_is_refused_without_its_value(config, tmp_path):
     config["connection"]["passwd"] = "SENTINEL-7f3a9c"
     message = start(config, tmp_path)

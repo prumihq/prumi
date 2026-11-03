@@ -98,3 +98,37 @@ password = "{SENTINEL}"
     assert "password" in err
     assert SENTINEL not in err
     assert SENTINEL not in all_text(caplog)
+
+
+def test_a_manifest_for_another_postgres_database_is_refused_on_reload(
+    tmp_path, postgres_demo, caplog
+):
+    from prumi.adapters import AdapterStartupError
+    from prumi.reload import watcher_for
+
+    caplog.set_level(logging.DEBUG)
+    manifest = tmp_path / "semantic_manifest.json"
+    manifest.write_text(postgres_demo.manifest_path.read_text())
+    path = write_postgres_demo_config(tmp_path, postgres_demo)
+    path.write_text(
+        path.read_text().replace(postgres_demo.manifest_path.as_posix(), manifest.as_posix())
+    )
+    services = SuiteServices(load_config(path))
+    watcher = watcher_for(services)
+    snapshot = services.current()
+
+    manifest.write_text(manifest.read_text().replace(postgres_demo.dbname, "other_db"))
+    stat = manifest.stat()
+    os.utime(manifest, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+    watcher.check()
+    watcher.check()
+
+    assert services.current() is snapshot
+    [warning] = [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "prumi.reload" and r.levelno == logging.WARNING
+    ]
+    with pytest.raises(AdapterStartupError) as startup:
+        SuiteServices(services.config).source  # noqa: B018 - the same file, loaded at startup
+    assert str(startup.value) in warning

@@ -400,14 +400,38 @@ def test_publish_revalidates_a_candidate(
             changed = tmp_path / "semantic_manifest.json"
             changed.write_text(json.dumps(manifest))
             later = Services(load_config(make_demo_config(tmp_path / "later", changed)))
-            demo_services.source = later.source
-            demo_services.__dict__.pop("engine", None)
+            demo_services.swap(later.source)
             return await client.call_tool("publish_dashboard", {"candidate_id": candidate})
 
     (tmp_path / "later").mkdir()
     result = asyncio.run(work())
     assert [i["code"] for i in issues(result)] == ["R7.unknown_metric"]
     assert demo_services.registry.dashboards() == []
+
+
+def test_find_metrics_sees_a_swapped_catalog(
+    tmp_path, demo_services, demo_project, make_demo_config
+):
+    from prumi.config import load_config
+    from prumi.mcp import create_mcp
+    from prumi.services import Services
+
+    manifest = json.loads(demo_project.manifest_path.read_text())
+    manifest["metrics"] = [m for m in manifest["metrics"] if m["name"] != "discount_rate"]
+    changed = tmp_path / "semantic_manifest.json"
+    changed.write_text(json.dumps(manifest))
+    (tmp_path / "later").mkdir()
+    later = Services(load_config(make_demo_config(tmp_path / "later", changed)))
+    mcp = create_mcp(demo_services)
+
+    async def names():
+        async with Client(mcp) as client:
+            result = await client.call_tool("find_metrics", {"question": "discount rate"})
+            return [m["name"] for m in result.structured_content["metrics"]]
+
+    assert "discount_rate" in asyncio.run(names())
+    demo_services.swap(later.source)
+    assert "discount_rate" not in asyncio.run(names())
 
 
 def test_authoring_guide_returns_the_guide(server):

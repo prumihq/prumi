@@ -85,6 +85,8 @@ path = "warehouse.duckdb"
 prumi serve --config prumi.toml
 ```
 
+While it runs, the server picks up a new manifest a few seconds after `dbt parse` writes it, so you don't restart it for metric changes. Changes to `prumi.toml` still need a restart.
+
 **Ask** your agent for a dashboard on your metrics. It replies with a link such as `http://127.0.0.1:8484/d/weekly-revenue-by-region`, and [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard with its status.
 
 **Review and certify.** A new dashboard is a draft. `prumi list` shows every dashboard and its status, `prumi certify <id> <version>` certifies a version after review, and `prumi uncertify <id>` withdraws it. `prumi requests` lists the metrics agents asked for that don't exist yet, `prumi validate` checks a spec file and its HTML, and `prumi delete` removes a dashboard. Each command takes `--config prumi.toml`. `prumi --version` prints the installed version.
@@ -132,7 +134,6 @@ Known limitations:
 - One source: dbt on DuckDB and Postgres only, with the legacy `measures:` YAML.
 - `metric_time` is the only time dimension, with the standard calendar.
 - Comparisons (`compare`) only work on blocks without a time grain, and `total` and `others` carry no comparison values.
-- Manifest changes need a restart.
 - One display locale per server: every viewer sees numbers formatted the same way, whatever their browser's language.
 - Tested with Claude Code only. Clients that connect from their vendor's cloud can't reach a server on your machine.
 
@@ -149,6 +150,7 @@ Releases stay 0.x until the dashboard spec, the adapter protocol and the MCP too
 - **The agent has no Prumi tools** (it may ask you for a CSV instead): start Prumi before the agent session, because agents connect to their MCP servers when a session starts. In Claude Code, `/mcp` shows Prumi's state and reconnects it. If Prumi was added without `--scope user`, it's registered only in the folder where you ran `claude mcp add`.
 - **Restart your agent sessions after upgrading Prumi.** An open session keeps the tool list and the instructions it loaded when it started.
 - **`prumi serve` stops at startup:** the message names what to fix: Chromium isn't installed (`prumi install-chromium`, or `uv run prumi install-chromium` in a clone; add `--with-deps` on Linux if system libraries are missing), the semantic manifest is missing or unreadable (build the demo, or run `dbt parse` in your project), a table in the manifest doesn't exist on the connection, Prumi can't connect to Postgres or log in (the message says which setting to check: `host`, `port`, `dbname`, `user`, `sslmode`, `timezone` or the password's source, and never shows the password), the manifest names a different Postgres database than `dbname`, a table exists but the Postgres role can't read it (grant it `SELECT`), `host` isn't a loopback address, or `locale` isn't a tag the browser knows.
+- **A new manifest doesn't show up:** a manifest that fails a check while the server runs (it doesn't parse, or names a table that doesn't exist) is logged in the `prumi serve` output and the old one stays in use. Prumi tries it again every 30 seconds, so fixing the problem is enough.
 
 ## Contributing
 

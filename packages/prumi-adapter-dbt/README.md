@@ -12,7 +12,7 @@ On Postgres, Prumi connects with its own role, separate from the one in your dbt
 
 ### What Prumi reads
 
-Prumi reads one file: `target/semantic_manifest.json`, which `dbt parse` (or any dbt command that parses the project) writes. It doesn't run dbt and doesn't need your dbt project folder.
+Prumi reads one file: `target/semantic_manifest.json`, which `dbt parse` (or any dbt command that parses the project) writes. It doesn't run dbt and doesn't need your dbt project folder. While the server runs, Prumi watches the file: a few seconds after `dbt parse` rewrites it, the new metrics are live. A manifest that fails the startup checks is logged and the old one stays in use.
 
 For Prumi to show anything, the project needs:
 

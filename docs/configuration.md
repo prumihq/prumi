@@ -48,7 +48,7 @@ The adapter's own settings go in `[source.<adapter>]`.
 
 | Key | What it does |
 |---|---|
-| `semantic_manifest` | The path to your dbt project's `target/semantic_manifest.json`, which `dbt parse` writes. Prumi reads only this file; see [Preparing your dbt project](../packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project). |
+| `semantic_manifest` | The path to your dbt project's `target/semantic_manifest.json`, which `dbt parse` writes. Prumi reads only this file, and reloads it when it changes; see [Preparing your dbt project](../packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project). |
 
 ### `[source.dbt.connection]`
 
@@ -75,4 +75,4 @@ For `postgres`:
 
 There is no `password` key, and Prumi refuses one. libpq finds the password itself: `PGPASSWORD`, `~/.pgpass` or a service file. It never goes in `prumi.toml`. Every Postgres session is read-only (`default_transaction_read_only = on`), so nothing Prumi runs can write, and prints dates in ISO format (`DateStyle = ISO`), whatever the role or database sets. Any other key is refused by name.
 
-Changes to the config or the manifest take effect when Prumi restarts.
+Changes to the config take effect when Prumi restarts. The server reloads the manifest when it changes: a new one that fails a check is logged and the current one stays in use.
