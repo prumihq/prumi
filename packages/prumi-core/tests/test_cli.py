@@ -253,3 +253,12 @@ def test_certify_runs_the_server_check_again(capsys, config, services, demo_dash
     monkeypatch.setattr(Services, "check_page", lambda self, spec, html, results, **_: [shown])
     code, out = prumi(capsys, "certify", "sales", "1", "--config", str(config))
     assert code == 1 and "R8.unverified_number  html" in out
+
+
+def test_version_prints_the_installed_version_and_exits_0(capsys):
+    import prumi
+
+    with pytest.raises(SystemExit) as exited:
+        main(["--version"])
+    assert exited.value.code == 0
+    assert capsys.readouterr().out == f"prumi {prumi.__version__}\n"

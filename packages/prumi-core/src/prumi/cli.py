@@ -10,6 +10,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import prumi
 from prumi.adapters import AdapterStartupError
 from prumi.config import ConfigError, load_config
 from prumi.issues import Report
@@ -44,6 +45,7 @@ def _parser() -> argparse.ArgumentParser:
         "--config", type=Path, default=Path("prumi.toml"), help="default: ./prumi.toml"
     )
     parser = argparse.ArgumentParser(prog="prumi", description="Governed AI dashboards.")
+    parser.add_argument("--version", action="version", version=f"prumi {prumi.__version__}")
     commands = parser.add_subparsers(required=True, metavar="command")
 
     def command(name: str, run, help: str) -> argparse.ArgumentParser:
