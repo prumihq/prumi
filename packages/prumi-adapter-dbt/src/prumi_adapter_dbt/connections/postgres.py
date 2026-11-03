@@ -74,6 +74,12 @@ class PostgresSettings:
         timezone = config.get("timezone")
         if timezone is not None and (not isinstance(timezone, str) or not timezone):
             raise _bad("timezone", "a non-empty string")
+        if timezone is not None and any(
+            (c.isspace() and c != " ") or not c.isprintable() for c in timezone
+        ):
+            # The server splits `options` on any whitespace, so a tab or newline could smuggle in
+            # another `-c` (such as one turning read-only off). Zone names have neither.
+            raise _bad("timezone", "a time zone name without tabs, newlines or control characters")
         return cls(host, port, dbname, user, sslmode, timezone)
 
     def connect_kwargs(self) -> dict[str, Any]:

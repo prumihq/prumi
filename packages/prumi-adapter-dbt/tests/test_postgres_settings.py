@@ -35,8 +35,11 @@ def test_required_settings(missing):
         {"sslmode": "always"},
         {"sslmode": 1},
         {"timezone": 3},
+        {"timezone": "UTC\t-c default_transaction_read_only=off"},
+        {"timezone": "UTC\n-c default_transaction_read_only=off"},
+        {"timezone": "UTC\x00"},
         {"host": ""},
-        {"schema": "x"},
+        {"schema": "SENTINEL-schema-9d2"},
     ],
 )
 def test_bad_settings_are_refused_by_name(change):
