@@ -1,4 +1,4 @@
-"""Postgres: connection settings, and (with them) a read-only session for each query.
+"""Postgres: a read-only session for each query, as a fixed role.
 
 The password never passes through Prumi: libpq finds it in PGPASSWORD, ~/.pgpass or the service
 file, so it can't reach a config file, a log or an error message.
@@ -6,16 +6,19 @@ file, so it can't reach a config file, a log or an error message.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
-from prumi.adapters import AdapterStartupError
+from prumi.adapters import AdapterStartupError, IdentityMode, Viewer
 
-from prumi_adapter_dbt.connections import refuse_unknown_keys
+from prumi_adapter_dbt.connections import ConnectionFailed, refuse_unknown_keys
 
 try:
-    import psycopg  # noqa: F401
+    import psycopg
+    from psycopg import errors
 except ImportError as exc:  # the `postgres` extra isn't installed
     raise AdapterStartupError(
         "The postgres connection needs the psycopg package: install prumi-adapter-dbt[postgres]."
@@ -99,3 +102,141 @@ class PostgresSettings:
         if self.sslmode is not None:
             kwargs["sslmode"] = self.sslmode
         return kwargs
+
+
+_AUTH_FAILED = ("28P01", "28000")  # invalid_password, invalid_authorization_specification
+
+# psycopg gives no SQLSTATE for a failed connection attempt, only libpq's text. These server
+# messages stand in for their codes. They classify the failure and are never shown: a message
+# no pattern knows (say, a server set to another language) gets the general advice.
+_SERVER_MESSAGES = (
+    (re.compile(r"password authentication failed"), "28P01"),
+    (re.compile(r"authentication failed|no pg_hba\.conf entry|pg_hba\.conf rejects"), "28000"),
+    (re.compile(r"role \".*\" does not exist"), "28000"),
+    (re.compile(r"database \".*\" does not exist"), "3D000"),
+    (re.compile(r"invalid value for parameter \"timezone\"", re.IGNORECASE), "22023"),
+)
+
+
+def _sqlstate(exc: psycopg.Error) -> str | None:
+    if exc.sqlstate:
+        return exc.sqlstate
+    if exc.pgconn is not None and exc.pgconn.needs_password:
+        # The server asked for a password and libpq found none.
+        return "28P01"
+    text = str(exc)
+    return next((code for pattern, code in _SERVER_MESSAGES if pattern.search(text)), None)
+
+
+def connect_error_message(exc: psycopg.Error, settings: PostgresSettings) -> str:
+    """Why `settings` couldn't connect, in Prumi's own words.
+
+    Built from the non-secret settings only, never from the driver's message or a connection
+    string: either could carry the password.
+    """
+    where = f"{settings.host}:{settings.port}"
+    code = _sqlstate(exc)
+    if code in _AUTH_FAILED:
+        return (
+            f"Postgres refused {settings.user}'s login to {settings.dbname} on {where}: check "
+            "`user`, and the password in PGPASSWORD or ~/.pgpass (Prumi never reads one from "
+            "prumi.toml)."
+        )
+    if code == "3D000":
+        return f"No database {settings.dbname} on {where}: check `dbname`."
+    if code == "22023" and settings.timezone is not None:
+        return (
+            f"`timezone` under [source.dbt.connection]: {settings.timezone!r} isn't a time "
+            "zone Postgres knows."
+        )
+    return (
+        f"Prumi can't connect to Postgres at {where} as {settings.user}: check `host`, `port` "
+        "and `sslmode`, that the server accepts connections from this machine, and the "
+        "password's source."
+    )
+
+
+# "db"."schema"."table", as dbt writes a relation into the manifest ("" escapes a quote).
+_RELATION = re.compile(r'"((?:[^"]|"")*)"\.("(?:[^"]|"")*")\.("(?:[^"]|"")*")')
+
+
+class PostgresConnection:
+    # One role for every viewer: Postgres applies that role's grants and row policies.
+    identity_mode: IdentityMode = "shared_account"
+    missing_hint = (
+        "On Postgres the schema is the one in the dbt profile's target when the project was parsed."
+    )
+
+    def __init__(self, settings: PostgresSettings) -> None:
+        self.settings = settings
+        self.description = (
+            f"the Postgres database {settings.dbname} on {settings.host}:{settings.port}"
+        )
+
+    @classmethod
+    def from_config(cls, config: Mapping[str, Any], config_dir: Path) -> PostgresConnection:
+        """Connect once, so a wrong host, login, database, `sslmode` or `timezone` stops the
+        server at startup. The server checks the time zone when the session starts."""
+        connection = cls(PostgresSettings.from_config(config))
+        with connection._connect(AdapterStartupError):
+            pass
+        return connection
+
+    def _connect(self, failure: type[Exception]) -> psycopg.Connection:
+        try:
+            return psycopg.connect(autocommit=True, **self.settings.connect_kwargs())
+        except psycopg.Error as exc:
+            message = connect_error_message(exc, self.settings)
+        # Raised outside the except block, so the driver's error isn't even the __context__:
+        # its connection object still holds the password libpq found.
+        raise failure(message) from None
+
+    def query(self, sql: str, viewer: Viewer) -> tuple[list[str], list[tuple[Any, ...]]]:
+        with self._connect(ConnectionFailed) as conn:
+            cursor = conn.execute(sql)
+            names = [column.name for column in cursor.description]
+            return names, cursor.fetchall()
+
+    def missing_relations(self, relations: Iterable[str]) -> list[str]:
+        relations = list(relations)
+        self._refuse_other_databases(relations)
+        missing: list[str] = []
+        unreadable: list[str] = []
+        with self._connect(AdapterStartupError) as conn:
+            for relation in relations:
+                try:
+                    conn.execute(f"SELECT 1 FROM {relation} LIMIT 0")
+                except (errors.UndefinedTable, errors.InvalidSchemaName):
+                    missing.append(relation)
+                except errors.InsufficientPrivilege:
+                    # No SELECT on the table, or no USAGE on its schema.
+                    unreadable.append(relation)
+                except psycopg.Error as exc:
+                    # As at query time, only the error's type leaves the adapter.
+                    raise AdapterStartupError(
+                        f"Checking {relation} on {self.description} failed: {type(exc).__name__}."
+                    ) from None
+        if unreadable:
+            user = self.settings.user
+            raise AdapterStartupError(
+                f"{user} can't read these tables from the semantic manifest on "
+                f"{self.description}: {', '.join(unreadable)}. Grant SELECT on these tables to "
+                f"{user}, and USAGE on their schemas."
+            )
+        return missing
+
+    def _refuse_other_databases(self, relations: list[str]) -> None:
+        dbname = self.settings.dbname
+        databases = set()
+        for relation in relations:
+            match = _RELATION.fullmatch(relation)
+            if match:
+                databases.add(match.group(1).replace('""', '"'))
+        others = sorted(databases - {dbname})
+        if others:
+            raise AdapterStartupError(
+                f"The semantic manifest was parsed against database {', '.join(others)}, but "
+                f"the connection's `dbname` is {dbname}, and Postgres can't query across "
+                "databases. Set `dbname` under [source.dbt.connection] to the database dbt "
+                "built, or run `dbt parse` against this one."
+            )

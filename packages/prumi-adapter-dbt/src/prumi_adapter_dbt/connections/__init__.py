@@ -13,6 +13,11 @@ from typing import Any, Protocol
 from prumi.adapters import AdapterStartupError, IdentityMode, Viewer
 
 
+class ConnectionFailed(Exception):
+    """A query couldn't connect to the warehouse. The message is Prumi's own, never the
+    driver's, so it can't carry a password or a connection string."""
+
+
 class Connection(Protocol):
     identity_mode: IdentityMode
     description: str  # names the warehouse in messages, e.g. "the DuckDB file demo.duckdb"
@@ -37,6 +42,10 @@ def open_connection(config: Mapping[str, Any], config_dir: Path) -> Connection:
         from prumi_adapter_dbt.connections.duckdb import DuckDBConnection
 
         return DuckDBConnection.from_config(config, config_dir)
+    if config["type"] == "postgres":
+        from prumi_adapter_dbt.connections.postgres import PostgresConnection
+
+        return PostgresConnection.from_config(config, config_dir)
     raise AdapterStartupError(f"Unsupported connection type {config['type']!r}")
 
 
