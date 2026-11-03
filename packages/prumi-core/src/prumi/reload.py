@@ -8,6 +8,7 @@ one keeps serving, and the watcher says why once.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 import time
@@ -19,22 +20,28 @@ from prumi.config import DEFAULT_SOURCE
 from prumi.services import Services
 from prumi.source import Source
 
-__all__ = ["POLL_S", "RETRY_S", "SourceWatcher", "watcher_for"]
+__all__ = ["POLL_S", "RETRY_S", "STOP_WAIT_S", "SourceWatcher", "watcher_for"]
 
 log = logging.getLogger("prumi.reload")
 
 POLL_S = 2.0  # how often the files are looked at
 RETRY_S = 30.0  # how long to wait before trying the same failed files again
+STOP_WAIT_S = 5.0  # how long stop() waits for a reload that's under way
 
-Signature = tuple[int, int] | None  # (mtime in ns, size), or None when the file can't be read
+# (mtime in ns, size, content digest), or None when the file can't be read
+Signature = tuple[int, int, bytes] | None
 
 
 def _signature(path: Path) -> Signature:
+    # The digest too: where timestamps are coarse, a quick rewrite of the same size keeps the
+    # old time. Hashing a manifest of a few MB every poll costs milliseconds.
     try:
         stat = path.stat()
+        with path.open("rb") as file:
+            digest = hashlib.file_digest(file, "blake2b").digest()
     except OSError:  # missing, or unreadable right now: either way there is nothing to load
         return None
-    return (stat.st_mtime_ns, stat.st_size)
+    return (stat.st_mtime_ns, stat.st_size, digest)
 
 
 class SourceWatcher:
@@ -128,11 +135,14 @@ class SourceWatcher:
         while not self._stop.wait(interval):
             self.check()
 
-    def stop(self) -> None:
+    def stop(self, timeout: float = STOP_WAIT_S) -> None:
+        """Stop polling. Waits at most `timeout` seconds for a reload under way: one stuck on
+        a connection that never answers mustn't keep the server from exiting. The thread is a
+        daemon, so a reload still running then ends with the process."""
         self._stop.set()
         thread, self._thread = self._thread, None
         if thread is not None:
-            thread.join()
+            thread.join(timeout)
 
 
 def watcher_for(

@@ -66,5 +66,5 @@ def serve(services: Services) -> None:
             )
         finally:
             if watcher is not None:
-                watcher.stop()
+                watcher.stop(timeout=SHUTDOWN_TIMEOUT_S)
             services.checker.close()

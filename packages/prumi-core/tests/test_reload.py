@@ -1,6 +1,7 @@
 """The source watcher: when it reloads, when it waits, and what it says."""
 
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -84,6 +85,20 @@ def test_a_change_is_loaded_once_it_is_the_same_on_two_polls(manifest, fake_sour
     assert loader.calls == 1 and swapped == [fake_source]
     w.check()
     assert loader.calls == 1
+
+
+def test_a_rewrite_with_the_same_size_and_time_is_still_loaded(manifest, fake_source, clock):
+    # A filesystem with coarse timestamps can give a quick rewrite the old time.
+    loader, swapped = Loader(fake_source), []
+    manifest.write_text('{"metric": "a"}')
+    before = manifest.stat()
+    w = watcher(manifest, loader, swapped, clock)
+    manifest.write_text('{"metric": "b"}')
+    os.utime(manifest, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert manifest.stat().st_size == before.st_size
+    w.check()
+    w.check()
+    assert loader.calls == 1 and swapped == [fake_source]
 
 
 def test_a_file_still_being_written_is_not_loaded(manifest, fake_source, clock):
@@ -275,6 +290,27 @@ def test_the_thread_stops_when_asked(manifest, fake_source, clock):
     w.stop()
     assert time.monotonic() - started < 1
     assert not any(t.is_alive() for t in threads)
+
+
+def test_stopping_doesnt_wait_forever_for_a_stuck_reload(manifest, fake_source, clock):
+    release = threading.Event()
+    loading = threading.Event()
+
+    def stuck():
+        loading.set()
+        release.wait()
+        return fake_source
+
+    w = SourceWatcher([manifest], stuck, [].append, clock)
+    w.start(interval=0.01)
+    try:
+        write(manifest, '{"changed": true}')
+        assert loading.wait(5)
+        started = time.monotonic()
+        w.stop(timeout=0.1)
+        assert time.monotonic() - started < 1
+    finally:
+        release.set()
 
 
 def test_the_thread_reloads_a_changed_file(manifest, fake_source, clock):
