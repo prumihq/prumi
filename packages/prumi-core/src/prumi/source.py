@@ -1,4 +1,4 @@
-"""A source: its adapter and its catalog, read once at startup."""
+"""A source: its adapter and its catalog, read once per instance."""
 
 from __future__ import annotations
 

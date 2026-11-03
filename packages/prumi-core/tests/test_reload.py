@@ -178,14 +178,19 @@ def test_a_retry_that_fails_again_stays_quiet_and_waits_again(manifest, fake_sou
 
 def test_a_new_version_after_a_failure_warns_again(manifest, fake_source, clock, caplog):
     loader = Loader(fake_source, AdapterStartupError("first"), AdapterStartupError("second"))
-    w = watcher(manifest, loader, [], clock)
+    swapped = []
+    w = watcher(manifest, loader, swapped, clock)
     write(manifest, "{")
     w.check()
     w.check()
     write(manifest, "{ {")
     w.check()
     w.check()
-    assert loader.calls == 2
+    assert loader.calls == 2 and swapped == []
+    write(manifest, "{}  ")  # then a good file is loaded
+    w.check()
+    w.check()
+    assert loader.calls == 3 and swapped == [fake_source]
     messages = [r.getMessage() for r in records(caplog, logging.WARNING)]
     assert len(messages) == 2
     assert messages[0].endswith(": first") and messages[1].endswith(": second")

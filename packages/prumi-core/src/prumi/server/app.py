@@ -37,7 +37,7 @@ def create_app(services: Services) -> HostCheck:
 
     async def index(request: Request) -> Response:
         snapshot = services.current()
-        data_through = await run_in_threadpool(services.data_through)
+        data_through = await run_in_threadpool(services.data_through, snapshot)
         host = f"[{server.host}]" if ":" in server.host else server.host
         page = pages.home(
             services.registry,

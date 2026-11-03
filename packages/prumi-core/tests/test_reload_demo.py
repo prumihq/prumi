@@ -16,6 +16,7 @@ from prumi.adapters import AdapterStartupError
 from prumi.cli import main
 from prumi.config import load_config
 from prumi.reload import RETRY_S, SourceWatcher, watcher_for
+from prumi.services import Services
 
 from .conftest import SuiteServices, free_port
 
@@ -31,17 +32,6 @@ class Clock:
 @pytest.fixture(autouse=True)
 def _log_everything(caplog):
     caplog.set_level(logging.DEBUG)
-
-
-@pytest.fixture
-def reload_logger():
-    """serve() attaches a stream handler to this logger; each test starts without one."""
-    logger = logging.getLogger("prumi.reload")
-    handlers, level = logger.handlers[:], logger.level
-    logger.handlers[:] = []
-    yield logger
-    logger.handlers[:] = handlers
-    logger.setLevel(level)
 
 
 @pytest.fixture
@@ -113,7 +103,7 @@ def test_a_changed_metric_label_reaches_the_mcp_catalog_without_a_restart(
 
 
 def test_a_manifest_that_doesnt_parse_keeps_the_old_catalog(
-    tmp_path, make_demo_config, manifest_copy, caplog
+    tmp_path, make_demo_config, demo_project, manifest_copy, caplog
 ):
     services = services_for(tmp_path, make_demo_config, manifest_copy)
     watcher = watcher_for(services)
@@ -129,6 +119,13 @@ def test_a_manifest_that_doesnt_parse_keeps_the_old_catalog(
         SuiteServices(services.config).source  # noqa: B018 - the same file, loaded at startup
     assert str(startup.value) in warning
     assert manifest_copy.name in warning
+
+    shutil.copy(demo_project.manifest_path, manifest_copy)  # a good file after the bad one
+    edit(manifest_copy, relabel_revenue)
+    check_twice(watcher)
+    assert services.current() is not snapshot
+    assert services.current().source.metric("revenue").label == "Revenue (net)"
+    assert len(warnings(caplog)) == 1
 
 
 def test_a_manifest_naming_a_missing_table_loads_once_the_table_exists(
@@ -182,7 +179,7 @@ class FakeChecker:
 
 
 @pytest.fixture
-def serving(tmp_path, make_demo_config, manifest_copy, monkeypatch, reload_logger):
+def serving(tmp_path, make_demo_config, manifest_copy, monkeypatch):
     """A config for `prumi serve` on the manifest copy, with the browser and uvicorn faked.
     `run` is what the fake uvicorn.run calls; the watcher polls every 50 ms."""
     monkeypatch.setattr("prumi.services.shared_checker", FakeChecker)
@@ -222,4 +219,62 @@ def test_serve_prints_a_reload_to_stderr(serving, manifest_copy, capsys):
 
     assert serving(reload_it) == 0
     err = "".join(printed) + capsys.readouterr().err
-    assert "reloaded the source after semantic_manifest.json changed:" in err
+    assert "INFO:  reloaded the source after semantic_manifest.json changed:" in err
+
+
+def test_serve_loads_a_manifest_written_while_it_starts_up(serving, manifest_copy, monkeypatch):
+    data_through = Services.data_through
+
+    def slow_start(self, snapshot=None):
+        edit(manifest_copy, relabel_revenue)  # lands after the source loaded, before listening
+        return data_through(self, snapshot)
+
+    monkeypatch.setattr(Services, "data_through", slow_start)
+    labels = []
+
+    def wait_for_reload() -> None:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            labels.append(services_seen[0].source.metric("revenue").label)
+            if labels[-1] == "Revenue (net)":
+                return
+            time.sleep(0.05)
+
+    services_seen = []
+    created = Services.current
+
+    def remember(self):
+        services_seen[:] = [self]
+        return created(self)
+
+    monkeypatch.setattr(Services, "current", remember)
+    assert serving(wait_for_reload) == 0
+    assert labels[-1] == "Revenue (net)"
+
+
+def test_serve_leaves_the_reload_logger_as_it_found_it(serving):
+    log = logging.getLogger("prumi.reload")
+    handlers, level = log.handlers[:], log.level
+    during = []
+    assert serving(lambda: during.append(len(log.handlers))) == 0
+    assert during == [len(handlers) + 1]
+    assert log.handlers == handlers and log.level == level
+
+
+def test_serve_prints_a_warning_with_its_level(serving, manifest_copy, capsys):
+    printed = []
+
+    def break_it() -> None:
+        manifest_copy.write_text("{")
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            printed.append(capsys.readouterr().err)
+            if "WARNING:  semantic_manifest.json changed" in "".join(printed):
+                return
+            time.sleep(0.05)
+
+    assert serving(break_it) == 0
+    assert (
+        "WARNING:  semantic_manifest.json changed, but the source wasn't reloaded"
+        in "".join(printed) + capsys.readouterr().err
+    )

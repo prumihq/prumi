@@ -81,6 +81,18 @@ def test_data_through_computed_on_an_old_snapshot_is_not_kept(
     assert demo_services.data_through() == dt.date(2026, 11, 1)
 
 
+def test_data_through_for_an_old_snapshot_is_computed_on_it_and_not_kept(
+    demo_services, fake_source
+):
+    demo_services.swap(fake_source)
+    old = demo_services.current()
+    newer = _source_through(dt.date(2026, 11, 1))
+    demo_services.swap(newer)
+    assert demo_services.data_through(old) == dt.date(2026, 10, 14)  # the old catalog's date
+    assert demo_services.data_through() == dt.date(2026, 11, 1)  # the cache wasn't overwritten
+    assert demo_services.data_through(old) == dt.date(2026, 10, 14)
+
+
 def test_validation_uses_one_snapshot_even_if_a_swap_happens_meanwhile(
     demo_services, fake_source, monkeypatch
 ):

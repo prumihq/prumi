@@ -56,7 +56,9 @@ class SourceWatcher:
         self._load = load
         self._swap = swap
         self._clock = clock
-        self._seen = self._signatures()  # the state the running source was built from
+        self._seen = (
+            self._signatures()
+        )  # the files as they were when the watcher was built, right after the source loaded
         self._changed: set[int] = set()  # indexes of the files that changed, for the log lines
         self._pending = False  # changed since the last poll's look: load if it holds still
         self._failed: tuple[Signature, ...] | None = None  # the files as of the last failed load

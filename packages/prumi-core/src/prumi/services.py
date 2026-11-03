@@ -66,6 +66,8 @@ class Services:
         """Use `source` from now on. Requests already running finish on the snapshot they
         took. One assignment replaces both source and engine, so a reader never sees one
         without the other."""
+        # Assumes the source is already loaded: a swap during the very first lazy load in
+        # current() could be overwritten by it. serve() loads before the watcher exists.
         self._snapshot = Snapshot(source, Engine(source, self.config.server.as_of))
         self._freshness = None
 
@@ -88,11 +90,13 @@ class Services:
         """Headless Chromium for the page check, shared by the whole process."""
         return shared_checker()
 
-    def data_through(self) -> dt.date | None:
+    def data_through(self, snapshot: Snapshot | None = None) -> dt.date | None:
         """The latest day with data of any metric, for the home page. Queried at startup and
-        again when it's more than 10 minutes old, so the page stays cheap to load."""
+        again when it's more than 10 minutes old, so the page stays cheap to load. A request
+        passes its own `snapshot`, so the date matches the catalog it shows."""
         with self._freshness_lock:
-            snapshot = self.current()
+            if snapshot is None:
+                snapshot = self.current()
             now = time.monotonic()
             cached = self._freshness
             if cached is not None and cached[0] is snapshot and now - cached[1] < FRESHNESS_TTL_S:
@@ -171,7 +175,9 @@ class Services:
         formats come from `source` (the snapshot a validation runs on), else the current one."""
         from prumi.server import pages  # the server package imports this module
 
-        labels, formats = pages.labels_and_formats(spec, source or self.current().source)
+        labels, formats = pages.labels_and_formats(
+            spec, source if source is not None else self.current().source
+        )
         hosts = self.hosts
         locale = self.config.server.locale
         return self.checker.check(
