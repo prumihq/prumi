@@ -2,6 +2,20 @@
 
 All notable changes to Prumi. Versions stay 0.x until the maintainer says otherwise. Entries come from pull request titles, through release-please.
 
+## [0.2.0](https://github.com/prumihq/prumi/compare/v0.1.1...v0.2.0) (2026-11-03)
+
+
+### Features
+
+* prumi --version prints the installed version ([#23](https://github.com/prumihq/prumi/issues/23)) ([2ca671b](https://github.com/prumihq/prumi/commit/2ca671b49da7bf621cd7b6499293a40924cbd36e))
+* reload the dbt manifest without restarting the server ([#25](https://github.com/prumihq/prumi/issues/25)) ([788d83c](https://github.com/prumihq/prumi/commit/788d83cf6f85d04d78d18af57be721e1a6edd311))
+* run dbt projects on Postgres ([#21](https://github.com/prumihq/prumi/issues/21)) ([7d04546](https://github.com/prumihq/prumi/commit/7d04546346b68bad757403214f3526344ddcca3f))
+
+
+### Bug Fixes
+
+* reload a rewritten manifest on filesystems with coarse timestamps, and don't hang shutdown on a stuck reload ([#27](https://github.com/prumihq/prumi/issues/27)) ([e71b49f](https://github.com/prumihq/prumi/commit/e71b49fcdf77fb501048d61fca873cf8984bcc22))
+
 ## [0.1.1](https://github.com/prumihq/prumi/compare/v0.1.0...v0.1.1) (2026-11-02)
 
 
