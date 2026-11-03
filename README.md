@@ -14,7 +14,7 @@
 **Want to see it first?** [Try Prumi on a demo shop](examples/demo-dbt-project/README.md) in about five minutes, with the usual BI traps planted in its data. No project of your own needed.
 
 > [!NOTE]
-> Prumi 0.1 is a first release. It runs on one machine, for one person, with dbt on DuckDB or Postgres. There's no login yet, so it can't be shared with a team. See [Status and roadmap](#status-and-roadmap).
+> Prumi is an early 0.x release. It runs on one machine, for one person, with dbt on DuckDB or Postgres. There's no login yet, so it can't be shared with a team. See [Status and roadmap](#status-and-roadmap).
 
 ## Why Prumi
 
@@ -123,7 +123,7 @@ The dashboard's HTML runs in a sandboxed frame that can't call any server, and t
 
 ## Status and roadmap
 
-0.1 proves the whole loop on one machine: an agent finds the official metrics, builds and publishes a dashboard, a browser shows it with checked numbers, and the data team certifies it. It doesn't have login or sharing yet (it only listens on your own machine), and it connects to DuckDB and Postgres only. The [changelog](CHANGELOG.md) lists what each release contains.
+Prumi proves the whole loop on one machine: an agent finds the official metrics, builds and publishes a dashboard, a browser shows it with checked numbers, and the data team certifies it. It doesn't have login or sharing yet (it only listens on your own machine), and it connects to DuckDB and Postgres only. The [changelog](CHANGELOG.md) lists what each release contains.
 
 Known limitations:
 - The server needs headless Chromium (`prumi install-chromium`) and won't start without it.
