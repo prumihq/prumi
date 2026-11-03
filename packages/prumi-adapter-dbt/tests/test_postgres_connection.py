@@ -81,6 +81,28 @@ def test_sslmode_the_server_cannot_honor(postgres_demo, tmp_path):
     assert "`sslmode`" in message
 
 
+def test_no_password_anywhere_gets_login_advice(postgres_demo, tmp_path, monkeypatch, logs):
+    monkeypatch.delenv("PGPASSWORD")
+    monkeypatch.setenv("PGPASSFILE", str(tmp_path / "no-such-pgpass"))
+    message = str(start(config_for(postgres_demo), tmp_path))
+    assert "prumi_reader" in message and "PGPASSWORD" in message and "refused" in message
+    assert "prumi-reader-test" not in message + all_text(logs)
+
+
+def test_pgtz_cannot_override_the_configured_timezone(postgres_demo, tmp_path, monkeypatch):
+    monkeypatch.setenv("PGTZ", "Pacific/Kiritimati")
+    message = str(start(config_for(postgres_demo, timezone="UTC"), tmp_path))
+    assert "`timezone`" in message and "PGTZ" in message
+
+
+def test_a_timezone_spelled_differently_from_the_server_is_not_an_override(postgres_demo, tmp_path):
+    # The server reports `utc` back as `UTC`; that's the same zone.
+    connection = PostgresConnection.from_config(
+        postgres_demo.connection_config(timezone="utc"), tmp_path
+    )
+    assert connection.query("SHOW TimeZone", LOCAL_VIEWER)[1] == [("UTC",)]
+
+
 def test_the_password_can_come_from_a_pgpass_file(postgres_demo, tmp_path, monkeypatch):
     monkeypatch.delenv("PGPASSWORD")
     server = postgres_demo.server
@@ -198,3 +220,45 @@ def test_timezone_decides_the_day_of_a_timestamptz(
         "SELECT date_trunc('day', at)::date AS day FROM tz_check.events", LOCAL_VIEWER
     )
     assert names == ["day"] and rows == [(day,)]
+
+
+DATESTYLE_READER = "prumi_datestyle_reader"
+
+
+@pytest.fixture
+def german_datestyle_reader(postgres_demo, monkeypatch):
+    """A role whose own DateStyle prints timestamps the German way, which psycopg can't read."""
+    role = sql.Identifier(DATESTYLE_READER)
+
+    def drop(conn) -> None:
+        if conn.execute(
+            "SELECT 1 FROM pg_roles WHERE rolname = %s", (DATESTYLE_READER,)
+        ).fetchone():
+            conn.execute(sql.SQL("DROP OWNED BY {}").format(role))
+            conn.execute(sql.SQL("DROP ROLE {}").format(role))
+
+    with postgres_demo.admin_connect() as conn:
+        drop(conn)
+        conn.execute(
+            sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
+                role, sql.Literal(TZ_READER_PASSWORD)
+            )
+        )
+        conn.execute(sql.SQL("ALTER ROLE {} SET DateStyle = 'German'").format(role))
+        conn.execute(sql.SQL("GRANT CONNECT ON DATABASE prumi_demo TO {}").format(role))
+    monkeypatch.setenv("PGPASSWORD", TZ_READER_PASSWORD)
+    try:
+        yield DATESTYLE_READER
+    finally:
+        with postgres_demo.admin_connect() as conn:
+            drop(conn)
+
+
+def test_a_role_with_another_datestyle_still_reads_timestamps(
+    postgres_demo, tmp_path, german_datestyle_reader
+):
+    connection = PostgresConnection.from_config(
+        postgres_demo.connection_config(user=german_datestyle_reader, timezone="UTC"), tmp_path
+    )
+    _, rows = connection.query("SELECT TIMESTAMPTZ '2026-10-14 23:30:00+00' AS at", LOCAL_VIEWER)
+    assert rows == [(dt.datetime(2026, 10, 14, 23, 30, tzinfo=dt.UTC),)]

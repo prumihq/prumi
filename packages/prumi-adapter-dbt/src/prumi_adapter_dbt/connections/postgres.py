@@ -43,6 +43,17 @@ def _required_str(config: Mapping[str, Any], key: str, what: str) -> str:
     return value
 
 
+def _refuse_connection_string(config: Mapping[str, Any], key: str, what: str) -> None:
+    value = config[key]
+    if "://" in value or "=" in value or "@" in value or any(c.isspace() for c in value):
+        # A URI or `key=value` string pasted here can hold a password, and messages name this
+        # setting's value, so it's refused before anything can echo it.
+        raise _bad(
+            key,
+            f"{what}, not a connection string; the password goes in PGPASSWORD or ~/.pgpass",
+        )
+
+
 def _escape_option(value: str) -> str:
     """libpq's `options` is split on spaces; a backslash escapes a space or a backslash."""
     return value.replace("\\", "\\\\").replace(" ", "\\ ")
@@ -68,6 +79,9 @@ class PostgresSettings:
         host = _required_str(config, "host", "the Postgres server")
         dbname = _required_str(config, "dbname", "the database dbt built")
         user = _required_str(config, "user", "the Postgres role Prumi connects as")
+        # `user` may hold an @ (hosted servers use logins like reader@server), so only these two.
+        _refuse_connection_string(config, "host", "a host name")
+        _refuse_connection_string(config, "dbname", "a database name")
         port = config.get("port", 5432)
         if not isinstance(port, int) or isinstance(port, bool):
             raise _bad("port", "an integer")
@@ -87,8 +101,10 @@ class PostgresSettings:
 
     def connect_kwargs(self) -> dict[str, Any]:
         """Keyword arguments for psycopg.connect; never a password."""
-        # Read-only is set for the whole session, so no statement Prumi runs can write.
-        options = ["-c default_transaction_read_only=on"]
+        # Read-only is set for the whole session, so no statement Prumi runs can write. DateStyle
+        # only shapes how dates print, and psycopg reads timestamps only in ISO format, whatever
+        # the role or database sets.
+        options = ["-c default_transaction_read_only=on", "-c DateStyle=ISO"]
         if self.timezone is not None:
             options.append(f"-c TimeZone={_escape_option(self.timezone)}")
         kwargs: dict[str, Any] = {
@@ -111,7 +127,9 @@ _AUTH_FAILED = ("28P01", "28000")  # invalid_password, invalid_authorization_spe
 # no pattern knows (say, a server set to another language) gets the general advice.
 _SERVER_MESSAGES = (
     (re.compile(r"password authentication failed"), "28P01"),
-    (re.compile(r"authentication failed|no pg_hba\.conf entry|pg_hba\.conf rejects"), "28000"),
+    # A pg_hba.conf rejection matches no pattern on purpose: it's about where the connection
+    # comes from or its encryption, not the login, so it gets the general advice.
+    (re.compile(r"authentication failed"), "28000"),
     (re.compile(r"role \".*\" does not exist"), "28000"),
     (re.compile(r"database \".*\" does not exist"), "3D000"),
     (re.compile(r"invalid value for parameter \"timezone\"", re.IGNORECASE), "22023"),
@@ -178,9 +196,36 @@ class PostgresConnection:
         """Connect once, so a wrong host, login, database, `sslmode` or `timezone` stops the
         server at startup. The server checks the time zone when the session starts."""
         connection = cls(PostgresSettings.from_config(config))
-        with connection._connect(AdapterStartupError):
-            pass
+        with connection._connect(AdapterStartupError) as conn:
+            if connection.settings.timezone is not None:
+                connection._check_timezone(conn)
         return connection
+
+    def _check_timezone(self, conn: psycopg.Connection) -> None:
+        """Stop if the session's time zone isn't the configured one.
+
+        libpq applies PGTZ after `options`, so it would silently win over `timezone` and move
+        every day boundary. The configured zone is set again on this throwaway session to get the
+        server's own spelling of it (`utc` reads back as `UTC`) before comparing.
+        """
+        try:
+            session = conn.execute("SHOW TimeZone").fetchone()[0]
+            configured = conn.execute(
+                "SELECT set_config('TimeZone', %s, false)", (self.settings.timezone,)
+            ).fetchone()[0]
+        except psycopg.Error as exc:
+            # As at query time, only the error's type leaves the adapter.
+            message = f"Checking the time zone on {self.description} failed: {type(exc).__name__}."
+        else:
+            if session == configured:
+                return
+            message = (
+                f"`timezone` under [source.dbt.connection] is {self.settings.timezone!r}, but the "
+                "session got another time zone: something overrides it, such as the PGTZ "
+                "environment variable. Unset PGTZ so `timezone` applies."
+            )
+        # Raised outside the except block, so no driver error rides along as the __context__.
+        raise AdapterStartupError(message) from None
 
     def _connect(self, failure: type[Exception]) -> psycopg.Connection:
         try:
