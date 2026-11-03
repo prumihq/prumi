@@ -50,8 +50,8 @@ Prumi reads metrics from your semantic layer through an adapter, one per source.
 
 | Source | Status |
 |---|---|
-| dbt Semantic Layer (MetricFlow), on DuckDB | 🟢 Supported in 0.1 |
-| dbt on Snowflake, BigQuery, Databricks and Postgres | 🟡 Planned |
+| dbt Semantic Layer (MetricFlow), on DuckDB and Postgres | 🟢 Supported in 0.2 |
+| dbt on Snowflake, BigQuery and Databricks | 🟡 Planned |
 | Power BI semantic models | 🟡 Planned |
 
 **Install** Prumi with the adapter for your source, and the headless Chromium it checks pages with:
@@ -128,8 +128,8 @@ The dashboard's HTML runs in a sandboxed frame that can't call any server, and t
 Known limitations of 0.1:
 - The server needs headless Chromium (`prumi install-chromium`) and won't start without it.
 - Canvas charts aren't allowed: their text can't be checked.
-- No login: every viewer is the local user, and the DuckDB connection is a shared account.
-- One source: dbt on DuckDB only, with the legacy `measures:` YAML.
+- No login: every viewer is the local user, and the warehouse connection (DuckDB or Postgres) is a shared account.
+- One source: dbt on DuckDB and Postgres only, with the legacy `measures:` YAML.
 - `metric_time` is the only time dimension, with the standard calendar.
 - Comparisons (`compare`) only work on blocks without a time grain, and `total` and `others` carry no comparison values.
 - Manifest changes need a restart.
@@ -137,7 +137,7 @@ Known limitations of 0.1:
 - Tested with Claude Code only. Clients that connect from their vendor's cloud can't reach a server on your machine.
 
 Where it's going, in this order:
-- **Team use:** dbt on Postgres, login and sharing with a team, `docker compose` with a trial mode on the demo that needs no clone, dbt on Snowflake, BigQuery and Databricks, and fiscal calendars.
+- **Team use:** login and sharing with a team, `docker compose` with a trial mode on the demo that needs no clone, dbt on Snowflake, BigQuery and Databricks, and fiscal calendars.
 - **Power BI:** an adapter for Power BI semantic models.
 
 The [milestones](https://github.com/prumihq/prumi/milestones) hold what's scheduled for each release, issue by issue.
