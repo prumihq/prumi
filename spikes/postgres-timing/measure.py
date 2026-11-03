@@ -29,6 +29,7 @@ def timed(label, fn):
 
 def open_connection(config_path: Path) -> None:
     keys = tomllib.loads(config_path.read_text())["source"]["dbt"]["connection"]
+    # A throwaway copy of the adapter's connection options; it can drift from them.
     with psycopg.connect(
         host=keys["host"],
         port=keys.get("port", 5432),
