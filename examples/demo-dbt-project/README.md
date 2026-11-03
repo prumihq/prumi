@@ -39,6 +39,14 @@ uv run --project examples/demo-dbt-project python examples/demo-dbt-project/buil
 
 This runs `generate.py` (seeded, deterministic raw data in the `raw` schema), then `dbt build` and `dbt parse`. It writes `demo.duckdb` and `target/` (including `target/semantic_manifest.json`), both git-ignored. It's idempotent and takes about 10 seconds. The test suite builds it automatically when the outputs are missing or stale.
 
+To build it on Postgres instead (a database `prumi_demo` with schemas `raw` and `main`):
+
+```sh
+DEMO_POSTGRES_PASSWORD=... uv run --project examples/demo-dbt-project python examples/demo-dbt-project/build.py --target postgres
+```
+
+It reads `DEMO_POSTGRES_HOST` (default `localhost`), `DEMO_POSTGRES_PORT` (`5432`), `DEMO_POSTGRES_USER` (`postgres`), `DEMO_POSTGRES_PASSWORD` (required) and `DEMO_POSTGRES_DBNAME` (`prumi_demo`, created when missing), drops and recreates both schemas, and writes `target-postgres/` (git-ignored; its manifest has relations like `"prumi_demo"."main"."orders"`). The DuckDB outputs are untouched. The tests build it when `PRUMI_TEST_POSTGRES_HOST` is set (see [CONTRIBUTING](../../CONTRIBUTING.md)).
+
 `prumi.toml` is the configuration the demo runs with. It pins `as_of = 2026-10-15`, so October 2026 is a partial month and the data ends the day before.
 
 DuckDB names the database after the file, and dbt bakes that name (`demo`) into the relations in the semantic manifest (`"demo"."main"."orders"`). Renaming `demo.duckdb` breaks the queries, which is what Prumi's startup check catches.

@@ -3,7 +3,8 @@
     python generate.py [--db PATH]
 
 Deterministic: one seeded random generator, so every run writes the same tables. Only the
-standard library and `duckdb` are needed. The dbt models in `models/` build on these tables.
+standard library and `duckdb` are needed (`psycopg` too for `generate_postgres`). The dbt
+models in `models/` build on these tables.
 """
 
 from __future__ import annotations
@@ -268,14 +269,14 @@ TABLES = {
 }
 
 
-def generate(db_path: Path, seed: int = SEED) -> dict[str, int]:
-    """Write the raw tables into `db_path` (replacing them) and return their row counts."""
+def generate_rows(seed: int = SEED) -> dict[str, list[tuple]]:
+    """The raw tables' rows, by table name. The same seed always gives the same rows."""
     rng = random.Random(seed)
     customers = generate_customers(rng)
     products, list_prices = generate_products(rng)
     orders, items, sold = generate_orders(rng, customers, list_prices)
     snapshots = generate_inventory(rng, products, sold)
-    data = {
+    return {
         "customers": customers,
         "products": products,
         "orders": orders,
@@ -283,6 +284,10 @@ def generate(db_path: Path, seed: int = SEED) -> dict[str, int]:
         "inventory_snapshots": snapshots,
     }
 
+
+def generate(db_path: Path, seed: int = SEED) -> dict[str, int]:
+    """Write the raw tables into `db_path` (replacing them) and return their row counts."""
+    data = generate_rows(seed)
     with tempfile.TemporaryDirectory() as tmp, duckdb.connect(str(db_path)) as conn:
         conn.execute("CREATE SCHEMA IF NOT EXISTS raw")
         for table, rows in data.items():
@@ -294,6 +299,22 @@ def generate(db_path: Path, seed: int = SEED) -> dict[str, int]:
             conn.execute(
                 f"COPY raw.{table} FROM '{csv_path.as_posix()}' (HEADER false, NULLSTR '')"
             )
+    return {table: len(rows) for table, rows in data.items()}
+
+
+def generate_postgres(conninfo: str, seed: int = SEED) -> dict[str, int]:
+    """Recreate schema `raw` in a Postgres database and load the raw tables into it."""
+    import psycopg  # only the Postgres build needs it
+
+    data = generate_rows(seed)
+    with psycopg.connect(conninfo) as conn:
+        conn.execute("DROP SCHEMA IF EXISTS raw CASCADE")
+        conn.execute("CREATE SCHEMA raw")
+        for table, rows in data.items():
+            conn.execute(f"CREATE TABLE raw.{table} ({TABLES[table]})")
+            with conn.cursor().copy(f"COPY raw.{table} FROM STDIN") as copy:
+                for row in rows:
+                    copy.write_row(row)
     return {table: len(rows) for table, rows in data.items()}
 
 

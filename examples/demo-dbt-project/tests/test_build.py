@@ -1,5 +1,6 @@
 """The demo build writes the warehouse and the semantic manifest that Prumi reads."""
 
+import datetime as dt
 import json
 
 import duckdb
@@ -34,3 +35,25 @@ def test_warehouse_has_the_models(demo_project):
             built = conn.execute(f'SELECT count(*) FROM "demo"."main"."{name}"').fetchone()[0]
             assert built == raw > 0, name
         assert conn.execute("SELECT count(*) FROM main.metricflow_time_spine").fetchone()[0]
+
+
+def test_time_spine_covers_2023_to_2027(demo_project):
+    with duckdb.connect(str(demo_project.db_path), read_only=True) as conn:
+        assert conn.execute(
+            "SELECT count(*), min(date_day), max(date_day) FROM main.metricflow_time_spine"
+        ).fetchone() == (1826, dt.date(2023, 1, 1), dt.date(2027, 12, 31))
+
+
+def test_postgres_build_has_the_same_rows_as_duckdb(demo_project, postgres_demo):
+    manifest = json.loads(postgres_demo.manifest_path.read_text())
+    relations = {
+        m["name"]: m["node_relation"]["relation_name"] for m in manifest["semantic_models"]
+    }
+    assert relations == {name: f'"prumi_demo"."main"."{name}"' for name in MODELS}
+    with (
+        duckdb.connect(str(demo_project.db_path), read_only=True) as duck,
+        postgres_demo.admin_connect() as pg,
+    ):
+        for name in [*MODELS, "metricflow_time_spine"]:
+            sql = f"SELECT count(*) FROM main.{name}"
+            assert pg.execute(sql).fetchone()[0] == duck.execute(sql).fetchone()[0], name

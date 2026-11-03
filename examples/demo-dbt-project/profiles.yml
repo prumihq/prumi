@@ -7,3 +7,14 @@ prumi_demo:
       # dbt bakes that name into the semantic manifest's relations.
       path: "{{ env_var('DEMO_DUCKDB_PATH', 'demo.duckdb') }}"
       threads: 4
+    postgres:
+      type: postgres
+      # build.py sets these from DEMO_POSTGRES_*. `schema: main` makes the relations
+      # "prumi_demo"."main"."<model>", the same schema name the DuckDB build uses.
+      host: "{{ env_var('DEMO_POSTGRES_HOST', 'localhost') }}"
+      port: "{{ env_var('DEMO_POSTGRES_PORT', '5432') | as_number }}"
+      user: "{{ env_var('DEMO_POSTGRES_USER', 'postgres') }}"
+      password: "{{ env_var('DEMO_POSTGRES_PASSWORD') }}"
+      dbname: "{{ env_var('DEMO_POSTGRES_DBNAME', 'prumi_demo') }}"
+      schema: main
+      threads: 4

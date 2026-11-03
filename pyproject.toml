@@ -26,6 +26,8 @@ dev = [
     "httpx2",
     "pytest>=8",
     "ruff>=0.6",
+    # The Postgres test fixtures and the demo-on-Postgres test talk to the server directly.
+    "psycopg[binary]",
     # `twine check` in the install check: the package READMEs must render on PyPI.
     "twine>=6",
 ]
@@ -42,5 +44,6 @@ testpaths = ["packages", "examples/demo-dbt-project/tests"]
 addopts = "--import-mode=importlib"
 markers = [
     "demo: needs the built demo dbt project (added to every test that uses `demo_project`)",
+    "postgres: needs a Postgres server (PRUMI_TEST_POSTGRES_HOST); added to every test that uses `postgres_demo`",
     "browser: drives headless Chromium with Playwright (skipped when Chromium isn't installed)",
 ]
