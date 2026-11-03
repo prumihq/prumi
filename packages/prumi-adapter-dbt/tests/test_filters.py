@@ -1,6 +1,5 @@
 """Filter rendering: quoting, `{`/`}` rejection, literals and NULL semantics."""
 
-import duckdb
 import pytest
 from prumi.adapters import LOCAL_VIEWER, Filter, SemanticQuery
 from prumi_adapter_dbt._query import render_filter
@@ -85,12 +84,12 @@ def revenue(adapter, *filters: Filter) -> float | None:
     return value
 
 
-def hand_revenue(demo_project, where: str) -> float:
-    with duckdb.connect(str(demo_project.db_path), read_only=True) as conn:
-        return conn.execute(
-            "SELECT sum(i.revenue)::double FROM main.order_items i"
-            f" LEFT JOIN main.customers c USING (customer_id) WHERE {where}"
-        ).fetchone()[0]
+def hand_revenue(warehouse, where: str) -> float:
+    [(value,)] = warehouse.hand(
+        "SELECT sum(i.revenue)::double precision FROM main.order_items i"
+        f" LEFT JOIN main.customers c USING (customer_id) WHERE {where}"
+    )
+    return value
 
 
 @pytest.mark.parametrize(
@@ -110,12 +109,12 @@ def hand_revenue(demo_project, where: str) -> float:
         ("not_in", ("Asia Pacific", None), "c.region <> 'Asia Pacific'"),
     ],
 )
-def test_null_semantics(adapter, demo_project, op, values, where):
+def test_null_semantics(adapter, warehouse, op, values, where):
     got = revenue(adapter, Filter("customer__region", op, values))
-    assert got == pytest.approx(hand_revenue(demo_project, where))
+    assert got == pytest.approx(hand_revenue(warehouse, where))
 
 
-def test_ne_and_not_in_keep_the_null_rows(adapter, demo_project):
+def test_ne_and_not_in_keep_the_null_rows(adapter, warehouse):
     everything = revenue(adapter)
     in_region = revenue(adapter, Filter("customer__region", "eq", ("Asia Pacific",)))
     null_region = revenue(adapter, Filter("customer__region", "eq", (None,)))
@@ -124,10 +123,10 @@ def test_ne_and_not_in_keep_the_null_rows(adapter, demo_project):
     assert in_region + others == pytest.approx(everything)
 
 
-def test_a_value_with_a_quote_returns_its_rows(adapter, demo_project):
+def test_a_value_with_a_quote_returns_its_rows(adapter, warehouse):
     got = revenue(adapter, Filter("customer__country", "eq", ("Côte d'Ivoire",)))
     assert got > 0
-    assert got == pytest.approx(hand_revenue(demo_project, "c.country = 'Côte d''Ivoire'"))
+    assert got == pytest.approx(hand_revenue(warehouse, "c.country = 'Côte d''Ivoire'"))
 
 
 @pytest.mark.parametrize(

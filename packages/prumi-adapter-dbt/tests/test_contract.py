@@ -11,7 +11,6 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 
-import duckdb
 import pytest
 from prumi_adapter_dbt._metricflow import CompileRequest, MetricFlowCompiler
 
@@ -25,15 +24,14 @@ def window(start: str, end: str) -> tuple[str, ...]:
 
 
 @pytest.fixture(scope="module")
-def mf(demo_project) -> MetricFlowCompiler:
+def mf(warehouse) -> MetricFlowCompiler:
     # Its own compiler, so the zero-calls check covers exactly these queries.
-    return MetricFlowCompiler(demo_project.manifest_path, "duckdb")
+    return MetricFlowCompiler(warehouse.manifest_path, warehouse.name)
 
 
 @pytest.fixture(scope="module")
-def conn(demo_project):
-    with duckdb.connect(str(demo_project.db_path), read_only=True) as conn:
-        yield conn
+def conn(warehouse):
+    return warehouse
 
 
 @pytest.fixture(autouse=True)
@@ -52,9 +50,8 @@ def normalize(value: object) -> object:
 
 def fetch(conn, sql: str) -> list[dict[str, object]]:
     """Rows as dicts keyed by column name: MetricFlow reorders columns (spike caveat 5)."""
-    cursor = conn.execute(sql)
-    names = [d[0] for d in cursor.description]
-    return [{n: normalize(v) for n, v in zip(names, row, strict=True)} for row in cursor.fetchall()]
+    names, rows = conn.query(sql)
+    return [{n: normalize(v) for n, v in zip(names, row, strict=True)} for row in rows]
 
 
 def unordered(rows: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -186,10 +183,10 @@ def test_day_grain_by_region_with_window(mf, conn):
         ),
         f"""
         WITH i AS (SELECT order_date, region, sum(revenue) AS revenue FROM ({ITEMS})
-                   WHERE order_date BETWEEN '2026-09-10' AND '2026-09-20' GROUP BY ALL),
+                   WHERE order_date BETWEEN '2026-09-10' AND '2026-09-20' GROUP BY 1, 2),
              o AS (SELECT order_date, region, count(DISTINCT customer_id) AS customers
                    FROM ({ORDERS})
-                   WHERE order_date BETWEEN '2026-09-10' AND '2026-09-20' GROUP BY ALL)
+                   WHERE order_date BETWEEN '2026-09-10' AND '2026-09-20' GROUP BY 1, 2)
         SELECT o.order_date AS metric_time__day, o.region AS customer__region, revenue, customers
         FROM o JOIN i ON o.order_date = i.order_date AND o.region IS NOT DISTINCT FROM i.region
         """,
@@ -367,7 +364,7 @@ def test_non_additive_dimension_by_category(mf, conn):
 
 def test_week_grain_starts_on_monday(mf, conn):
     # The week start computed by hand, without relying on date_trunc's definition of a week.
-    monday = "order_date - (isodow(order_date) - 1)::int"
+    monday = "order_date - (extract(isodow from order_date) - 1)::int"
     in_weeks = "order_date BETWEEN '2026-08-31' AND '2026-10-11'"
     rows = check(
         mf,

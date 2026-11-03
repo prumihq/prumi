@@ -13,7 +13,7 @@ from prumi_adapter_dbt._metricflow import (
 
 def test_the_demo_manifest_loads_and_a_query_compiles_without_client_calls(compiler):
     sql = compiler.compile(CompileRequest(metrics=("revenue",), group_by=("metric_time__month",)))
-    assert '"demo"."main"."order_items"' in sql
+    assert '."main"."order_items"' in sql
     assert "metric_time__month" in sql
     assert compiler.client.calls == []
 
