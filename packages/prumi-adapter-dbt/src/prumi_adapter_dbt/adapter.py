@@ -39,8 +39,13 @@ class DbtAdapter:
     name = "dbt"
 
     def __init__(
-        self, compiler: MetricFlowCompiler, connection: Connection, connection_type: str
+        self,
+        compiler: MetricFlowCompiler,
+        connection: Connection,
+        connection_type: str,
+        manifest_path: Path,
     ) -> None:
+        self._manifest_path = manifest_path
         self._compiler = compiler
         self._connection = connection
         self._connection_type = connection_type
@@ -66,7 +71,8 @@ class DbtAdapter:
         connection_type = connection_config["type"]
 
         # 1. The manifest exists and MetricFlow can parse it. 2. The type has a dialect.
-        compiler = MetricFlowCompiler((config_dir / manifest).resolve(), connection_type)
+        manifest_path = (config_dir / manifest).resolve()
+        compiler = MetricFlowCompiler(manifest_path, connection_type)
         connection = open_connection(connection_config, config_dir)
 
         # 3. Every semantic model's relation resolves: dbt baked the names into the SQL.
@@ -85,7 +91,11 @@ class DbtAdapter:
                 f"{connection.missing_hint} Point the connection at the "
                 "database dbt built, or run `dbt parse` against this one."
             )
-        return cls(compiler, connection, connection_type)
+        return cls(compiler, connection, connection_type, manifest_path)
+
+    def watched_files(self) -> tuple[Path, ...]:
+        """The semantic manifest: `dbt parse` rewrites it when the project's metrics change."""
+        return (self._manifest_path,)
 
     def capabilities(self) -> Capabilities:
         return Capabilities(identity_mode=self._connection.identity_mode)

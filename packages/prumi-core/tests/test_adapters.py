@@ -17,6 +17,7 @@ from prumi.adapters import (
     Viewer,
     adapter_names,
     load_adapter_factory,
+    watched_files_of,
 )
 
 FAKE_ADAPTER = """
@@ -155,3 +156,33 @@ def test_date_range_is_inclusive_and_ordered():
     assert DateRange(day, day).end == day
     with pytest.raises(ValueError):
         DateRange(day, day - dt.timedelta(days=1))
+
+
+def test_an_adapter_without_watched_files_watches_nothing():
+    class ProtocolOnly:
+        name = "protocol-only"
+
+        def capabilities(self): ...
+        def describe(self): ...
+        def discover(self): ...
+        def relations(self, metrics): ...
+        def execute(self, query, viewer): ...
+
+    adapter = ProtocolOnly()
+    assert isinstance(adapter, Adapter)
+    assert watched_files_of(adapter) == ()
+
+
+def test_watched_files_of_returns_what_the_adapter_names(tmp_path):
+    class Watching:
+        name = "watching"
+
+        def capabilities(self): ...
+        def describe(self): ...
+        def discover(self): ...
+        def relations(self, metrics): ...
+        def execute(self, query, viewer): ...
+        def watched_files(self):
+            return [tmp_path / "a.json"]
+
+    assert watched_files_of(Watching()) == (tmp_path / "a.json",)

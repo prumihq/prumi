@@ -43,6 +43,7 @@ __all__ = [
     "Viewer",
     "adapter_names",
     "load_adapter_factory",
+    "watched_files_of",
 ]
 
 IdentityMode = Literal["per_viewer", "shared_account"]
@@ -229,6 +230,18 @@ class Adapter(Protocol):
     def execute(self, query: SemanticQuery, viewer: Viewer) -> Result:
         """Compile and run one query as `viewer`. Synchronous."""
         ...
+
+
+# An adapter may also have `watched_files() -> Sequence[Path]`: the files whose change means the
+# source has changed and the adapter should be rebuilt (the dbt adapter names its semantic
+# manifest). It is not a protocol member, so adapters without it are still `Adapter`s;
+# callers go through `watched_files_of`.
+
+
+def watched_files_of(adapter: Adapter) -> tuple[Path, ...]:
+    """The files the adapter says to watch for changes, or none if it doesn't say."""
+    watched = getattr(adapter, "watched_files", None)
+    return tuple(watched()) if callable(watched) else ()
 
 
 # Discovery
