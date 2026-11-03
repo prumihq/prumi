@@ -27,24 +27,61 @@ log = logging.getLogger("prumi.server")
 FRESHNESS_TTL_S = 600
 
 
+@dataclass(frozen=True)
+class Snapshot:
+    """A source and the engine built on it. Requests take one and use it to the end, so a
+    reload in the middle never gives them a new catalog with an old engine."""
+
+    source: Source
+    engine: Engine
+
+
 @dataclass
 class Services:
     config: Config
-    _freshness: tuple[float, dt.date | None] | None = field(default=None, init=False, repr=False)
+    _snapshot: Snapshot | None = field(default=None, init=False, repr=False)
+    _snapshot_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+    _freshness: tuple[Snapshot, float, dt.date | None] | None = field(
+        default=None, init=False, repr=False
+    )
     _freshness_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     @cached_property
     def registry(self) -> Registry:
         return Registry(self.config.server.data_dir)
 
-    @cached_property
-    def source(self) -> Source:
-        """Loads the adapter (and checks the source) on first use: AdapterStartupError."""
-        return Source.from_config(self.config.sources[DEFAULT_SOURCE])
+    def current(self) -> Snapshot:
+        """The snapshot in use. Loads the adapter (and checks the source) on first use:
+        AdapterStartupError. A request calls this once and passes the snapshot down."""
+        snapshot = self._snapshot
+        if snapshot is not None:
+            return snapshot
+        with self._snapshot_lock:
+            if self._snapshot is None:
+                source = Source.from_config(self.config.sources[DEFAULT_SOURCE])
+                self._snapshot = Snapshot(source, Engine(source, self.config.server.as_of))
+            return self._snapshot
 
-    @cached_property
+    def swap(self, source: Source) -> None:
+        """Use `source` from now on. Requests already running finish on the snapshot they
+        took. One assignment replaces both source and engine, so a reader never sees one
+        without the other."""
+        self._snapshot = Snapshot(source, Engine(source, self.config.server.as_of))
+        self._freshness = None
+
+    @property
+    def source(self) -> Source:
+        """The current source, for one-off callers; a request takes `current()` instead."""
+        return self.current().source
+
+    @source.setter
+    def source(self, value: Source) -> None:
+        self.swap(value)
+
+    @property
     def engine(self) -> Engine:
-        return Engine(self.source, self.config.server.as_of)
+        """The current engine, for one-off callers; a request takes `current()` instead."""
+        return self.current().engine
 
     @cached_property
     def checker(self) -> PageChecker:
@@ -55,17 +92,23 @@ class Services:
         """The latest day with data of any metric, for the home page. Queried at startup and
         again when it's more than 10 minutes old, so the page stays cheap to load."""
         with self._freshness_lock:
+            snapshot = self.current()
             now = time.monotonic()
-            if self._freshness is None or now - self._freshness[0] >= FRESHNESS_TTL_S:
-                self._freshness = (now, self._latest_data())
-            return self._freshness[1]
+            cached = self._freshness
+            if cached is not None and cached[0] is snapshot and now - cached[1] < FRESHNESS_TTL_S:
+                return cached[2]
+            through = self._latest_data(snapshot)
+            # A reload during the queries made this date the old catalog's: don't keep it.
+            if self._snapshot is snapshot:
+                self._freshness = (snapshot, now, through)
+            return through
 
-    def _latest_data(self) -> dt.date | None:
+    def _latest_data(self, snapshot: Snapshot) -> dt.date | None:
         latest = None
-        for metric in self.source.metric_names:
+        for metric in snapshot.source.metric_names:
             try:
                 with query_origin("home page"):
-                    through = self.engine.data_through(metric, LOCAL_VIEWER)
+                    through = snapshot.engine.data_through(metric, LOCAL_VIEWER)
             except Exception as exc:  # one failing metric doesn't hide the others' date
                 log.warning("freshness of %s failed: %s", metric, type(exc).__name__)
                 continue
@@ -97,16 +140,19 @@ class Services:
         MCP tools and the CLI always render twice."""
         if metric_request_ids is None:
             metric_request_ids = self.registry.metric_request_ids()
+        snapshot = self.current()
         return validate(
             spec,
             html,
-            self.source,
+            snapshot.source,
             metric_request_ids,
-            as_of=self.engine.today(),
+            as_of=snapshot.engine.today(),
             hosts=self.hosts,
-            engine=self.engine,
+            engine=snapshot.engine,
             viewer=viewer,
-            page_check=functools.partial(self.check_page, second_render=second_render),
+            page_check=functools.partial(
+                self.check_page, second_render=second_render, source=snapshot.source
+            ),
             check_states=check_states,
             layout_devices=layout_devices,
         )
@@ -119,11 +165,13 @@ class Services:
         values: Mapping[str, Any] | None = None,
         devices: Sequence[str] = ("desktop",),
         second_render: bool = True,
+        source: Source | None = None,
     ) -> list[Issue]:
-        """Render the page with these block results, as a viewer's browser would."""
+        """Render the page with these block results, as a viewer's browser would. Labels and
+        formats come from `source` (the snapshot a validation runs on), else the current one."""
         from prumi.server import pages  # the server package imports this module
 
-        labels, formats = pages.labels_and_formats(spec, self.source)
+        labels, formats = pages.labels_and_formats(spec, source or self.current().source)
         hosts = self.hosts
         locale = self.config.server.locale
         return self.checker.check(

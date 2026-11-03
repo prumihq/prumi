@@ -32,7 +32,8 @@ from prumi.config import is_loopback
 from prumi.engine import BlockInputs, BlockRequestError
 from prumi.issues import Issue, error
 from prumi.registry import FINGERPRINT_VERSION, Content, PageCheck, normalize_html
-from prumi.services import Services
+from prumi.services import Services, Snapshot
+from prumi.source import Source
 from prumi.spec import Block, DashboardSpec, Sort
 from prumi.time import Compare, Grain, Window
 from prumi.validate import source_failed
@@ -258,7 +259,8 @@ def create_mcp(services: Services) -> MCPServer:
     def find_metrics(question: str, limit: int = 20) -> MetricsFound:
         """Find catalog metrics for a question, ranked by how well their names, labels and
         descriptions match it. Use only metrics from the catalog."""
-        found = rank(question, services.source.catalog.metrics, max(limit, 0))
+        source = services.current().source
+        found = rank(question, source.catalog.metrics, max(limit, 0))
         return MetricsFound(
             metrics=[
                 MetricSummary(
@@ -279,10 +281,10 @@ def create_mcp(services: Services) -> MCPServer:
     def describe_metric(name: str) -> MetricDescription:
         """Everything the catalog knows about a metric: its dimensions, time grains, own filter
         and caveats. Read the caveats before using it."""
-        source = services.source
+        source = services.current().source
         metric = source.metric(name)
         if metric is None:
-            return _fail([_unknown_metric(services, name, "name")])
+            return _fail([_unknown_metric(source, name, "name")])
         caveats = []
         if not metric.additive:
             caveats.append(
@@ -352,13 +354,14 @@ def create_mcp(services: Services) -> MCPServer:
             )
         except ValidationError as exc:
             return _fail(plain_issues(exc, {}, Block))
-        issues = _check_query(services, block)
-        filters, where_issues = _where(services, block, where or [])
+        snapshot = services.current()
+        issues = _check_query(snapshot, block)
+        filters, where_issues = _where(snapshot.source, block, where or [])
         issues += where_issues
         errors = [i for i in issues if i.severity == "error"]
         if errors:
             return _fail(errors)
-        engine = services.engine
+        engine = snapshot.engine
         inputs = BlockInputs(window, filters)
         try:
             result = engine.run(block, inputs, LOCAL_VIEWER, "agent query")
@@ -708,8 +711,8 @@ class Candidates:
             return copy.deepcopy(spec), html, valid, copy.deepcopy(states)
 
 
-def _unknown_metric(services: Services, name: str, path: str) -> Issue:
-    close = difflib.get_close_matches(name, services.source.metric_names, n=3)
+def _unknown_metric(source: Source, name: str, path: str) -> Issue:
+    close = difflib.get_close_matches(name, source.metric_names, n=3)
     suggestion = f" Did you mean {', '.join(close)}?" if close else ""
     return error(
         "R7.unknown_metric",
@@ -719,24 +722,24 @@ def _unknown_metric(services: Services, name: str, path: str) -> Issue:
     )
 
 
-def _check_query(services: Services, block: Block) -> list[Issue]:
+def _check_query(snapshot: Snapshot, block: Block) -> list[Issue]:
     """The block rules (R2-R7, R10) on the query, with paths in the query's own terms."""
     spec = DashboardSpec(
         spec_version=0,
         dashboard={"id": "query", "title": "query"},
         data=(block,),
     )
-    issues = check_spec(spec, services.source, (), services.engine.today())
+    issues = check_spec(spec, snapshot.source, (), snapshot.engine.today())
     return [i.model_copy(update={"path": i.path.removeprefix("data[0].")}) for i in issues]
 
 
 def _where(
-    services: Services, block: Block, where: Sequence[WhereIn]
+    source: Source, block: Block, where: Sequence[WhereIn]
 ) -> tuple[tuple[Filter, ...], list[Issue]]:
     filters, issues = [], []
-    if any(services.source.metric(m) is None for m in block.metrics):
+    if any(source.metric(m) is None for m in block.metrics):
         return (), issues  # reported as R7 already
-    valid = services.source.relations(block.metrics)
+    valid = source.relations(block.metrics)
     for i, item in enumerate(where):
         path = f"where[{i}]"
         if item.dimension not in valid:

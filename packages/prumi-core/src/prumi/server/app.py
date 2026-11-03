@@ -36,11 +36,12 @@ def create_app(services: Services) -> HostCheck:
     server = services.config.server
 
     async def index(request: Request) -> Response:
+        snapshot = services.current()
         data_through = await run_in_threadpool(services.data_through)
         host = f"[{server.host}]" if ":" in server.host else server.host
         page = pages.home(
             services.registry,
-            services.source,
+            snapshot.source,
             services.config.sources[DEFAULT_SOURCE].project,
             data_through,
             f"http://{host}:{server.port}/mcp",
@@ -59,6 +60,7 @@ def create_app(services: Services) -> HostCheck:
         )
 
     async def shell(request: Request) -> Response:
+        snapshot = services.current()
         dashboard_id = request.path_params["id"]
         version = request.path_params.get("n")
         if version is None:
@@ -70,7 +72,7 @@ def create_app(services: Services) -> HostCheck:
         if stored is None:
             return _not_found_page(f"There's no version {version} of {dashboard_id!r}.")
         status = services.registry.status(dashboard_id, version)
-        return HTMLResponse(pages.shell(stored, status, services.source))
+        return HTMLResponse(pages.shell(stored, status, snapshot.source))
 
     async def frame(request: Request) -> Response:
         stored = services.registry.version(request.path_params["id"], request.path_params["n"])
@@ -96,6 +98,7 @@ def create_app(services: Services) -> HostCheck:
             return JSONResponse(
                 {"error": "POST /api/... needs Content-Type: application/json."}, 415
             )
+        snapshot = services.current()
         try:
             stored = _version(services, request)
         except NotFound as exc:
@@ -134,7 +137,7 @@ def create_app(services: Services) -> HostCheck:
             )
         try:
             result = await run_in_threadpool(
-                services.engine.run_block,
+                snapshot.engine.run_block,
                 spec,
                 block.id,
                 filters,
@@ -157,6 +160,7 @@ def create_app(services: Services) -> HostCheck:
         return JSONResponse(result.to_json())
 
     async def filter_values(request: Request) -> Response:
+        snapshot = services.current()
         try:
             stored = _version(services, request)
         except NotFound as exc:
@@ -166,7 +170,7 @@ def create_app(services: Services) -> HostCheck:
             return _not_found(f"There's no dimension filter {request.path_params['filter']!r}.")
         try:
             values = await run_in_threadpool(
-                services.engine.dimension_values,
+                snapshot.engine.dimension_values,
                 definition.dimension,
                 LOCAL_VIEWER,
                 f"filter values {stored.dashboard_id}/{stored.version}/{definition.id}",
