@@ -54,7 +54,25 @@ The adapter's own settings go in `[source.<adapter>]`.
 
 | Key | What it does |
 |---|---|
-| `type` | The warehouse type. This release supports `duckdb`. |
+| `type` | The warehouse type: `duckdb` or `postgres`. |
+
+For `duckdb`:
+
+| Key | What it does |
+|---|---|
 | `path` | The DuckDB file dbt built. Prumi opens it read-only. |
+
+For `postgres`:
+
+| Key | What it does |
+|---|---|
+| `host` | Required. The Postgres server: a host name, not a connection string. |
+| `dbname` | Required. The database dbt built: its name, not a connection string. |
+| `user` | Required. The role Prumi connects as. |
+| `port` | An integer. Default `5432`. |
+| `sslmode` | One of `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`. Unset, libpq decides. |
+| `timezone` | A time zone name (such as `America/Sao_Paulo`) for the session. Unset, the connection keeps its own time zone, from the server, database or role setting, or `PGTZ`. Set, Prumi refuses to start if `PGTZ` overrides it. |
+
+There is no `password` key, and Prumi refuses one. libpq finds the password itself: `PGPASSWORD`, `~/.pgpass` or a service file. It never goes in `prumi.toml`. Every Postgres session is read-only (`default_transaction_read_only = on`), so nothing Prumi runs can write, and prints dates in ISO format (`DateStyle = ISO`), whatever the role or database sets. Any other key is refused by name.
 
 Changes to the config or the manifest take effect when Prumi restarts.

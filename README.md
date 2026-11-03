@@ -14,7 +14,7 @@
 **Want to see it first?** [Try Prumi on a demo shop](examples/demo-dbt-project/README.md) in about five minutes, with the usual BI traps planted in its data. No project of your own needed.
 
 > [!NOTE]
-> Prumi 0.1 is a first release. It runs on one machine, for one person, with dbt on DuckDB. There's no login yet, so it can't be shared with a team. See [Status and roadmap](#status-and-roadmap).
+> Prumi is an early 0.x release. It runs on one machine, for one person, with dbt on DuckDB or Postgres. There's no login yet, so it can't be shared with a team. See [Status and roadmap](#status-and-roadmap).
 
 ## Why Prumi
 
@@ -50,8 +50,8 @@ Prumi reads metrics from your semantic layer through an adapter, one per source.
 
 | Source | Status |
 |---|---|
-| dbt Semantic Layer (MetricFlow), on DuckDB | 🟢 Supported in 0.1 |
-| dbt on Snowflake, BigQuery, Databricks and Postgres | 🟡 Planned |
+| dbt Semantic Layer (MetricFlow), on DuckDB and Postgres | 🟢 Supported in 0.2 |
+| dbt on Snowflake, BigQuery and Databricks | 🟡 Planned |
 | Power BI semantic models | 🟡 Planned |
 
 **Install** Prumi with the adapter for your source, and the headless Chromium it checks pages with:
@@ -123,13 +123,13 @@ The dashboard's HTML runs in a sandboxed frame that can't call any server, and t
 
 ## Status and roadmap
 
-0.1 proves the whole loop on one machine: an agent finds the official metrics, builds and publishes a dashboard, a browser shows it with checked numbers, and the data team certifies it. It doesn't have login or sharing yet (it only listens on your own machine), and it connects to DuckDB only. The [changelog](CHANGELOG.md) lists what each release contains.
+Prumi proves the whole loop on one machine: an agent finds the official metrics, builds and publishes a dashboard, a browser shows it with checked numbers, and the data team certifies it. It doesn't have login or sharing yet (it only listens on your own machine), and it connects to DuckDB and Postgres only. The [changelog](CHANGELOG.md) lists what each release contains.
 
-Known limitations of 0.1:
+Known limitations:
 - The server needs headless Chromium (`prumi install-chromium`) and won't start without it.
 - Canvas charts aren't allowed: their text can't be checked.
-- No login: every viewer is the local user, and the DuckDB connection is a shared account.
-- One source: dbt on DuckDB only, with the legacy `measures:` YAML.
+- No login: every viewer is the local user, and the warehouse connection (DuckDB or Postgres) is a shared account.
+- One source: dbt on DuckDB and Postgres only, with the legacy `measures:` YAML.
 - `metric_time` is the only time dimension, with the standard calendar.
 - Comparisons (`compare`) only work on blocks without a time grain, and `total` and `others` carry no comparison values.
 - Manifest changes need a restart.
@@ -137,7 +137,7 @@ Known limitations of 0.1:
 - Tested with Claude Code only. Clients that connect from their vendor's cloud can't reach a server on your machine.
 
 Where it's going, in this order:
-- **Team use:** dbt on Postgres, login and sharing with a team, `docker compose` with a trial mode on the demo that needs no clone, dbt on Snowflake, BigQuery and Databricks, and fiscal calendars.
+- **Team use:** login and sharing with a team, `docker compose` with a trial mode on the demo that needs no clone, dbt on Snowflake, BigQuery and Databricks, and fiscal calendars.
 - **Power BI:** an adapter for Power BI semantic models.
 
 The [milestones](https://github.com/prumihq/prumi/milestones) hold what's scheduled for each release, issue by issue.
@@ -148,7 +148,7 @@ Releases stay 0.x until the dashboard spec, the adapter protocol and the MCP too
 
 - **The agent has no Prumi tools** (it may ask you for a CSV instead): start Prumi before the agent session, because agents connect to their MCP servers when a session starts. In Claude Code, `/mcp` shows Prumi's state and reconnects it. If Prumi was added without `--scope user`, it's registered only in the folder where you ran `claude mcp add`.
 - **Restart your agent sessions after upgrading Prumi.** An open session keeps the tool list and the instructions it loaded when it started.
-- **`prumi serve` stops at startup:** the message names what to fix: Chromium isn't installed (`prumi install-chromium`, or `uv run prumi install-chromium` in a clone; add `--with-deps` on Linux if system libraries are missing), the semantic manifest is missing or unreadable (build the demo, or run `dbt parse` in your project), a table in the manifest doesn't exist on the connection, `host` isn't a loopback address, or `locale` isn't a tag the browser knows.
+- **`prumi serve` stops at startup:** the message names what to fix: Chromium isn't installed (`prumi install-chromium`, or `uv run prumi install-chromium` in a clone; add `--with-deps` on Linux if system libraries are missing), the semantic manifest is missing or unreadable (build the demo, or run `dbt parse` in your project), a table in the manifest doesn't exist on the connection, Prumi can't connect to Postgres or log in (the message says which setting to check: `host`, `port`, `dbname`, `user`, `sslmode`, `timezone` or the password's source, and never shows the password), the manifest names a different Postgres database than `dbname`, a table exists but the Postgres role can't read it (grant it `SELECT`), `host` isn't a loopback address, or `locale` isn't a tag the browser knows.
 
 ## Contributing
 

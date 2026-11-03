@@ -2,7 +2,11 @@
 
 Prumi adapter for dbt semantic models. MetricFlow compiles a semantic query into SQL for the warehouse; Prumi executes that SQL over its own connection; the warehouse enforces access rules.
 
-Install it with Prumi: `uv tool install "prumi[dbt]"` installs both, with DuckDB; the dbt-style `pip install prumi "prumi-adapter-dbt[duckdb]"` gives the same packages. Import name: `prumi_adapter_dbt`.
+Install it with Prumi: `uv tool install "prumi[dbt]"` installs both, with the DuckDB and Postgres drivers; the dbt-style `pip install prumi "prumi-adapter-dbt[duckdb,postgres]"` gives the same packages. Each driver is an extra of its own (`[duckdb]`, `[postgres]`), so `pip install prumi-adapter-dbt[postgres]` brings only psycopg. Import name: `prumi_adapter_dbt`.
+
+## Connecting to Postgres
+
+On Postgres, Prumi connects with its own role, separate from the one in your dbt profile, and every session is read-only. That role needs `CONNECT` on the database dbt built, `USAGE` on the schemas of the tables in the semantic manifest, and `SELECT` on those tables; Postgres applies its grants and row policies to every query. Prumi never takes a password in `prumi.toml`: libpq finds it in `PGPASSWORD` or `~/.pgpass` (or a service file). The keys go under `[source.dbt.connection]`; see [Configuration](https://github.com/prumihq/prumi/blob/main/docs/configuration.md#sourcedbtconnection).
 
 ## Preparing your dbt project
 

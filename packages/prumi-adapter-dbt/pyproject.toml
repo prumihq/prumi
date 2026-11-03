@@ -30,6 +30,7 @@ dependencies = [
 
 [project.optional-dependencies]
 duckdb = ["duckdb"]
+postgres = ["psycopg[binary]"]
 
 [project.urls]
 Repository = "https://github.com/prumihq/prumi"

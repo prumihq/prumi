@@ -190,6 +190,34 @@ path = "{demo_project.db_path.as_posix()}"
     return path
 
 
+def write_postgres_demo_config(directory: Path, postgres_demo, **connection) -> Path:
+    """The demo prumi.toml on the Postgres demo; `connection` overrides its connection keys."""
+    path = directory / "prumi.toml"
+    keys = postgres_demo.connection_config(**connection)
+    table = "\n".join(
+        f"{key} = {value}" if isinstance(value, int) else f'{key} = "{value}"'
+        for key, value in keys.items()
+    )
+    path.write_text(
+        f"""
+[server]
+port = 8484
+data_dir = "data"
+as_of = "2026-10-15"
+
+[source]
+adapter = "dbt"
+
+[source.dbt]
+semantic_manifest = "{postgres_demo.manifest_path.as_posix()}"
+
+[source.dbt.connection]
+{table}
+"""
+    )
+    return path
+
+
 class SuiteServices(Services):
     """The suite's services: validation skips the second render in another browser language
     unless a test asks for it (second_render=True), which keeps the suite fast. Only the

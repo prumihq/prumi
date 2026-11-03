@@ -25,6 +25,17 @@ uv run ruff format
 
 Like the server, the tests need headless Chromium. The full suite takes about 4 minutes, because most tests render a page in Chromium.
 
+### The Postgres tests
+
+Tests that need a Postgres server skip unless `PRUMI_TEST_POSTGRES_HOST` is set. Start one and point the tests at it:
+
+```sh
+docker run -d --name prumi-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:18
+PRUMI_TEST_POSTGRES_HOST=localhost uv run pytest
+```
+
+The tests build the demo into a database `prumi_demo` on that server. Also set `PRUMI_TEST_POSTGRES_PORT`, `PRUMI_TEST_POSTGRES_USER` (default `postgres`) and `PRUMI_TEST_POSTGRES_PASSWORD` (default `postgres`) if yours differ. Set `PRUMI_REQUIRE_POSTGRES=1` to make a missing server a failure instead of a skip.
+
 [AGENTS.md](AGENTS.md) describes how work is organized (branches, designs and plans, ADRs, code style, which docs a change must update), for people and coding agents alike.
 
 Prumi is developed with the [Superpowers](https://github.com/obra/superpowers) skills, and they're recommended for AI-assisted work here. They're available for Claude Code, Codex, Cursor, Gemini and others (see their README). With Claude Code, the repo enables the plugin in `.claude/settings.json`; install it once with `claude plugin install superpowers@claude-plugins-official --scope project`. What every change needs, however it was made, is a passing CI and the maintainer's review.

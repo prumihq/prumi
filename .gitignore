@@ -15,6 +15,7 @@ node_modules/
 
 # dbt
 target/
+target-postgres/
 dbt_packages/
 logs/
 

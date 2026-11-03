@@ -1,2 +1,4 @@
-select cast(range as date) as date_day
-from range(date '2023-01-01', date '2028-01-01', interval 1 day)
+select cast(date_day as date) as date_day
+from (
+    {{ dbt.date_spine("day", "cast('2023-01-01' as date)", "cast('2028-01-01' as date)") }}
+) as spine
