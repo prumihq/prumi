@@ -34,6 +34,28 @@ jobs:
           # The Postgres tests skip without a server; here the service container must be used.
           PRUMI_TEST_POSTGRES_HOST: localhost
           PRUMI_REQUIRE_POSTGRES: "1"
+      # TEMPORARY: prints the Postgres timings for spikes/postgres-timing; removed once read.
+      - name: Time the Postgres demo
+        env:
+          PGPASSWORD: prumi-reader-test
+        run: |
+          cat > "$RUNNER_TEMP/prumi.toml" <<EOF
+          [server]
+          port = 8484
+          data_dir = "data"
+          as_of = "2026-10-15"
+          [source]
+          adapter = "dbt"
+          [source.dbt]
+          semantic_manifest = "$GITHUB_WORKSPACE/examples/demo-dbt-project/target-postgres/semantic_manifest.json"
+          [source.dbt.connection]
+          type = "postgres"
+          host = "localhost"
+          port = 5432
+          dbname = "prumi_demo"
+          user = "prumi_reader"
+          EOF
+          for run in 1 2 3; do echo "run $run"; uv run python spikes/postgres-timing/measure.py "$RUNNER_TEMP/prumi.toml"; done
 
   install-check:
     # Prumi as users get it: both packages built, installed with `uv tool install "prumi[dbt]"`
