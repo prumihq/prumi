@@ -2,10 +2,22 @@
 
 from __future__ import annotations
 
+import logging
+
 from prumi.config import ConfigError
+from prumi.reload import watcher_for
 from prumi.services import Services
 
 SHUTDOWN_TIMEOUT_S = 5
+
+
+def _show_reloads() -> None:
+    """Print the reload lines to the terminal: nothing else configures logging, and a reload
+    that kept the old source has to be seen. Only this logger; the others stay as they are."""
+    log = logging.getLogger("prumi.reload")
+    if not log.handlers:
+        log.addHandler(logging.StreamHandler())
+        log.setLevel(logging.INFO)
 
 
 def serve(services: Services) -> None:
@@ -19,7 +31,12 @@ def serve(services: Services) -> None:
     # Publishing renders every page to check its numbers; without Chromium it can't.
     services.checker.start()
     server = services.config.server
+    _show_reloads()
+    watcher = None
     try:
+        watcher = watcher_for(services)  # None when the adapter names no files to watch
+        if watcher is not None:
+            watcher.start()
         if not services.checker.supports_locale(server.locale):
             raise ConfigError(
                 f"{services.config.path}: server.locale: {server.locale!r} isn't a locale the "
@@ -36,4 +53,6 @@ def serve(services: Services) -> None:
             timeout_graceful_shutdown=SHUTDOWN_TIMEOUT_S,
         )
     finally:
+        if watcher is not None:
+            watcher.stop()
         services.checker.close()
