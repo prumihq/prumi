@@ -94,10 +94,14 @@ def test_time_spine_covers_2023_to_2027(demo_project):
 
 def test_postgres_build_has_the_same_rows_as_duckdb(demo_project, postgres_demo):
     manifest = json.loads(postgres_demo.manifest_path.read_text())
-    relations = {m["name"]: m["node_relation"]["relation_name"] for m in manifest["semantic_models"]}
+    relations = {
+        m["name"]: m["node_relation"]["relation_name"] for m in manifest["semantic_models"]
+    }
     assert relations == {name: f'"prumi_demo"."main"."{name}"' for name in MODELS}
-    with duckdb.connect(str(demo_project.db_path), read_only=True) as duck, \
-            postgres_demo.admin_connect() as pg:
+    with (
+        duckdb.connect(str(demo_project.db_path), read_only=True) as duck,
+        postgres_demo.admin_connect() as pg,
+    ):
         for name in [*MODELS, "metricflow_time_spine"]:
             sql = f"SELECT count(*) FROM main.{name}"
             assert pg.execute(sql).fetchone()[0] == duck.execute(sql).fetchone()[0], name
@@ -134,11 +138,13 @@ Everything that works without a database: the dialect, the settings, the extras.
 ```python
 BASE = {"type": "postgres", "host": "db.internal", "dbname": "analytics", "user": "prumi_reader"}
 
+
 def test_defaults():
     s = PostgresSettings.from_config(BASE)
     assert (s.port, s.sslmode, s.timezone) == (5432, None, None)
     kwargs = s.connect_kwargs()
     assert kwargs["connect_timeout"] == 10 and "password" not in kwargs
+
 
 def test_password_key_is_refused_without_its_value():
     with pytest.raises(AdapterStartupError) as e:
@@ -146,11 +152,16 @@ def test_password_key_is_refused_without_its_value():
     assert "PGPASSWORD" in str(e.value) and "pgpass" in str(e.value)
     assert "SENTINEL" not in str(e.value) and e.value.__cause__ is None
 
+
 @pytest.mark.parametrize("missing", ["host", "dbname", "user"])
 def test_required_settings(missing): ...  # message names `missing`
 
-@pytest.mark.parametrize("change", [{"port": "5432"}, {"sslmode": "always"}, {"timezone": 3}, {"schema": "x"}])
+
+@pytest.mark.parametrize(
+    "change", [{"port": "5432"}, {"sslmode": "always"}, {"timezone": 3}, {"schema": "x"}]
+)
 def test_bad_settings_are_refused_by_name(change): ...  # message names the key, not the value
+
 
 def test_sessions_are_read_only():
     options = PostgresSettings.from_config(BASE).connect_kwargs()["options"]
