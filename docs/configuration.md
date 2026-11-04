@@ -26,7 +26,7 @@ Every key is optional.
 
 | Key | Default | What it does |
 |---|---|---|
-| `host` | `127.0.0.1`, or `0.0.0.0` in the container image | The address Prumi listens on. Outside a container it must be a loopback address (`127.0.0.1`, `::1` or `localhost`): this release has no login, so anything else would expose the warehouse to the network. In the container image any address is allowed, and Docker's port publishing keeps Prumi off the network; see [Running in a container](#running-in-a-container). |
+| `host` | `127.0.0.1`, or `0.0.0.0` in the container image | The address Prumi listens on. Outside a container it must be a loopback address (`127.0.0.1`, `::1` or `localhost`): this release has no login, so anything else would expose the warehouse to the network. In the container image any address is allowed, and publishing with `-p 127.0.0.1:…` keeps Prumi off the network; see [Running in a container](#running-in-a-container). |
 | `port` | `8484` | The port. The MCP endpoint is `http://<host>:<port>/mcp`. In the container images, leave it at `8484` and change the host side of `-p` instead. |
 | `data_dir` | `.prumi` | Where the registry (`registry.sqlite3`) is kept. Use a local disk: SQLite's WAL mode doesn't work over a network filesystem. |
 | `locale` | `en-US` | The display locale, a tag such as `en-US`, `pt-BR` or `de-DE`. Every viewer sees numbers and dates formatted this way, whatever their browser's language. |
@@ -100,8 +100,11 @@ Only `1` turns it on: any other value, `0` included, counts as unset. Don't set 
 **Your own project.** The main image reads `/prumi/prumi.toml`. Started without one, it stops with a message naming that path; it never falls back to the demo. Mount your config there:
 
 ```sh
-docker run -p 127.0.0.1:8484:8484 -v "$PWD/prumi.toml:/prumi/prumi.toml:ro" ghcr.io/prumihq/prumi
+docker run -p 127.0.0.1:8484:8484 -v "$PWD/prumi.toml:/prumi/prumi.toml:ro" \
+  -v prumi-data:/prumi/.prumi ghcr.io/prumihq/prumi
 ```
+
+The `prumi-data` volume holds the registry (`/prumi/.prumi`: dashboards and certifications), so it survives a new container, such as one from a newer image; without it, they're lost with the container. Any folder you bind-mount that Prumi writes to must be writable by uid 10001, the user Prumi runs as in the image.
 
 Paths and host names in the config are seen from inside the container. Mount the semantic manifest and a DuckDB file too, at the paths the config names, and remember that `localhost` there is the container itself, not your machine.
 

@@ -136,7 +136,7 @@ jobs:
           docker buildx build --platform linux/amd64 --load
           --file deploy/demo-image/Dockerfile --build-arg PRUMI_IMAGE=prumi:smoke
           --tag prumi-demo:smoke .
-      - run: uv run python scripts/check_images.py --image prumi:smoke --demo-image prumi-demo:smoke
+      - run: uv run --locked python scripts/check_images.py --image prumi:smoke --demo-image prumi-demo:smoke
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io

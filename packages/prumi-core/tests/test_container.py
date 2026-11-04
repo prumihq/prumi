@@ -9,6 +9,7 @@ from prumi.container import (
     ENV,
     LOOPBACK_IN_CONTAINER_WARNING,
     in_container,
+    log_open_hint,
     warn_if_unreachable,
 )
 
@@ -80,4 +81,25 @@ def test_no_warning_outside_a_container_or_for_a_reachable_host(monkeypatch, cap
         warn_if_unreachable(server)
         monkeypatch.setenv(ENV, "1")
         warn_if_unreachable(load_config(write(tmp_path, MINIMAL)).server)
+    assert caplog.records == []
+
+
+def test_in_a_container_serving_logs_the_address_to_open_on_the_host(monkeypatch, caplog, tmp_path):
+    monkeypatch.setenv(ENV, "1")
+    server = load_config(write(tmp_path, "[server]\nport = 9000\n" + MINIMAL)).server
+    with caplog.at_level(logging.INFO, logger="prumi.container"):
+        log_open_hint(server)
+    assert [r.getMessage() for r in caplog.records] == [
+        "Open Prumi at http://127.0.0.1:9000 (or the host port you gave -p); "
+        "the 0.0.0.0 address uvicorn prints below is the container's own."
+    ]
+
+
+def test_no_address_hint_outside_a_container_or_for_a_loopback_host(monkeypatch, caplog, tmp_path):
+    monkeypatch.delenv(ENV, raising=False)
+    with caplog.at_level(logging.INFO, logger="prumi.container"):
+        log_open_hint(load_config(write(tmp_path, MINIMAL)).server)
+        monkeypatch.setenv(ENV, "1")
+        config = load_config(write(tmp_path, '[server]\nhost = "127.0.0.1"\n' + MINIMAL))
+        log_open_hint(config.server)
     assert caplog.records == []

@@ -63,4 +63,4 @@ jobs:
           docker buildx build --platform linux/amd64 --load
           --file deploy/demo-image/Dockerfile --build-arg PRUMI_IMAGE=prumi:ci
           --tag prumi-demo:ci .
-      - run: uv run python scripts/check_images.py --image prumi:ci --demo-image prumi-demo:ci
+      - run: uv run --locked python scripts/check_images.py --image prumi:ci --demo-image prumi-demo:ci

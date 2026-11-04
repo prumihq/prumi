@@ -441,6 +441,10 @@ def test_no_step_of_the_release_reads_a_token_secret():
     assert "secrets." not in text and "secrets[" not in text
     # The throwaway Postgres service of the checks job needs a password; it guards nothing.
     text = text.replace("POSTGRES_PASSWORD: postgres", "")
+    # The images job logs in to GHCR with the job's own token, which GitHub issues per run and
+    # expires with it: nothing stored or long-lived is read.
+    assert text.count("password: ${{ github.token }}") == 1
+    text = text.replace("password: ${{ github.token }}", "")
     assert not re.search(r"(?i)password|api.?token|PUBLISH_TOKEN|TWINE_", text)
 
 
@@ -449,14 +453,21 @@ def test_a_manual_run_of_the_release_skips_both_uploads(release_workflow):
         assert release_workflow["jobs"][name]["if"] == "github.event_name == 'push'", name
 
 
-def test_the_release_is_published_only_after_both_uploads(release_workflow):
+def test_the_release_is_published_only_after_both_uploads_and_the_images(release_workflow):
     job = release_workflow["jobs"]["publish-release"]
-    assert set(job["needs"]) == set(upload_jobs(release_workflow).values())
+    assert set(job["needs"]) == {*upload_jobs(release_workflow).values(), "images"}
     assert job["if"] == "github.event_name == 'push'"
     assert job["permissions"] == {"contents": "write"}
     [run] = [s["run"] for s in job["steps"] if "run" in s]
     assert run.split()[:3] == ["gh", "release", "edit"] and "--draft=false" in run
     assert release_workflow["permissions"] == {"contents": "read"}
+
+
+def test_the_images_are_pushed_only_after_both_uploads_on_a_tag_push(release_workflow):
+    job = release_workflow["jobs"]["images"]
+    assert set(job["needs"]) == set(upload_jobs(release_workflow).values())
+    assert job["if"] == "github.event_name == 'push'"
+    assert job["permissions"] == {"contents": "read", "packages": "write"}
 
 
 def test_the_release_uploads_only_after_the_tag_check_the_checks_and_the_install_check(

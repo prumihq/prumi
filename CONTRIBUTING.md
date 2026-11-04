@@ -30,7 +30,7 @@ Like the server, the tests need headless Chromium. The full suite takes about 4 
 Tests that need a Postgres server skip unless `PRUMI_TEST_POSTGRES_HOST` is set. Start one and point the tests at it:
 
 ```sh
-docker run -d --name prumi-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:18
+docker run -d --name prumi-postgres -e POSTGRES_PASSWORD=postgres -p 127.0.0.1:5432:5432 postgres:18
 PRUMI_TEST_POSTGRES_HOST=localhost uv run pytest
 ```
 

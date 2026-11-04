@@ -10,7 +10,7 @@ See Prumi work in about five minutes, without a project of your own. The shop's 
 docker run -p 127.0.0.1:8484:8484 ghcr.io/prumihq/prumi-demo
 ```
 
-Keep the `127.0.0.1:` in `-p`: it makes Prumi reachable from your machine only, and Prumi has no login yet ([why](../../docs/configuration.md#running-in-a-container)). Dashboards you publish live in the container and go with it. To keep them from one run to the next, add a volume:
+Keep the `127.0.0.1:` in `-p`: it makes Prumi reachable from your machine only, and Prumi has no login yet ([why](../../docs/configuration.md#running-in-a-container)). Dashboards you publish aren't kept from one run to the next unless you add a volume:
 
 ```sh
 docker run -p 127.0.0.1:8484:8484 -v prumi-demo:/data ghcr.io/prumihq/prumi-demo

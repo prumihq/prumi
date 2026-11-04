@@ -19,6 +19,8 @@ Two checks that rest on the loopback rule also assume Prumi knows its own addres
 - **Every documented `docker run` publishes on loopback only,** `-p 127.0.0.1:8484:8484`, and the docs say why next to the command.
 - **`prumi certify` requires `--by` in a container.** The OS user there is the image's, so the default would record "prumi" as the certifier.
 
+This amends, for container mode only, the last Decision bullet of [ADR 0003](0003-access-belongs-to-the-source.md): "`prumi serve` refuses a `host` that isn't a loopback address. Every route rejects a `Host` header other than the configured one." In a container a non-loopback `host` is allowed and the Host check answers loopback names on any port, as above. Outside a container that bullet still holds as written.
+
 Considered: dropping the loopback rule (rejected: every install outside a container would be one config line away from exposing the warehouse, and the rule still protects them). A `prumi serve` flag to listen on every address (rejected: a flag gets copied from one command line to another, onto a laptop too; a variable set by the image belongs to the image, and setting it anywhere else is a deliberate step).
 
 ## Consequences

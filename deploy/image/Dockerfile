@@ -5,7 +5,11 @@
 #   --build-arg PRUMI_WHEELS=dist     the prumi and prumi-adapter-dbt wheels in that folder
 #
 # Run it with your prumi.toml mounted at /prumi/prumi.toml, published on loopback only:
-#   docker run -p 127.0.0.1:8484:8484 -v ./prumi.toml:/prumi/prumi.toml:ro <image>
+#   docker run -p 127.0.0.1:8484:8484 -v ./prumi.toml:/prumi/prumi.toml:ro \
+#     -v prumi-data:/prumi/.prumi <image>
+# /prumi/.prumi holds the registry; it exists in the image, owned by the image user, so a new
+# named volume mounted there takes that ownership and Prumi can write to it. No VOLUME line:
+# the demo image is built on this one and keeps its data elsewhere.
 # Inside the container Prumi listens on every address; the 127.0.0.1 in -p is what keeps it
 # off the network (docs/adr/0017).
 
@@ -47,7 +51,7 @@ RUN python -m playwright install --with-deps --only-shell chromium \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --uid 10001 --user-group --create-home --shell /usr/sbin/nologin prumi \
-    && install -d -o prumi -g prumi /prumi
+    && install -d -o prumi -g prumi /prumi /prumi/.prumi
 
 USER prumi
 WORKDIR /prumi
