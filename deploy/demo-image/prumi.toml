@@ -1,0 +1,23 @@
+# The demo image's configuration. Relative paths resolve against this file's folder (/demo).
+# No host: inside the image Prumi listens on every address of the container, and
+# `docker run -p 127.0.0.1:8484:8484` keeps it reachable from this machine only.
+
+[server]
+port = 8484
+data_dir = "/data"  # the SQLite registry; mount a volume here to keep dashboards
+as_of = "2026-10-15"  # pins "today": October 2026 is a partial month, data ends the day before
+locale = "en-US"  # how every page shows numbers, whatever the viewer's browser language
+script_hosts = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
+style_hosts = ["fonts.googleapis.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
+font_hosts = ["fonts.gstatic.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]
+
+[source]
+adapter = "dbt"
+project = "prumi_demo"  # shown in the home page header
+
+[source.dbt]
+semantic_manifest = "target/semantic_manifest.json"
+
+[source.dbt.connection]
+type = "duckdb"
+path = "demo.duckdb"

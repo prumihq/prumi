@@ -1,0 +1,9 @@
+# Build context for the images in deploy/: the repo root, without local environments and data.
+# dist/ stays in: the main image can install the wheels built there (PRUMI_WHEELS=dist).
+**/.venv
+**/__pycache__
+.git
+**/.prumi
+examples/demo-dbt-project/target*
+examples/demo-dbt-project/demo.duckdb
+NEXT.md
