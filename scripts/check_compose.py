@@ -44,6 +44,7 @@ DEMO_TARGET = REPO / "examples" / "demo-dbt-project" / "target-postgres"
 PROJECT_NAME = "my project"  # the space is the point: paths with one must survive .env
 START_TIMEOUT_S = 120
 RELOAD_TIMEOUT_S = 15
+CLEANUP_TIMEOUT_S = 120  # `down` and `logs` in cleanup and failure messages: never hang on them
 MCP_TIMEOUT_S = 180
 METRIC = "revenue"  # the metric whose description the reload checks change
 READER = "prumi_reader"
@@ -72,6 +73,8 @@ class Run:
     """One compose project: its files, its commands, and how to remove all of it."""
 
     def __init__(self, image: str, project_root: Path | None) -> None:
+        # Passed as -p, which wins over the compose file's `name: prumi`: each run gets its
+        # own containers and volume, and never touches a real install's on this machine.
         self.name = f"prumi-check-{uuid.uuid4().hex[:8]}"
         self.work = Path(tempfile.mkdtemp(prefix="prumi-check-"))
         # The default root is ours to remove; a given one only loses the project folder.
@@ -118,20 +121,32 @@ class Run:
         _run(self.compose("up", "-d"), check, timeout=START_TIMEOUT_S * 2)
 
     def logs(self) -> str:
-        result = subprocess.run(
-            self.compose("logs", "--no-color", "prumi"),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
+        try:
+            result = subprocess.run(
+                self.compose("logs", "--no-color", "prumi"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=CLEANUP_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired:
+            return f"(docker compose logs didn't finish in {CLEANUP_TIMEOUT_S} s)"
         return result.stdout
 
     def remove(self) -> None:
         if self.started:
-            subprocess.run(
-                self.compose("down", "-v", "--remove-orphans", "--timeout", "5"),
-                capture_output=True,
-            )
+            try:
+                subprocess.run(
+                    self.compose("down", "-v", "--remove-orphans", "--timeout", "5"),
+                    capture_output=True,
+                    timeout=CLEANUP_TIMEOUT_S,
+                )
+            except subprocess.TimeoutExpired:
+                print(
+                    f"check_compose: docker compose down didn't finish in {CLEANUP_TIMEOUT_S} s;"
+                    f" remove the project {self.name} by hand",
+                    file=sys.stderr,
+                )
         shutil.rmtree(self.project, ignore_errors=True)
         shutil.rmtree(self.work, ignore_errors=True)
 
@@ -279,19 +294,19 @@ def _wait_for_description(run: Run, description: str, after: str) -> None:
     written = time.monotonic()
     deadline = written + RELOAD_TIMEOUT_S
     while True:
+        # A call that lands while the catalog swaps can fail; that's "not yet", and only the
+        # deadline fails the check, naming the last thing seen.
         try:
             out = asyncio.run(_call(run, "describe_metric", {"name": METRIC}))
-        except Exception as e:  # noqa: BLE001 - any failure to talk MCP fails the check
-            _fail(6, f"describe_metric failed: {type(e).__name__}: {e}")
-        if out.get("description") == description:
-            _step(f"6. reloaded in {time.monotonic() - written:.1f} s {after}")
-            return
+        except Exception as e:  # noqa: BLE001 - any failure to talk MCP counts as "not yet"
+            seen = f"describe_metric failed: {type(e).__name__}: {e}"
+        else:
+            if out.get("description") == description:
+                _step(f"6. reloaded in {time.monotonic() - written:.1f} s {after}")
+                return
+            seen = f"{METRIC}'s description is still {out.get('description')!r}"
         if time.monotonic() > deadline:
-            _fail(
-                6,
-                f"{RELOAD_TIMEOUT_S} s {after}, {METRIC}'s description is still "
-                f"{out.get('description')!r}:\n{run.logs()}",
-            )
+            _fail(6, f"{RELOAD_TIMEOUT_S} s {after}, {seen}:\n{run.logs()}")
         time.sleep(0.5)
 
 

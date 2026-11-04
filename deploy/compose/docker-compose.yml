@@ -6,6 +6,10 @@
 #
 # Change values in .env, not this file: everything specific to your project lives there.
 
+# A fixed project name, so the registry's volume is prumi_registry-data whatever this folder is
+# called: renaming or moving the folder doesn't start Prumi on an empty registry.
+name: prumi
+
 services:
   prumi:
     image: ghcr.io/prumihq/prumi:0.2.0 # x-release-please-version

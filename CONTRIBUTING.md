@@ -67,7 +67,7 @@ uv run python scripts/check_images.py --image prumi:dev --demo-image prumi-demo:
 
 ## The compose install
 
-`deploy/compose/` holds the `docker-compose.yml` and `.env.example` of the [compose install](docs/install.md). Each release attaches both to its GitHub Release, which is where users download them from, and release-please moves the image's version in `docker-compose.yml`: don't edit it by hand. Between releases, `main`'s copy can name an image that isn't published yet.
+`deploy/compose/` holds the `docker-compose.yml` and `.env.example` of the [compose install](docs/install.md). Each release attaches both to its GitHub Release (the example as `env.example`: GitHub renames an asset whose name starts with a period), which is where users download them from, and release-please moves the image's version in `docker-compose.yml`: don't edit it by hand. Between releases, `main`'s copy can name an image that isn't published yet.
 
 `scripts/check_compose.py` is the compose install's smoke test: it runs the shipped `docker-compose.yml`, unchanged but for the image, against a locally built main image and a Postgres warehouse with the demo built on it, and checks that Prumi publishes and certifies a dashboard, keeps its registry in the bundled database, and picks up a new manifest through the mounted project folder. Like the other checks, it isn't part of `uv run pytest`; CI runs it as the job `compose`. `--help` lists its options.
 

@@ -75,8 +75,8 @@ Prumi reads metrics from your semantic layer through an adapter, one per source.
 **Install** with `docker compose`: Prumi and a Postgres database for its registry, reachable from your machine only. Download the two files into a new folder, fill in `.env` (the path to your dbt project, the warehouse connection and two passwords), and start it:
 
 ```sh
-curl -LO https://github.com/prumihq/prumi/releases/latest/download/docker-compose.yml
-curl -LO https://github.com/prumihq/prumi/releases/latest/download/.env.example
+curl -fLO https://github.com/prumihq/prumi/releases/latest/download/docker-compose.yml
+curl -fL -o .env.example https://github.com/prumihq/prumi/releases/latest/download/env.example
 cp .env.example .env   # then fill it in; it holds passwords, so keep it out of version control
 docker compose up -d
 ```

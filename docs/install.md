@@ -23,11 +23,11 @@ You need Docker Engine with the `docker compose` plugin, a dbt project with sema
 
    ```sh
    mkdir prumi && cd prumi
-   curl -LO https://github.com/prumihq/prumi/releases/latest/download/docker-compose.yml
-   curl -LO https://github.com/prumihq/prumi/releases/latest/download/.env.example
+   curl -fLO https://github.com/prumihq/prumi/releases/latest/download/docker-compose.yml
+   curl -fL -o .env.example https://github.com/prumihq/prumi/releases/latest/download/env.example
    ```
 
-   Each release's `docker-compose.yml` names that release's image, so the two always match.
+   Each release's `docker-compose.yml` names that release's image, so the two always match. The release offers the example as `env.example`, without the leading period, because GitHub renames a file whose name starts with one; the second line saves it as `.env.example`. The `-f` makes `curl` fail on a missing file instead of saving GitHub's "Not Found" page.
 
 4. **Fill in `.env`.** Copy the example next to `docker-compose.yml` (compose reads it from there) and fill in your values: the path to the dbt project, the warehouse's host, database and role, the role's password, and a password of your choice for the registry.
 
@@ -35,7 +35,7 @@ You need Docker Engine with the `docker compose` plugin, a dbt project with sema
    cp .env.example .env
    ```
 
-   `.env` holds both passwords: keep it out of version control. Change values in `.env`, not the compose file: everything specific to your project lives there. A warehouse on this same machine is `host.docker.internal`, not `localhost` ([why](#localhost-inside-the-container)). Every other setting can go in `.env` as a `PRUMI__…` line ([Settings from environment variables](configuration.md#settings-from-environment-variables)); `.env.example` lists the optional ones, commented out.
+   `.env` holds both passwords: keep it out of version control. Change values in `.env`, not the compose file: everything specific to your project lives there ([what `.env` can't change](#what-env-cant-change)). `DBT_PROJECT_DIR` is an absolute path, or a relative one that starts with `./` or `../` (relative to this folder): a bare name such as `analytics` is taken as the name of a Docker volume, not a folder. The folder must be readable by uid 10001, the user Prumi runs as in the container; a folder other users can read (`chmod -R o+rX`) is. A warehouse on this same machine is `host.docker.internal`, not `localhost` ([why](#localhost-inside-the-container)). Every other setting can go in `.env` as a `PRUMI__…` line ([Settings from environment variables](configuration.md#settings-from-environment-variables)); `.env.example` lists the optional ones, commented out.
 
 5. **Start it:**
 
@@ -68,6 +68,20 @@ Without a container engine, or to work on Prumi, install it with `uv` instead ([
 | Password | a variable named by `password_env` | the same, from `.env` |
 | Start | `prumi serve --config prumi.toml` | `docker compose up -d` |
 | Connect the agent to `http://127.0.0.1:8484/mcp` | same | same |
+
+## What `.env` can't change
+
+The compose file sets these itself, in the `prumi` service's `environment:`, and compose gives those values precedence over `.env`: a line for one of them in `.env` is ignored.
+
+| Setting | Fixed to |
+|---|---|
+| `PRUMI__SOURCE__ADAPTER` | `dbt` |
+| `PRUMI__SOURCE__DBT__SEMANTIC_MANIFEST` | `/project/target/semantic_manifest.json`, in the mounted `DBT_PROJECT_DIR` |
+| `PRUMI__SOURCE__DBT__CONNECTION__TYPE` | `postgres` |
+| `PRUMI__REGISTRY__BACKEND` | `postgres` |
+| `PRUMI__REGISTRY__POSTGRES__HOST`, `__DBNAME`, `__USER` | the bundled `registry-db`: `registry-db`, `prumi`, `prumi` |
+
+To change one, don't edit `docker-compose.yml`: an upgrade downloads a new one over it and the change is lost. Put the change in a `docker-compose.override.yml` next to it instead. Compose reads that file automatically and merges it over the main file, and an upgrade leaves it alone. [DuckDB warehouses](#duckdb-warehouses) and [the registry on a Postgres you already run](#the-registry-on-a-postgres-you-already-run) are the two such changes this page describes.
 
 ## Running Prumi's commands
 
@@ -107,15 +121,23 @@ A manifest that fails a check is logged (`docker compose logs prumi`) and the ol
 
 The registry can live on a Postgres server your team already runs and backs up, such as a managed database, instead of the bundled `registry-db`. It must be a database of its own, never the warehouse: an empty UTF8 database that Prumi's role owns. Prumi refuses anything else the first time it opens it; [`[registry.postgres]`](configuration.md#registrypostgres) says how to create one.
 
-This is the one change made in `docker-compose.yml` itself. In the `prumi` service, set the registry's values and remove `depends_on`:
+Leave `docker-compose.yml` as it is, and add a file `docker-compose.override.yml` next to it with that server's values:
 
 ```yaml
+services:
+  prumi:
+    environment:
       PRUMI__REGISTRY__POSTGRES__HOST: db.internal
       PRUMI__REGISTRY__POSTGRES__DBNAME: prumi_registry
       PRUMI__REGISTRY__POSTGRES__USER: prumi
+    depends_on: !reset {}
+  registry-db:
+    profiles: [bundled-registry]
 ```
 
-Then remove the `registry-db` service and the `registry-data` volume. `REGISTRY_PASSWORD` in `.env` becomes the password of that role, and optional settings such as `PRUMI__REGISTRY__POSTGRES__SSLMODE=require` or `PRUMI__REGISTRY__POSTGRES__PORT` go in `.env`. Make the same change again when you upgrade with a new `docker-compose.yml`.
+Compose merges it over the main file: the three values replace the bundled registry's, `!reset` drops Prumi's wait for `registry-db`, and the profile keeps `registry-db` from starting (it would start only with `--profile bundled-registry`). An upgrade replaces `docker-compose.yml` and leaves this file as it is, so the registry stays where it is. `!reset` needs Docker Compose 2.24 or later; `docker compose config` shows the merged result.
+
+The three values belong in this file, not in `.env`: the compose file sets them itself, and its values win over `.env` ([what `.env` can't change](#what-env-cant-change)). `REGISTRY_PASSWORD` in `.env` is still the password, now that role's. Settings the compose file doesn't set, such as `PRUMI__REGISTRY__POSTGRES__SSLMODE=require` or `PRUMI__REGISTRY__POSTGRES__PORT`, go in `.env`. Back it up with that server; [Backing up the registry](#backing-up-the-registry) is about the bundled one.
 
 ## DuckDB warehouses
 
@@ -147,17 +169,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends <package> \
 USER prumi
 ```
 
-Switch back to `USER prumi` at the end: Prumi runs as that user (uid 10001), not as root. Build it (`docker build -t my-prumi:<version> .`) and set `image:` in `docker-compose.yml` to it.
+Switch back to `USER prumi` at the end: Prumi runs as that user (uid 10001), not as root. Build it (`docker build -t my-prumi:<version> .`) and name it in `docker-compose.override.yml`, so an upgrade's new `docker-compose.yml` doesn't undo it:
+
+```yaml
+services:
+  prumi:
+    image: my-prumi:<version>
+```
+
+When you upgrade, rebuild it on the new version and change the version here too.
 
 ## Upgrading
 
-Read the [changelog](../CHANGELOG.md) for the release, then download its `docker-compose.yml` over yours (or change the version in the `image:` line), and run:
+Read the [changelog](../CHANGELOG.md) for the release, then download its `docker-compose.yml` over yours (the first `curl` line of [step 3](#step-by-step)), and run:
 
 ```sh
 docker compose pull && docker compose up -d
 ```
 
-`.env` stays as it is, and the registry keeps its data on the `registry-data` volume. Restart your agent sessions afterwards: an open session keeps the tools it loaded when it started.
+`.env` and a `docker-compose.override.yml` stay as they are, and the registry keeps its data on the `registry-data` volume. Restart your agent sessions afterwards: an open session keeps the tools it loaded when it started.
 
 ## Backing up the registry
 
@@ -168,3 +198,14 @@ docker compose exec -T registry-db pg_dump -U prumi prumi > backup.sql
 ```
 
 `-T` keeps the dump free of a terminal's line endings. `docker compose down` keeps the volume; `docker compose down -v` deletes it, and the registry with it.
+
+To restore a dump, load it into a new, empty registry before Prumi starts on it (Prumi creates its tables in an empty registry, and the dump's would then collide with them):
+
+```sh
+docker compose down -v                    # deletes the current registry
+docker compose up -d --wait registry-db   # a new, empty one
+docker compose exec -T registry-db psql -U prumi prumi < backup.sql
+docker compose up -d
+```
+
+The compose file names its project `prumi`, so the volume is `prumi_registry-data` whatever the folder that holds `docker-compose.yml` is called: moving or renaming that folder keeps the registry. To run a second Prumi on the same machine, from another folder, give it a name of its own with `COMPOSE_PROJECT_NAME=prumi-sales` in its `.env` (and another `PRUMI_PORT`); its volume is then `prumi-sales_registry-data`.

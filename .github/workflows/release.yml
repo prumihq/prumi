@@ -167,9 +167,15 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: >-
-          gh release upload "$TAG" deploy/compose/docker-compose.yml deploy/compose/.env.example
-          --repo "$GITHUB_REPOSITORY" --clobber
+        with:
+          persist-credentials: false
+      # GitHub renames an asset whose name starts with a period (.env.example would become
+      # default.env.example), so .../download/.env.example would 404. The example goes up as
+      # env.example, and the install docs save it as .env.example.
+      - run: |
+          cp deploy/compose/.env.example "$RUNNER_TEMP/env.example"
+          gh release upload "$TAG" deploy/compose/docker-compose.yml "$RUNNER_TEMP/env.example" \
+            --repo "$GITHUB_REPOSITORY" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
