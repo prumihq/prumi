@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from prumi.adapters import LOCAL_VIEWER, Viewer
 from prumi.issues import Report, error
+from prumi.registry.stores import RegistryError as RegistryError
 from prumi.registry.stores import SqliteStore, Store
 from prumi.scrub import scrubber
 from prumi.spec import DashboardSpec, TimeFilter

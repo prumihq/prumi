@@ -15,6 +15,8 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
+from prumi.registry import postgres_errors
+
 if TYPE_CHECKING:
     import psycopg
 
@@ -24,6 +26,10 @@ if TYPE_CHECKING:
 # serialized the way SQLite's BEGIN IMMEDIATE serializes them. Any fixed 64-bit number works;
 # this one spells "prumi" in ASCII.
 _POSTGRES_LOCK_KEY = 0x7072756D69
+
+
+class RegistryError(Exception):
+    """The registry can't be used. The message names what to change, and never a password."""
 
 
 class Rows(Protocol):
@@ -132,8 +138,12 @@ class PostgresStore:
         self._password = password
 
     def _open(self) -> psycopg.Connection:
-        import psycopg
-
+        try:
+            import psycopg
+        except ImportError:
+            psycopg = None  # the `postgres` extra isn't installed
+        if psycopg is None:  # raised here, after the except block, to leave no __context__
+            raise RegistryError(postgres_errors.MISSING_DRIVER_MESSAGE) from None
         options: dict[str, Any] = {
             "host": self.settings.host,
             "port": self.settings.port,
@@ -146,19 +156,25 @@ class PostgresStore:
             options["sslmode"] = self.settings.sslmode
         if self._password is not None:
             options["password"] = self._password
-        return psycopg.connect(**options, autocommit=True, row_factory=_tuple_rows)
+        try:
+            return psycopg.connect(**options, autocommit=True, row_factory=_tuple_rows)
+        except psycopg.Error as exc:
+            message = postgres_errors.connect_message(exc, self.settings)
+        # Raised outside the except block, so the driver's error isn't even the __context__:
+        # its connection object still holds the password.
+        raise RegistryError(message) from None
 
     @contextmanager
     def connect(self) -> Iterator[_PostgresConn]:
         # One connection per operation, like the SQLite store: safe across threads.
         with self._open() as conn:
-            yield _PostgresConn(conn)
+            yield _PostgresConn(conn, self.settings)
 
     @contextmanager
     def transaction(self) -> Iterator[_PostgresConn]:
         with self._open() as conn, conn.transaction():
             conn.execute("SELECT pg_advisory_xact_lock(%s)", (_POSTGRES_LOCK_KEY,))
-            yield _PostgresConn(conn)
+            yield _PostgresConn(conn, self.settings)
 
     def migration_files(self) -> list[tuple[int, Traversable]]:
         migrations = _migrations(_MIGRATIONS)
@@ -169,18 +185,49 @@ class PostgresStore:
         [found] = conn.execute("SELECT to_regclass(?) IS NOT NULL", (name,)).fetchone()
         return found
 
-    def before_first_migration(self, conn: Conn) -> None:
-        pass
+    def before_first_migration(self, conn: _PostgresConn) -> None:
+        """Refuse a database that holds anything else: the registry needs one of its own, so
+        it never mixes its tables with a warehouse's or another application's. Every schema
+        counts but Postgres's own, and pg_class lists tables this role can't read too.
+
+        Also refuse a database not in UTF8: keys sorted with COLLATE "C" sort by their bytes,
+        which matches SQLite's order only when both hold the same UTF-8 text."""
+        [encoding] = conn.execute("SHOW server_encoding").fetchone()
+        if encoding != "UTF8":
+            raise RegistryError(postgres_errors.not_utf8_message(self.settings, encoding))
+        rows = conn.execute(
+            "SELECT n.nspname, c.relname FROM pg_class c"
+            " JOIN pg_namespace n ON n.oid = c.relnamespace"
+            " WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f')"
+            # pg_catalog, pg_toast and the temporary schemas: `\_` is a literal underscore.
+            " AND n.nspname <> 'information_schema' AND n.nspname NOT LIKE 'pg\\_%'"
+            " ORDER BY 1, 2"
+        ).fetchall()
+        if rows:
+            tables = [f"{schema}.{name}" for schema, name in rows]
+            raise RegistryError(postgres_errors.not_its_own_database_message(self.settings, tables))
+        # What follows creates the registry's tables, so a privilege error now means just that.
+        conn.creating_tables = True
 
 
 class _PostgresConn:
-    def __init__(self, conn: psycopg.Connection) -> None:
+    def __init__(self, conn: psycopg.Connection, settings: RegistryPostgresConfig) -> None:
         self._conn = conn
+        self._settings = settings
+        self.creating_tables = False
 
     def execute(self, sql: str, params: Sequence[Any] = ()) -> psycopg.Cursor:
-        if not params:  # psycopg reads `%` as a placeholder only when given parameters
-            return self._conn.execute(sql)
-        return self._conn.execute(sql.replace("%", "%%").replace("?", "%s"), tuple(params))
+        from psycopg.errors import InsufficientPrivilege
+
+        try:
+            if not params:  # psycopg reads `%` as a placeholder only when given parameters
+                return self._conn.execute(sql)
+            return self._conn.execute(sql.replace("%", "%%").replace("?", "%s"), tuple(params))
+        except InsufficientPrivilege:
+            if not self.creating_tables:
+                raise
+        # Raised outside the except block, so no driver error rides along as the __context__.
+        raise RegistryError(postgres_errors.cannot_create_tables_message(self._settings)) from None
 
 
 class _Row(tuple):
