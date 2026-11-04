@@ -72,7 +72,18 @@ Prumi reads metrics from your semantic layer through an adapter, one per source.
 | dbt on Snowflake, BigQuery and Databricks | 🟡 Planned |
 | Power BI semantic models | 🟡 Planned |
 
-**Install** Prumi with the adapter for your source, and the headless Chromium it checks pages with:
+**Install** with `docker compose`: Prumi and a Postgres database for its registry, reachable from your machine only. Download the two files into a new folder, fill in `.env` (the path to your dbt project, the warehouse connection and two passwords), and start it:
+
+```sh
+curl -LO https://github.com/prumihq/prumi/releases/latest/download/docker-compose.yml
+curl -LO https://github.com/prumihq/prumi/releases/latest/download/.env.example
+cp .env.example .env   # then fill it in; it holds passwords, so keep it out of version control
+docker compose up -d
+```
+
+Then [connect your agent](#connect-your-agent). [docs/install.md](docs/install.md) has every step: preparing the dbt project and running `dbt parse`, the warehouse role's grants, DuckDB warehouses, a registry on a Postgres you already run, upgrading and backups. On Docker Engine (Linux, or WSL2), the server picks up a new manifest a few seconds after `dbt parse` writes it, so you don't restart it for metric changes; elsewhere, `docker compose restart prumi` loads it.
+
+**Without a container engine, or for development:** install Prumi with the adapter for your source, and the headless Chromium it checks pages with:
 
 ```sh
 uv tool install "prumi[dbt]"
@@ -81,7 +92,7 @@ prumi install-chromium   # add --with-deps on Linux if system libraries are miss
 
 Prumi comes as Python packages: `prumi` is the server and the `prumi` command, and each source has its own adapter package, such as `prumi-adapter-dbt`. `prumi[dbt]` installs both; with pip, `pip install "prumi[dbt]"`.
 
-**Configure.** Prepare your dbt project ([what Prumi reads, and how to declare display formats](packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project)), then write a `prumi.toml`:
+Prepare your dbt project ([what Prumi reads, and how to declare display formats](packages/prumi-adapter-dbt/README.md#preparing-your-dbt-project)), then write a `prumi.toml`:
 
 ```toml
 [source]
@@ -101,17 +112,17 @@ Settings can also come from `PRUMI__…` environment variables (`PRUMI__SERVER__
 
 Dashboards and certifications are kept in the registry: by default a SQLite file in `data_dir`, which is fine on one machine. For a real install, keep it in a Postgres database of its own ([`[registry]`](docs/configuration.md#registry)).
 
-**Run** Prumi, then [connect your agent](#connect-your-agent):
+Run Prumi, then [connect your agent](#connect-your-agent):
 
 ```sh
 prumi serve --config prumi.toml
 ```
 
-While it runs, the server picks up a new manifest a few seconds after `dbt parse` writes it, so you don't restart it for metric changes. Changes to `prumi.toml` still need a restart.
+While it runs, the server picks up a new manifest a few seconds after `dbt parse` writes it. Changes to `prumi.toml` still need a restart.
 
 **Ask** your agent for a dashboard on your metrics. It replies with a link such as `http://127.0.0.1:8484/d/weekly-revenue-by-region`, and [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard with its status.
 
-**Review and certify.** A new dashboard is a draft. `prumi list` shows every dashboard and its status, `prumi certify <id> <version>` certifies a version after review, and `prumi uncertify <id>` withdraws it. `prumi requests` lists the metrics agents asked for that don't exist yet, `prumi validate` checks a spec file and its HTML, and `prumi delete` removes a dashboard. Each command takes `--config prumi.toml`. `prumi --version` prints the installed version.
+**Review and certify.** A new dashboard is a draft. `prumi list` shows every dashboard and its status, `prumi certify <id> <version>` certifies a version after review, and `prumi uncertify <id>` withdraws it. `prumi requests` lists the metrics agents asked for that don't exist yet, `prumi validate` checks a spec file and its HTML, and `prumi delete` removes a dashboard. With `uv`, each command takes `--config prumi.toml`; with compose, run them inside the container, as `docker compose exec prumi prumi list`, and give `certify` the name of who certifies, as `--by "Your Name"` ([why](docs/install.md#running-prumis-commands)). `prumi --version` prints the installed version.
 
 ## Connect your agent
 
@@ -158,11 +169,11 @@ Known limitations:
 - Comparisons (`compare`) only work on blocks without a time grain, and `total` and `others` carry no comparison values.
 - One display locale per server: every viewer sees numbers formatted the same way, whatever their browser's language.
 - Tested with Claude Code only. Clients that connect from their vendor's cloud can't reach a server on your machine.
-- The container images are tested with Docker Engine on Linux only.
+- The container images and the compose install are tested with Docker Engine on Linux only (and, for picking up a new manifest, on WSL2 with Docker Engine).
 - One server per registry: several Prumi servers behind one URL aren't supported. A new Postgres registry starts empty: nothing is copied from an existing SQLite one.
 
 Where it's going, in this order:
-- **Team use:** login and sharing with a team, `docker compose`, dbt on Snowflake, BigQuery and Databricks, and fiscal calendars.
+- **Team use:** login and sharing with a team, dbt on Snowflake, BigQuery and Databricks, and fiscal calendars.
 - **Power BI:** an adapter for Power BI semantic models.
 
 The [milestones](https://github.com/prumihq/prumi/milestones) hold what's scheduled for each release, issue by issue.
@@ -174,7 +185,8 @@ Releases stay 0.x until the dashboard spec, the adapter protocol and the MCP too
 - **The agent has no Prumi tools** (it may ask you for a CSV instead): start Prumi before the agent session, because agents connect to their MCP servers when a session starts. In Claude Code, `/mcp` shows Prumi's state and reconnects it. If Prumi was added without `--scope user`, it's registered only in the folder where you ran `claude mcp add`.
 - **Restart your agent sessions after upgrading Prumi.** An open session keeps the tool list and the instructions it loaded when it started.
 - **`prumi serve` stops at startup:** the message names what to fix: Chromium isn't installed (`prumi install-chromium`, or `uv run prumi install-chromium` in a clone; add `--with-deps` on Linux if system libraries are missing), the semantic manifest is missing or unreadable (build the demo, or run `dbt parse` in your project), a table in the manifest doesn't exist on the connection, Prumi can't connect to Postgres or log in (the message says which setting to check: `host`, `port`, `dbname`, `user`, `sslmode`, `timezone` or `password_env`, and never shows the password), the variable `password_env` names is unset or empty, the manifest names a different Postgres database than `dbname`, a table exists but the Postgres role can't read it (grant it `SELECT`), `host` isn't a loopback address (in the container images any address is allowed, and `-p 127.0.0.1:…` keeps Prumi on your machine: see [Running in a container](docs/configuration.md#running-in-a-container)), `locale` isn't a tag the browser knows, or the registry can't be used (on Postgres the message names the `[registry.postgres]` setting or `PRUMI_REGISTRY_PASSWORD` to check, or says the database must be empty and in UTF8, the role must be able to create tables, or `prumi[postgres]` is missing: see [`[registry.postgres]`](docs/configuration.md#registrypostgres)).
-- **A new manifest doesn't show up:** a manifest that fails a check while the server runs (it doesn't parse, or names a table that doesn't exist) is logged in the `prumi serve` output and the old one stays in use. Prumi tries it again every 30 seconds, so fixing the problem is enough.
+- **A new manifest doesn't show up:** a manifest that fails a check while the server runs (it doesn't parse, or names a table that doesn't exist) is logged in the `prumi serve` output (`docker compose logs prumi` in a container) and the old one stays in use. Prumi tries it again every 30 seconds, so fixing the problem is enough. In a container on Docker Desktop (Mac or Windows), where picking up a new manifest through a mounted folder isn't tested, `docker compose restart prumi` loads it ([more](docs/install.md#a-new-manifest-after-dbt-parse)).
+- **Prumi in a container can't connect to a database on your machine:** inside the container, `localhost` is the container itself, so the startup message points to `host.docker.internal`, the name for the machine that runs Docker. The compose file maps it on Linux; with `docker run`, add `--add-host host.docker.internal:host-gateway`. The database must also accept connections from Docker's network, not only from `127.0.0.1` ([more](docs/install.md#localhost-inside-the-container)).
 
 ## Contributing
 
