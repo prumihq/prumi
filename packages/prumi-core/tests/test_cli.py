@@ -93,6 +93,23 @@ def test_certify_defaults_to_the_os_user(capsys, config, services, demo_dashboar
     assert code == 0 and f"by {getpass.getuser()}." in out
 
 
+def test_in_a_container_certify_needs_by(capsys, config, services, demo_dashboard, monkeypatch):
+    services.publish(*demo_dashboard)
+    monkeypatch.setenv("PRUMI_CONTAINER", "1")
+    code, out = prumi(capsys, "certify", "sales", "1", "--config", str(config))
+    assert code == 1 and "--by" in out
+    assert "draft" in prumi(capsys, "list", "--config", str(config))[1]
+
+
+def test_in_a_container_certify_with_by_certifies(
+    capsys, config, services, demo_dashboard, monkeypatch
+):
+    services.publish(*demo_dashboard)
+    monkeypatch.setenv("PRUMI_CONTAINER", "1")
+    code, out = prumi(capsys, "certify", "sales", "1", "--by", "Ana", "--config", str(config))
+    assert code == 0 and "by Ana." in out
+
+
 def test_certify_refuses_a_version_that_no_longer_validates(
     capsys, tmp_path, make_demo_config, demo_project, services, demo_dashboard
 ):
