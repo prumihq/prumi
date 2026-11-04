@@ -28,6 +28,8 @@ if TYPE_CHECKING:
 # serialized the way SQLite's BEGIN IMMEDIATE serializes them. Any fixed 64-bit number works;
 # this one spells "prumi" in ASCII.
 _POSTGRES_LOCK_KEY = 0x7072756D69
+# How long a writer waits for that lock, like the SQLite store's 10-second busy timeout.
+_POSTGRES_LOCK_TIMEOUT = "10s"
 
 
 class RegistryError(Exception):
@@ -154,7 +156,6 @@ class PostgresStore:
             "dbname": self.settings.dbname,
             "user": self.settings.user,
             "connect_timeout": 10,
-            "options": "-c DateStyle=ISO",
         }
         if self.settings.sslmode is not None:
             options["sslmode"] = self.settings.sslmode
@@ -177,7 +178,16 @@ class PostgresStore:
     @contextmanager
     def transaction(self) -> Iterator[_PostgresConn]:
         with self._open() as conn, conn.transaction():
-            conn.execute("SELECT pg_advisory_xact_lock(%s)", (_POSTGRES_LOCK_KEY,))
+            from psycopg.errors import LockNotAvailable  # importable once _open() succeeded
+
+            conn.execute(f"SET LOCAL lock_timeout = '{_POSTGRES_LOCK_TIMEOUT}'")
+            try:
+                conn.execute("SELECT pg_advisory_xact_lock(%s)", (_POSTGRES_LOCK_KEY,))
+                busy = False
+            except LockNotAvailable:
+                busy = True
+            if busy:  # raised here, after the except block, so no driver error rides along
+                raise RegistryError(postgres_errors.busy_message(self.settings))
             yield _PostgresConn(conn, self.settings)
 
     def migration_files(self) -> list[tuple[int, Traversable]]:

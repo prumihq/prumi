@@ -21,6 +21,7 @@ SECTION = "[registry.postgres]"
 _PASSWORD_HINT = f"the password in {REGISTRY_PASSWORD_VARIABLE}"
 _LOGIN_REFUSED = ("28P01", "28000")  # invalid_password, invalid_authorization_specification
 _NO_DATABASE = "3D000"
+_NO_CONNECT = "42501"  # insufficient_privilege: here, no CONNECT on the database
 _SHOWN_TABLES = 5
 
 # psycopg gives no SQLSTATE when a connection attempt fails, only libpq's text. These server
@@ -33,6 +34,7 @@ _SERVER_MESSAGES = (
     (re.compile(r"authentication failed"), "28000"),
     (re.compile(r"role \".*\" does not exist"), "28000"),
     (re.compile(r"database \".*\" does not exist"), _NO_DATABASE),
+    (re.compile(r"permission denied for database"), _NO_CONNECT),
 )
 
 
@@ -62,10 +64,16 @@ def connect_message(exc: psycopg.Error, settings: RegistryPostgresConfig) -> str
             f"No database {settings.dbname} on {where} for the registry: create it, or check "
             f"`dbname` under {SECTION}."
         )
+    if code == _NO_CONNECT:
+        return (
+            f"{settings.user} may not connect to the registry database {settings.dbname} on "
+            f"{where}: grant it (`GRANT CONNECT ON DATABASE {settings.dbname} TO "
+            f"{settings.user}`), or check `user` and `dbname` under {SECTION}."
+        )
     return (
-        f"Prumi can't connect to the registry's Postgres at {where} as {settings.user}: check "
-        f"`host`, `port` and `sslmode` under {SECTION}, that the server accepts connections "
-        f"from this machine, and {_PASSWORD_HINT}."
+        f"Prumi can't connect to the registry database {settings.dbname} on {where} as "
+        f"{settings.user}: check `host`, `port`, `dbname` and `sslmode` under {SECTION}, that "
+        f"the server accepts connections from this machine, and {_PASSWORD_HINT}."
     )
 
 
@@ -85,6 +93,14 @@ def not_utf8_message(settings: RegistryPostgresConfig, encoding: str) -> str:
         f"The registry database {settings.dbname} on {_where(settings)} is in {encoding}, and "
         "the registry needs UTF8 encoding. Create a database for it in UTF8 (`CREATE DATABASE "
         f"<name> ENCODING 'UTF8' TEMPLATE template0`) and set `dbname` under {SECTION} to it."
+    )
+
+
+def busy_message(settings: RegistryPostgresConfig) -> str:
+    return (
+        f"Another writer holds the registry database {settings.dbname} on {_where(settings)} "
+        "and didn't let go within 10 seconds: try again, and if it keeps happening, look for "
+        "a stuck Prumi process or a long transaction on that database."
     )
 
 

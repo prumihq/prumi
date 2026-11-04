@@ -217,6 +217,13 @@ class UnstorableText(ValueError):
     hold. Refused on every backend, so both keep the same content."""
 
 
+def _unstorable_id(dashboard_id: str) -> bool:
+    """Whether `dashboard_id` holds a NUL character, so no dashboard can have it. Postgres
+    refuses such text even in a query, so reads answer as for a missing dashboard before
+    asking it, as SQLite does."""
+    return "\x00" in dashboard_id
+
+
 def _refuse_nul(texts: dict[str, str | None]) -> None:
     """Refuse `texts` ({what it is: text}) if one holds a NUL character."""
     for name, text in texts.items():
@@ -320,11 +327,15 @@ class Registry:
         return [Dashboard(**dict(r)) for r in rows]
 
     def dashboard(self, dashboard_id: str) -> Dashboard | None:
+        if _unstorable_id(dashboard_id):
+            return None
         with self.store.connect() as conn:
             row = conn.execute("SELECT * FROM dashboards WHERE id = ?", (dashboard_id,)).fetchone()
         return Dashboard(**dict(row)) if row else None
 
     def version(self, dashboard_id: str, version: int) -> Version | None:
+        if _unstorable_id(dashboard_id):
+            return None
         with self.store.connect() as conn:
             row = conn.execute(
                 "SELECT * FROM versions WHERE dashboard_id = ? AND version = ?",
@@ -333,6 +344,8 @@ class Registry:
         return Version(**dict(row)) if row else None
 
     def status(self, dashboard_id: str, version: int) -> VersionStatus | None:
+        if _unstorable_id(dashboard_id):
+            return None
         with self.store.connect() as conn:
             row = conn.execute(
                 """
@@ -384,6 +397,8 @@ class Registry:
     def uncertify(self, dashboard_id: str, reason: str | None = None) -> int:
         """Revoke the dashboard's active certifications; returns how many."""
         _refuse_nul({"reason": reason})
+        if _unstorable_id(dashboard_id):
+            return 0
         with self.store.transaction() as conn:
             cursor = conn.execute(
                 "UPDATE certifications SET revoked_at = ?, revoked_reason = ?"
@@ -394,6 +409,8 @@ class Registry:
 
     def delete(self, dashboard_id: str) -> bool:
         """Remove the dashboard, its versions and certifications; keep its metric requests."""
+        if _unstorable_id(dashboard_id):
+            return False
         with self.store.transaction() as conn:
             conn.execute("DELETE FROM page_checks WHERE dashboard_id = ?", (dashboard_id,))
             conn.execute("DELETE FROM certifications WHERE dashboard_id = ?", (dashboard_id,))
@@ -436,6 +453,8 @@ class Registry:
         return check
 
     def checks(self, dashboard_id: str, version: int) -> list[PageCheck]:
+        if _unstorable_id(dashboard_id):
+            return []
         with self.store.connect() as conn:
             rows = conn.execute(
                 "SELECT * FROM page_checks WHERE dashboard_id = ? AND version = ?"
@@ -472,11 +491,14 @@ class Registry:
             }
         )
         with self.store.transaction() as conn:
-            [request_id] = conn.execute(
+            conn.execute(
                 "INSERT INTO metric_requests (description, reason, dashboard_id, requested_by,"
-                " created_at) VALUES (?, ?, ?, ?, ?) RETURNING id",
+                " created_at) VALUES (?, ?, ?, ?, ?)",
                 (description, reason, dashboard_id, requested_by, self._timestamp()),
-            ).fetchone()
+            )
+            # Not RETURNING, which SQLite before 3.35 lacks. Writers take transactions one at a
+            # time, so the highest id is the one just inserted.
+            [request_id] = conn.execute("SELECT max(id) FROM metric_requests").fetchone()
         return next(r for r in self.metric_requests() if r.id == request_id)
 
     def metric_requests(self) -> list[MetricRequest]:

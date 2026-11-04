@@ -261,6 +261,21 @@ def test_a_metric_request_with_a_nul_character_is_refused(server, services):
     assert services.registry.metric_requests() == []
 
 
+def test_a_title_with_a_nul_character_is_reported_before_publishing(
+    server, services, demo_dashboard
+):
+    spec, html = demo_dashboard
+    spec = {**spec, "dashboard": {"id": "nul-title", "title": "Sales\x00"}}
+
+    report = ok(call(server, "validate_spec", spec=spec, html=html))
+    assert [(e["code"], e["path"]) for e in report["errors"]] == [
+        ("spec.nul_character", "dashboard.title")
+    ]
+    [issue] = issues(call(server, "publish_dashboard", spec=spec, html=html))
+    assert (issue["code"], issue["path"]) == ("spec.nul_character", "dashboard.title")
+    assert services.registry.dashboard("nul-title") is None
+
+
 def test_validate_publish_and_request_metric(server, services, demo_dashboard):
     spec, html = demo_dashboard
     broken = json.loads(json.dumps(spec))

@@ -20,6 +20,7 @@ CODES = {
     "spec.unknown_block",
     "spec.unsupported_calendar",
     "spec.invalid_interaction",
+    "spec.nul_character",
     "R2.invalid_dimension",
     "R2.filter_dimension_invalid",
     "R3.no_window",

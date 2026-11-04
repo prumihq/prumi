@@ -187,6 +187,7 @@ Codes that aren't about a BI rule. Errors block publishing; warnings don't.
 | `spec.unknown_block` | error | An interaction names a block the spec doesn't define |
 | `spec.invalid_interaction` | error | An interaction can't work as declared |
 | `spec.unsupported_calendar` | error | A time filter asks for a calendar other than `standard` |
+| `spec.nul_character` | error | The dashboard title has a NUL character (`\x00`), which the registry can't store |
 
 **The page's HTML**
 

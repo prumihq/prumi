@@ -178,6 +178,23 @@ def test_certifying_an_unknown_version(registry):
         registry.certify("sales", 1, by="ana")
 
 
+def test_a_dashboard_id_with_a_nul_character_reads_as_a_missing_dashboard(registry):
+    registry.save(spec(), HTML)
+    unknown = "sales\x00"
+
+    assert registry.dashboard(unknown) is None
+    assert registry.version(unknown, 1) is None
+    assert registry.status(unknown, 1) is None
+    assert registry.checks(unknown, 1) == []
+    assert registry.uncertify(unknown) == 0
+    assert registry.delete(unknown) is False
+    with pytest.raises(KeyError):
+        registry.certify(unknown, 1, by="ana")
+    with pytest.raises(KeyError):
+        registry.record_check(unknown, 1, report([]))
+    assert [d.id for d in registry.dashboards()] == ["sales"]
+
+
 def test_delete_keeps_metric_requests(registry):
     registry.save(spec(), HTML)
     registry.certify("sales", 1, by="ana")

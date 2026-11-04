@@ -143,6 +143,7 @@ def test_an_unreachable_server_names_host_and_port(postgres_server):
     error = _refusal(PostgresStore(settings, SENTINEL))
 
     assert "127.0.0.1:1" in str(error)
+    assert "`dbname`" in str(error)
     assert SENTINEL not in str(error)
     assert error.__context__ is None
 
@@ -157,6 +158,56 @@ def test_a_role_that_cannot_create_tables_is_refused(postgres_server, fresh_db, 
     assert fresh_db in str(error)
     assert password not in str(error)
     assert error.__context__ is None
+
+
+@pytest.fixture
+def role_without_connect(postgres_server, fresh_db):
+    """A role that may log in, on a database whose CONNECT is revoked from PUBLIC."""
+    from psycopg import sql
+
+    role, password = f"prumi_registry_{uuid.uuid4().hex[:12]}", "no-connect-test"
+    with postgres_server.admin_connect() as conn:
+        conn.execute(
+            sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
+                sql.Identifier(role), sql.Literal(password)
+            )
+        )
+        conn.execute(
+            sql.SQL("REVOKE CONNECT ON DATABASE {} FROM PUBLIC").format(sql.Identifier(fresh_db))
+        )
+    yield role, password
+    with postgres_server.admin_connect() as conn:
+        conn.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(role)))
+
+
+def test_a_role_without_connect_is_told_what_to_grant(
+    postgres_server, fresh_db, role_without_connect
+):
+    role, password = role_without_connect
+
+    error = _refusal(_store(postgres_server, fresh_db, user=role, password=password))
+
+    assert f"GRANT CONNECT ON DATABASE {fresh_db} TO {role}" in str(error)
+    assert "`user`" in str(error) and "`dbname`" in str(error)
+    assert password not in str(error)
+    assert error.__context__ is None
+
+
+def test_a_writer_that_waits_too_long_for_the_registry_is_told_so(
+    postgres_server, fresh_db, monkeypatch
+):
+    from prumi.registry import stores
+
+    registry = Registry(_store(postgres_server, fresh_db))
+    monkeypatch.setattr(stores, "_POSTGRES_LOCK_TIMEOUT", "100ms")
+    with postgres_server.admin_connect(fresh_db) as other, other.transaction():
+        other.execute("SELECT pg_advisory_xact_lock(%s)", (stores._POSTGRES_LOCK_KEY,))
+        with pytest.raises(RegistryError) as raised:
+            registry.request_metric("Churn", "Retention review")
+
+    assert "Another writer" in str(raised.value) and fresh_db in str(raised.value)
+    assert raised.value.__context__ is None
+    assert registry.request_metric("Churn", "Retention review").id == 1
 
 
 def test_postgres_without_psycopg_names_the_extra(monkeypatch):
@@ -234,6 +285,7 @@ def test_the_server_and_the_cli_share_the_postgres_registry(
 def test_serve_stops_before_binding_when_the_registry_is_down(
     tmp_path, monkeypatch, capsys, make_demo_config
 ):
+    pytest.importorskip("psycopg")  # without it, the error names the extra instead
     from prumi.cli import REFUSED, main
 
     started = []

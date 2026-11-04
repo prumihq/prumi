@@ -297,6 +297,7 @@ def test_version_prints_the_installed_version_and_exits_0(capsys):
 
 
 def test_the_cli_reports_a_registry_error_without_a_traceback(capsys, config, monkeypatch):
+    pytest.importorskip("psycopg")  # without it, the error names the extra instead
     monkeypatch.setenv("PRUMI_REGISTRY_PASSWORD", "not-the-password-4d1e9b")
     config.write_text(
         config.read_text()

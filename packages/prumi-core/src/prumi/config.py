@@ -21,6 +21,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic_core import PydanticCustomError
 
 from prumi.container import in_container
 
@@ -146,6 +147,12 @@ class _Server(BaseModel):
         return host
 
 
+def _table_error(message: str, *keys: str) -> PydanticCustomError:
+    """A problem a check on a whole table finds, caused by its `keys`: a message names the
+    variables that set them, as it does for a problem with one key."""
+    return PydanticCustomError("table_keys", message, {"keys": keys})
+
+
 class _RegistryPostgres(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -159,9 +166,10 @@ class _RegistryPostgres(BaseModel):
     @classmethod
     def _no_password(cls, data: Any) -> Any:
         if isinstance(data, dict) and "password" in data:
-            raise ValueError(
+            raise _table_error(
                 "`password` isn't a setting; the registry's password comes from the "
-                f"{REGISTRY_PASSWORD_VARIABLE} variable"
+                f"{REGISTRY_PASSWORD_VARIABLE} variable",
+                "password",
             )
         return data
 
@@ -211,9 +219,11 @@ class _Registry(BaseModel):
             and data.get("backend", "sqlite") == "sqlite"
             and "postgres" in data
         ):
-            raise ValueError(
+            raise _table_error(
                 '[registry.postgres] is only used with backend = "postgres"; '
-                "set backend, or remove the section"
+                "set backend, or remove the section",
+                "postgres",
+                "backend",
             )
         return data
 
@@ -339,12 +349,17 @@ def _source(
 
 def _set_by(variables: Mapping[tuple[str, ...], str], *sections: tuple[str, ...]) -> str:
     """` (set by NAME, ...)` for the variables that set these keys or keys under them."""
-    named = sorted(
+    named = _setting(variables, *sections)
+    return f" (set by {', '.join(named)})" if named else ""
+
+
+def _setting(variables: Mapping[tuple[str, ...], str], *sections: tuple[str, ...]) -> list[str]:
+    """The variables that set these keys or keys under them."""
+    return sorted(
         name
         for key, name in variables.items()
         if any(key[: len(section)] == section for section in sections)
     )
-    return f" (set by {', '.join(named)})" if named else ""
 
 
 def _describe(
@@ -364,6 +379,9 @@ def _describe(
         name = next(
             (variables[path[:n]] for n in range(len(path), 0, -1) if path[:n] in variables), None
         )
+        if name is None and error["type"] == "table_keys":
+            keys = error.get("ctx", {}).get("keys", ())
+            name = ", ".join(_setting(variables, *((*path, key) for key in keys))) or None
         if name is None:
             problems.append(f"{'.'.join(path)}: {message}")
             continue
