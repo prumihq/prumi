@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 from prumi.issues import Report, error
-from prumi.registry import Content, Registry, canonical_spec_json, publish
+from prumi.registry import Content, Registry, UnstorableText, canonical_spec_json, publish
 from prumi.registry.stores import SqliteStore
 from prumi.spec import DashboardSpec, load_spec_file
 
@@ -197,6 +197,35 @@ def test_delete_keeps_metric_requests(registry):
 
     # The id can be used again, starting from version 1.
     assert registry.save(spec(), HTML).version == 1
+
+
+def test_html_with_a_nul_character_is_refused_on_both_backends(registry):
+    from prumi.validate.html import check_html
+
+    def validate(spec, html):
+        return Report.of(list(check_html(DashboardSpec.model_validate(spec), html)))
+
+    html = HTML + "\n<p>a\x00b</p>"
+    report, published = publish(registry, spec().model_dump(by_alias=True), html, validate)
+    assert published is None
+    assert [(e.code, e.message) for e in report.errors] == [
+        ("html.nul_character", "The HTML has a NUL character (\\x00) on line 2.")
+    ]
+    # Stored without validating, it's refused by the registry itself.
+    with pytest.raises(UnstorableText, match="HTML has a NUL character"):
+        registry.save(spec(), html)
+    with pytest.raises(UnstorableText, match="dashboard title"):
+        registry.save(spec(title="Sales\x00"), HTML)
+    assert registry.dashboards() == []
+
+
+@pytest.mark.parametrize("field", ["description", "reason", "dashboard_id"])
+def test_a_metric_request_with_a_nul_character_is_refused_on_both_backends(registry, field):
+    request = {"description": "Churn", "reason": "Retention review", "dashboard_id": "sales"}
+    with pytest.raises(UnstorableText, match=f"{field.replace('_', ' ')} has a NUL"):
+        registry.request_metric(**(request | {field: "a\x00b"}))
+    assert registry.metric_requests() == []
+    assert registry.request_metric(**request).id == 1
 
 
 # Storage
@@ -435,7 +464,7 @@ def test_both_backends_store_the_same_content(registry_store, tmp_path):
     registry = Registry(registry_store, now=clock())
     reference = Registry(SqliteStore(tmp_path / "reference"), now=clock())
     for each in (registry, reference):
-        each.save(regional(), HTML.replace("\n", "\r\n") + "<p>Ünïcödé — 1 €</p>")
+        each.save(regional(), HTML + "\r\n<p>Ünïcödé — 1 €</p>\r\n")
         each.certify("sales", 1, by="ana")
         each.save(regional(), HTML)
         each.record_check("sales", 2, report(["North"], FLAGGED))

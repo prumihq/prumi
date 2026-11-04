@@ -138,13 +138,16 @@ def registry_store(request, tmp_path):
         return
     from prumi.config import RegistryPostgresConfig
     from prumi.registry.stores import PostgresStore
+
+    server = request.getfixturevalue("postgres_server")  # skips without a server or psycopg
     from psycopg import sql
 
-    server = request.getfixturevalue("postgres_server")
     dbname = f"prumi_registry_{uuid.uuid4().hex}"
     with server.admin_connect() as conn:
         conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(dbname)))
-    settings = RegistryPostgresConfig(server.host, server.port, dbname, server.admin_user)
+    settings = RegistryPostgresConfig(
+        host=server.host, port=server.port, dbname=dbname, user=server.admin_user
+    )
     try:
         yield PostgresStore(settings, server.admin_password)
     finally:

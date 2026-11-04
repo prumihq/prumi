@@ -1,8 +1,10 @@
 """Where the registry keeps its tables: a SQLite file, or a Postgres database.
 
-The registry's SQL is written once, in the dialect both accept, with `?` placeholders. A store
-opens connections and transactions, and lists the migrations to run. A migration whose SQL
-can't be the same on Postgres has a file of the same name under `migrations/postgres/`.
+The registry's SQL is written once, in the dialect both accept, with `?` placeholders. On
+Postgres every `?` in a statement run with parameters becomes a placeholder, so such a
+statement never holds a `?` anywhere else (in a literal or a comment). A store opens
+connections and transactions, and lists the migrations to run. A migration whose SQL can't be
+the same on Postgres has a file of the same name under `migrations/postgres/`.
 """
 
 from __future__ import annotations
@@ -62,7 +64,9 @@ class Store(Protocol):
         """Each migration's number and file, in order."""
         ...
 
-    def has_table(self, conn: Conn, name: str) -> bool: ...
+    def has_table(self, conn: Conn, name: str) -> bool:
+        """Whether the registry's database has a table `name` (where the registry's tables go)."""
+        ...
 
     def before_first_migration(self, conn: Conn) -> None:
         """Called in the first migration's transaction when the registry has no tables yet."""

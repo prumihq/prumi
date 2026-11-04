@@ -253,6 +253,14 @@ def test_query_warnings_come_with_the_result(server):
 # Validating, publishing and requesting metrics
 
 
+def test_a_metric_request_with_a_nul_character_is_refused(server, services):
+    result = call(server, "request_metric", description="Net\x00 revenue", reason="Asked")
+    [issue] = issues(result)
+    assert (issue["code"], issue["path"]) == ("metric_request.nul_character", "request_metric")
+    assert "description has a NUL character" in issue["message"]
+    assert services.registry.metric_requests() == []
+
+
 def test_validate_publish_and_request_metric(server, services, demo_dashboard):
     spec, html = demo_dashboard
     broken = json.loads(json.dumps(spec))

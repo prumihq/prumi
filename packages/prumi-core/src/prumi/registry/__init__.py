@@ -212,6 +212,20 @@ def _window_or_invalid(value: Any) -> Any:
     return value
 
 
+class UnstorableText(ValueError):
+    """Text the registry refuses to store: it holds a NUL character, which Postgres text can't
+    hold. Refused on every backend, so both keep the same content."""
+
+
+def _refuse_nul(texts: dict[str, str | None]) -> None:
+    """Refuse `texts` ({what it is: text}) if one holds a NUL character."""
+    for name, text in texts.items():
+        if text is not None and "\x00" in text:
+            raise UnstorableText(
+                f"The {name} has a NUL character (\\x00), which the registry can't store."
+            )
+
+
 @dataclass(frozen=True)
 class Published:
     dashboard_id: str
@@ -256,6 +270,7 @@ class Registry:
 
     def save(self, spec: DashboardSpec, html: str, owner: str = "local") -> Published:
         """Store a version (already validated). Identical content creates nothing."""
+        _refuse_nul({"dashboard title": spec.dashboard.title, "HTML": html, "owner": owner})
         content = Content.of(spec, html)
         dashboard_id = spec.dashboard.id
         with self.store.transaction() as conn:
@@ -357,6 +372,7 @@ class Registry:
         found = self.version(dashboard_id, version)
         if found is None:
             raise KeyError(f"{dashboard_id} version {version}")
+        _refuse_nul({"certifier": by})
         with self.store.transaction() as conn:
             conn.execute(
                 "INSERT INTO certifications (dashboard_id, version, fingerprint, certified_by,"
@@ -367,6 +383,7 @@ class Registry:
 
     def uncertify(self, dashboard_id: str, reason: str | None = None) -> int:
         """Revoke the dashboard's active certifications; returns how many."""
+        _refuse_nul({"reason": reason})
         with self.store.transaction() as conn:
             cursor = conn.execute(
                 "UPDATE certifications SET revoked_at = ?, revoked_reason = ?"
@@ -446,6 +463,14 @@ class Registry:
         dashboard_id: str | None = None,
         requested_by: str = "local",
     ) -> MetricRequest:
+        _refuse_nul(
+            {
+                "description": description,
+                "reason": reason,
+                "dashboard id": dashboard_id,
+                "requester": requested_by,
+            }
+        )
         with self.store.transaction() as conn:
             [request_id] = conn.execute(
                 "INSERT INTO metric_requests (description, reason, dashboard_id, requested_by,"
