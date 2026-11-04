@@ -1,0 +1,64 @@
+# Prumi on your own dbt project, with its registry in a Postgres container of its own.
+#
+# Put this file and .env (a copy of .env.example, with your values) in one folder, then run
+#   docker compose up -d
+# and connect your agent to http://127.0.0.1:8484/mcp (or the PRUMI_PORT you chose).
+#
+# Change values in .env, not this file: everything specific to your project lives there.
+
+services:
+  prumi:
+    image: ghcr.io/prumihq/prumi:0.2.0 # x-release-please-version
+    ports:
+      # Prumi has no login yet, so the 127.0.0.1 keeps it on this machine: anyone who can reach
+      # the port can read your metrics. Keep it whatever port you choose (docs/configuration.md).
+      - "127.0.0.1:${PRUMI_PORT:-8484}:8484"
+    volumes:
+      # The dbt project's folder, read-only. Prumi reads only target/semantic_manifest.json in
+      # it, and reloads it after `dbt parse`. The folder is mounted, not target/ itself, so a
+      # `dbt clean` that recreates target/ doesn't leave Prumi on the old one.
+      - "${DBT_PROJECT_DIR:?set DBT_PROJECT_DIR in .env}:/project:ro"
+      # To configure Prumi with a prumi.toml instead of .env, mount it here (no passwords in it):
+      # - ./prumi.toml:/prumi/prumi.toml:ro
+    # The warehouse settings, its password and any optional setting.
+    env_file: .env
+    # What this file itself needs to work.
+    environment:
+      PRUMI__SOURCE__ADAPTER: dbt
+      PRUMI__SOURCE__DBT__SEMANTIC_MANIFEST: /project/target/semantic_manifest.json
+      PRUMI__SOURCE__DBT__CONNECTION__TYPE: postgres
+      PRUMI__REGISTRY__BACKEND: postgres
+      PRUMI__REGISTRY__POSTGRES__HOST: registry-db
+      PRUMI__REGISTRY__POSTGRES__DBNAME: prumi
+      PRUMI__REGISTRY__POSTGRES__USER: prumi
+      PRUMI_REGISTRY_PASSWORD: ${REGISTRY_PASSWORD:?set REGISTRY_PASSWORD in .env}
+    # Inside the container, localhost is the container itself. A warehouse on this machine is
+    # host.docker.internal, which Linux only knows with this line.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      registry-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Prumi's registry: dashboards, certifications and metric requests. A database of its own,
+  # never the warehouse. It publishes no port: only Prumi reaches it.
+  registry-db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: prumi
+      POSTGRES_USER: prumi
+      POSTGRES_PASSWORD: ${REGISTRY_PASSWORD:?set REGISTRY_PASSWORD in .env}
+    volumes:
+      - registry-data:/var/lib/postgresql
+    healthcheck:
+      # Over TCP: while the image initializes a new database, its temporary server listens only
+      # on the Unix socket, so a socket check would pass before the real server is up.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "prumi", "-d", "prumi"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  registry-data:

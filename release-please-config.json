@@ -26,7 +26,8 @@
         {"type": "generic", "path": "packages/prumi-adapter-dbt/src/prumi_adapter_dbt/__init__.py"},
         {"type": "generic", "path": "packages/prumi-core/pyproject.toml"},
         {"type": "generic", "path": "packages/prumi-adapter-dbt/pyproject.toml"},
-        {"type": "json", "path": "packages/prumi-runtime/package.json", "jsonpath": "$.version"}
+        {"type": "json", "path": "packages/prumi-runtime/package.json", "jsonpath": "$.version"},
+        {"type": "generic", "path": "deploy/compose/docker-compose.yml"}
       ]
     }
   }

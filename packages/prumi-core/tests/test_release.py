@@ -534,6 +534,7 @@ def test_every_file_release_please_bumps_has_its_marker_on_the_current_version()
             "packages/prumi-core/pyproject.toml",
             "packages/prumi-adapter-dbt/pyproject.toml",
             "packages/prumi-runtime/package.json",
+            "deploy/compose/docker-compose.yml",
         ]
     )
     for entry in extra:
