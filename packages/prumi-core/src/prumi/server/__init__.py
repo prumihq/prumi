@@ -59,9 +59,9 @@ def serve(services: Services) -> None:
                 watcher.start()
             if not services.checker.supports_locale(server.locale):
                 raise ConfigError(
-                    f"{services.config.path}: server.locale: {server.locale!r} isn't a locale "
-                    "the browser knows, so numbers can't be formatted in it. Use a tag such as "
-                    "en-US, pt-BR or de-DE."
+                    f"{services.config.source_label}: server.locale: {server.locale!r} isn't a "
+                    "locale the browser knows, so numbers can't be formatted in it. Use a tag "
+                    "such as en-US, pt-BR or de-DE."
                 )
             # Ctrl+C or SIGTERM: requests still running after 5 s are cancelled. MCP keeps no
             # stream open between requests (stateless), so nothing else holds the server up.

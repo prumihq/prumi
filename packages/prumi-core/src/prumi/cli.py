@@ -43,7 +43,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _parser() -> argparse.ArgumentParser:
     config = argparse.ArgumentParser(add_help=False)
     config.add_argument(
-        "--config", type=Path, default=Path("prumi.toml"), help="default: ./prumi.toml"
+        "--config",
+        type=Path,
+        default=None,
+        help="default: ./prumi.toml, if it exists; settings can also come from PRUMI__ variables",
     )
     parser = argparse.ArgumentParser(prog="prumi", description="Governed AI dashboards.")
     parser.add_argument("--version", action="version", version=f"prumi {prumi.__version__}")
