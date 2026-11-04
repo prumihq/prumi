@@ -15,7 +15,7 @@ from prumi.adapters import AdapterStartupError
 from prumi.config import ConfigError, load_config
 from prumi.container import in_container
 from prumi.issues import Report
-from prumi.registry import PageCheck
+from prumi.registry import PageCheck, RegistryError
 from prumi.services import Services
 from prumi.spec import SpecFileError, load_spec_file
 from prumi.validate.page import BrowserStartupError
@@ -35,7 +35,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         services = Services(load_config(args.config))
         return args.run(services, args)
-    except (ConfigError, AdapterStartupError, BrowserStartupError, SpecFileError, Refused) as exc:
+    except (
+        ConfigError,
+        AdapterStartupError,
+        BrowserStartupError,
+        RegistryError,
+        SpecFileError,
+        Refused,
+    ) as exc:
         print(f"prumi: {exc}", file=sys.stderr)
         return REFUSED
 

@@ -166,3 +166,90 @@ def test_postgres_without_psycopg_names_the_extra(monkeypatch):
     error = _refusal(PostgresStore(settings, None))
 
     assert "prumi[postgres]" in str(error)
+
+
+# The server and the CLI on a Postgres registry
+
+
+def _with_registry(path, host, port, dbname, user) -> None:
+    """Add a Postgres [registry] to the prumi.toml at `path`."""
+    path.write_text(
+        path.read_text()
+        + f"""
+[registry]
+backend = "postgres"
+
+[registry.postgres]
+host = "{host}"
+port = {port}
+dbname = "{dbname}"
+user = "{user}"
+"""
+    )
+
+
+def test_the_server_and_the_cli_share_the_postgres_registry(
+    tmp_path, monkeypatch, capsys, postgres_server, fresh_db, demo_project, demo_source
+):
+    import asyncio
+
+    import httpx2
+    from mcp import Client
+    from prumi.cli import OK, main
+    from prumi.config import load_config
+    from prumi.spec import load_spec_file
+
+    from .conftest import DEMO_DASHBOARD, LiveServer, SuiteServices, free_port, write_demo_config
+
+    server = postgres_server
+    monkeypatch.setenv("PRUMI_REGISTRY_PASSWORD", server.admin_password)
+    path = write_demo_config(tmp_path, demo_project)
+    path.write_text(path.read_text().replace("port = 8484", f"port = {free_port()}"))
+    _with_registry(path, server.host, server.port, fresh_db, server.admin_user)
+    services = SuiteServices(load_config(path))
+    services.source = demo_source
+    spec = load_spec_file(DEMO_DASHBOARD / "sales.yaml")
+    html = (DEMO_DASHBOARD / "sales.html").read_text()
+
+    async def publish(url):
+        async with Client(f"{url}/mcp") as client:
+            return await client.call_tool("publish_dashboard", {"spec": spec, "html": html})
+
+    with LiveServer(services) as live:
+        published = asyncio.run(publish(live.url))
+        assert not published.is_error, published.content
+        assert published.structured_content["version"] == 1
+
+        code = main(["certify", "sales", "1", "--by", "Ana", "--config", str(path)])
+        assert code == OK, capsys.readouterr()
+
+        status = httpx2.get(f"{live.url}/api/dashboards/sales/versions/1/status").json()
+    assert status["status"] == "certified"
+    assert status["certified_by"] == "Ana"
+    with server.admin_connect(fresh_db) as conn:
+        assert conn.execute("SELECT certified_by FROM certifications").fetchall() == [("Ana",)]
+    assert not (tmp_path / "data" / "registry.sqlite3").exists()
+
+
+def test_serve_stops_before_binding_when_the_registry_is_down(
+    tmp_path, monkeypatch, capsys, make_demo_config
+):
+    from prumi.cli import REFUSED, main
+
+    started = []
+    monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: started.append("uvicorn"))
+    monkeypatch.setattr(
+        "prumi.services.shared_checker", lambda: pytest.fail("Chromium started before the check")
+    )
+    monkeypatch.setenv("PRUMI_REGISTRY_PASSWORD", SENTINEL)
+    path = make_demo_config(tmp_path)
+    _with_registry(path, "127.0.0.1", 1, "prumi", "prumi")
+
+    assert main(["serve", "--config", str(path)]) == REFUSED
+
+    err = capsys.readouterr().err
+    assert err.startswith("prumi: ")
+    assert "127.0.0.1:1" in err
+    assert SENTINEL not in err
+    assert "Traceback" not in err
+    assert started == []

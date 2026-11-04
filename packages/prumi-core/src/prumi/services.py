@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import functools
 import logging
+import os
 import threading
 import time
 from collections.abc import Collection, Mapping, Sequence
@@ -13,10 +14,11 @@ from functools import cached_property
 from typing import Any
 
 from prumi.adapters import LOCAL_VIEWER, Viewer
-from prumi.config import DEFAULT_SOURCE, Config
+from prumi.config import DEFAULT_SOURCE, REGISTRY_PASSWORD_VARIABLE, Config
 from prumi.engine import Engine
 from prumi.issues import Issue, Report
 from prumi.registry import Published, Registry, publish
+from prumi.registry.stores import PostgresStore, SqliteStore
 from prumi.source import Source, query_origin
 from prumi.spec import DashboardSpec
 from prumi.validate import AllowedHosts, validate
@@ -48,7 +50,15 @@ class Services:
 
     @cached_property
     def registry(self) -> Registry:
-        return Registry(self.config.server.data_dir)
+        """The registry `[registry]` names: SQLite in the data dir unless it says Postgres.
+        Opening it checks the database: RegistryError."""
+        settings = self.config.registry
+        if settings.backend == "postgres":
+            assert settings.postgres is not None  # the config refuses postgres without it
+            # An empty variable counts as unset: no password is passed at all.
+            password = os.environ.get(REGISTRY_PASSWORD_VARIABLE) or None
+            return Registry(PostgresStore(settings.postgres, password))
+        return Registry(SqliteStore(self.config.server.data_dir))
 
     def current(self) -> Snapshot:
         """The snapshot in use. Loads the adapter (and checks the source) on first use:

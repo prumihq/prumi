@@ -294,3 +294,16 @@ def test_version_prints_the_installed_version_and_exits_0(capsys):
         main(["--version"])
     assert exited.value.code == 0
     assert capsys.readouterr().out == f"prumi {prumi.__version__}\n"
+
+
+def test_the_cli_reports_a_registry_error_without_a_traceback(capsys, config, monkeypatch):
+    monkeypatch.setenv("PRUMI_REGISTRY_PASSWORD", "not-the-password-4d1e9b")
+    config.write_text(
+        config.read_text()
+        + '\n[registry]\nbackend = "postgres"\n\n[registry.postgres]\n'
+        + 'host = "127.0.0.1"\nport = 1\ndbname = "prumi"\nuser = "prumi"\n'
+    )
+    code, out = prumi(capsys, "list", "--config", str(config))
+    assert code == 1
+    assert out.startswith("prumi: ") and "127.0.0.1:1" in out
+    assert "not-the-password-4d1e9b" not in out and "Traceback" not in out
