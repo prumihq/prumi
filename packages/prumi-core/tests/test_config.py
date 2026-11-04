@@ -4,7 +4,13 @@ import datetime as dt
 from pathlib import Path
 
 import pytest
-from prumi.config import DEFAULT_SCRIPT_HOSTS, ConfigError, load_config
+from prumi.config import (
+    DEFAULT_SCRIPT_HOSTS,
+    ConfigError,
+    RegistryConfig,
+    RegistryPostgresConfig,
+    load_config,
+)
 
 DEMO_CONFIG = Path(__file__).parents[3] / "examples" / "demo-dbt-project" / "prumi.toml"
 
@@ -109,3 +115,75 @@ def test_locale_tags(tmp_path, locale):
 def test_a_missing_config_file(tmp_path):
     with pytest.raises(ConfigError, match="doesn't exist"):
         load_config(tmp_path / "prumi.toml")
+
+
+PG = '[registry]\nbackend = "postgres"\n[registry.postgres]\n'
+
+
+def test_without_a_registry_section_it_is_sqlite(tmp_path):
+    assert load_config(write(tmp_path, MINIMAL)).registry == RegistryConfig("sqlite", None)
+
+
+def test_a_postgres_registry(tmp_path):
+    text = MINIMAL + PG + 'host = "db"\ndbname = "prumi"\nuser = "prumi"\n'
+    r = load_config(write(tmp_path, text)).registry
+    assert r.backend == "postgres" and r.postgres == RegistryPostgresConfig(
+        "db", 5432, "prumi", "prumi", None
+    )
+
+
+def test_postgres_settings_come_from_variables_too(tmp_path):
+    env = {
+        "PRUMI__SOURCE__ADAPTER": "dbt",
+        "PRUMI__REGISTRY__BACKEND": "postgres",
+        "PRUMI__REGISTRY__POSTGRES__HOST": "db",
+        "PRUMI__REGISTRY__POSTGRES__DBNAME": "prumi",
+        "PRUMI__REGISTRY__POSTGRES__USER": "prumi",
+        "PRUMI__REGISTRY__POSTGRES__PORT": "6543",
+        "PRUMI__REGISTRY__POSTGRES__SSLMODE": "require",
+    }
+    r = load_config(write(tmp_path, MINIMAL), env).registry
+    assert r.postgres == RegistryPostgresConfig("db", 6543, "prumi", "prumi", "require")
+
+
+def test_a_bad_value_from_a_variable_is_named_not_echoed(tmp_path):
+    env = {
+        "PRUMI__REGISTRY__BACKEND": "postgres",
+        "PRUMI__REGISTRY__POSTGRES__HOST": "postgres://u:hunter2@h/db",
+        "PRUMI__REGISTRY__POSTGRES__DBNAME": "p",
+        "PRUMI__REGISTRY__POSTGRES__USER": "p",
+    }
+    with pytest.raises(ConfigError) as caught:
+        load_config(write(tmp_path, MINIMAL), env)
+    assert "PRUMI__REGISTRY__POSTGRES__HOST" in str(caught.value)
+    assert "hunter2" not in str(caught.value)
+
+
+@pytest.mark.parametrize("port", ['"6543x"', "0", "70000", "true", '"123456"', "5432.0"])
+def test_a_bad_registry_port_is_refused(tmp_path, port):
+    text = MINIMAL + PG + f'host = "d"\ndbname = "p"\nuser = "p"\nport = {port}\n'
+    with pytest.raises(ConfigError, match="port"):
+        load_config(write(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    "text, words",
+    [
+        ('[registry]\nbackend = "postgres"\n', "[registry.postgres]"),
+        ('[registry]\nbackend = "sqlite"\n[registry.postgres]\nhost = "x"\n', "backend"),
+        ('[registry]\nbackend = "mysql"\n', "backend"),
+        (PG + 'host="d"\ndbname="p"\nuser="p"\npassword="x"\n', "PRUMI_REGISTRY_PASSWORD"),
+        (PG + 'host="d"\ndbname="p"\nuser="p"\nschema="x"\n', "schema"),
+        (PG + 'host="d"\ndbname="p"\nuser="p"\nsslmode="maybe"\n', "sslmode"),
+        (PG + 'host="d=1"\ndbname="p"\nuser="p"\n', "connection string"),
+        (PG + 'host="d"\ndbname="p"\n', "user"),
+    ],
+)
+def test_bad_registry_settings_are_refused(tmp_path, text, words):
+    with pytest.raises(ConfigError, match=words.replace("[", r"\[").replace("]", r"\]")):
+        load_config(write(tmp_path, MINIMAL + text))
+
+
+def test_the_registry_password_variable_is_ignored_with_sqlite(tmp_path, monkeypatch):
+    monkeypatch.setenv("PRUMI_REGISTRY_PASSWORD", "secret")
+    assert load_config(write(tmp_path, MINIMAL)).registry == RegistryConfig("sqlite", None)
