@@ -48,6 +48,23 @@ The install check tries Prumi as users get it from PyPI, without uploading anyth
 uv run python scripts/check_install.py
 ```
 
+## The container images
+
+`deploy/` holds the Dockerfiles: `deploy/image` for the main image and `deploy/demo-image` for the demo shop on top of it. Both build from the repository root. To build them from your working tree, build the wheels first: the main image installs them instead of the packages on PyPI.
+
+```sh
+rm -rf dist && uv build --package prumi --out-dir dist && uv build --package prumi-adapter-dbt --out-dir dist
+docker build -f deploy/image/Dockerfile --build-arg PRUMI_WHEELS=dist -t prumi:dev .
+docker build -f deploy/demo-image/Dockerfile --build-arg PRUMI_IMAGE=prumi:dev -t prumi-demo:dev .
+docker run --rm -p 127.0.0.1:8484:8484 prumi-demo:dev
+```
+
+The smoke test runs both images the way the README says and checks what they promise: the main image without a config stops and names `/prumi/prumi.toml`, the demo publishes and validates a dashboard over MCP with a link to the port it was reached on, also when the port is remapped, a foreign `Host` header is refused, and `certify` needs `--by`. Like the install check, it isn't part of `uv run pytest`; CI runs it as a job of its own, and the release runs it before pushing the images.
+
+```sh
+uv run python scripts/check_images.py --image prumi:dev --demo-image prumi-demo:dev
+```
+
 ## The README's diagrams
 
 The two diagrams in the README are drawn by a script, each in a light and a dark version. Edit the script, not the SVGs, and run it again; `--preview DIR` also renders PNGs to look at.
@@ -71,9 +88,10 @@ uv run python scripts/make_readme_images.py --preview /tmp/readme-images
 | `packages/prumi-adapter-dbt` | The `prumi-adapter-dbt` package: dbt adapter (MetricFlow compiles, Prumi executes) |
 | `packages/prumi-runtime` | Browser runtime that dashboards load; the `prumi` package carries a copy |
 | `examples/demo-dbt-project` | Demo dbt project on DuckDB, used for tests and the trial |
+| `deploy/` | The Dockerfiles of the main image (`deploy/image`) and the demo image (`deploy/demo-image`, with its config and start script) |
 | `docs/superpowers/` | Designs and implementation plans |
 | `docs/` | The BI rules and issue codes, configuration, releasing, and architecture decision records (`docs/adr/`) |
-| `scripts/` | The install check, the release's tag check and the README's diagrams |
+| `scripts/` | The install check, the images' smoke test, the release's tag check and the README's diagrams |
 | `release-please-config.json`, `.release-please-manifest.json` | What the release PR bumps, and the current version |
 | `.github/` | The workflows (CI, the PR title check, the release PR and the release), the issue and pull request templates, and the Dependabot config for the actions |
 | `spikes/` | Throwaway experiments |
