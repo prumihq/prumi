@@ -25,7 +25,21 @@ def test_port_may_arrive_as_text():
     assert PostgresSettings.from_config(BASE | {"port": "5433"}).port == 5433
 
 
-@pytest.mark.parametrize("port", ["", "five", "0x10", "-1", " 5432", "5432\n", "٣", True, 5432.0])
+@pytest.mark.parametrize(
+    "port",
+    [
+        "",
+        "five",
+        "0x10",
+        "-1",
+        " 5432",
+        "5432\n",
+        "٣",
+        pytest.param("9" * 5000, id="5000-digits"),
+        True,
+        5432.0,
+    ],
+)
 def test_a_port_that_isnt_an_integer_is_refused(port):
     with pytest.raises(AdapterStartupError) as e:
         PostgresSettings.from_config(BASE | {"port": port})
@@ -57,6 +71,13 @@ def test_a_named_variable_that_is_missing_or_empty_stops_startup(environ):
     with pytest.raises(AdapterStartupError) as e:
         PostgresSettings.from_config(BASE | {"password_env": "WH_PW"}, environ)
     assert "WH_PW" in str(e.value) and "password_env" in str(e.value)
+
+
+@pytest.mark.parametrize("name", ["Hunter2Secret", "hunter2secret", "Wh_Pw"])
+def test_a_password_typed_into_password_env_is_not_echoed(name):
+    with pytest.raises(AdapterStartupError) as e:
+        PostgresSettings.from_config(BASE | {"password_env": name}, {})
+    assert "password_env" in str(e.value) and name not in str(e.value)
 
 
 @pytest.mark.parametrize("name", ["", "1PW", "WH-PW", "WH PW", "SENTINEL=pw", 3, True])

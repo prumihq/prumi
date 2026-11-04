@@ -28,8 +28,12 @@ except ImportError as exc:  # the `postgres` extra isn't installed
 
 _KEYS = {"type", "host", "port", "dbname", "user", "password_env", "sslmode", "timezone"}
 _SSLMODES = ("disable", "allow", "prefer", "require", "verify-ca", "verify-full")
-_PORT = re.compile(r"[0-9]+")
+# At most five digits: int() refuses very long digit strings with its own error.
+_PORT = re.compile(r"[0-9]{1,5}")
 _VARIABLE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# Only a name in the usual upper-case form is shown in messages: anything else may be the
+# password itself, typed into `password_env` by mistake.
+_SHOWN_NAME = re.compile(r"[A-Z_][A-Z0-9_]*")
 _PASSWORD_HINT = "the password in the variable `password_env` names"
 CONNECT_TIMEOUT_SECONDS = 10
 
@@ -85,9 +89,13 @@ def _password(
         )
     password = environ.get(name, "")
     if not password.strip():
+        variable = (
+            f"`password_env` names the variable {name}, which is"
+            if _SHOWN_NAME.fullmatch(name)
+            else "the variable `password_env` names is"
+        )
         raise AdapterStartupError(
-            f"[source.dbt.connection] `password_env` names the variable {name}, which is "
-            "unset or empty: set it to the Postgres password."
+            f"[source.dbt.connection] {variable} unset or empty: set it to the Postgres password."
         )
     return name, password
 
