@@ -249,7 +249,10 @@ def watched_files_of(adapter: Adapter) -> tuple[Path, ...]:
 ENTRY_POINT_GROUP = "prumi.adapters"
 
 # What an adapter package registers: `factory(config, config_dir)`, called with the adapter's
-# own config table (`[source.<name>]`) and the folder that relative paths in it resolve against.
+# own config table (`[source.<name>]`) and the folder that relative paths in it resolve against
+# (the file's folder, or the current one when the settings come from variables alone). A value
+# may be a string from a PRUMI__ variable whatever type the adapter expects: the adapter
+# converts its own settings, since core can't know their types.
 AdapterFactory = Callable[[Mapping[str, Any], Path], Adapter]
 
 

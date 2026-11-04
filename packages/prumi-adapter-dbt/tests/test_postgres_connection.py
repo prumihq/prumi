@@ -67,11 +67,11 @@ def test_login_failure_points_to_password_env(postgres_demo, tmp_path, monkeypat
     assert "PGPASSWORD" not in message and "pgpass" not in message
 
 
-def test_a_named_variable_that_is_missing_stops_startup(postgres_demo, tmp_path, monkeypatch):
+def test_a_named_variable_that_is_missing_stops_startup(postgres_demo, tmp_path, monkeypatch, logs):
     monkeypatch.delenv(postgres_demo.reader_password_env)
     message = str(start(config_for(postgres_demo), tmp_path))
     assert postgres_demo.reader_password_env in message and "password_env" in message
-    assert "prumi-reader-test" not in message
+    assert "prumi-reader-test" not in message + all_text(logs)
 
 
 def test_unknown_database(postgres_demo, tmp_path, logs):

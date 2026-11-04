@@ -85,7 +85,7 @@ user = "prumi_reader"
 password_env = "WAREHOUSE_PASSWORD"
 ```
 
-Prumi reads the variable at startup and hands the password to the driver. If the variable is unset, empty or only spaces, Prumi stops at startup and says so; no message or log ever shows the password. Without `password_env`, Prumi connects without a password, for a server that doesn't ask for one (trust or peer authentication, client certificates). If the server refuses the login, the message points to `user` and `password_env`.
+Prumi reads the variable at startup and hands the password to the driver. If the variable is unset, empty or only whitespace, Prumi stops at startup and says so; no message or log ever shows the password. Without `password_env`, Prumi connects without a password, for a server that doesn't ask for one (trust or peer authentication, client certificates). If the server refuses the login, the message points to `user` and `password_env`.
 
 Every Postgres session is read-only (`default_transaction_read_only = on`), so nothing Prumi runs can write, and prints dates in ISO format (`DateStyle = ISO`), whatever the role or database sets. Any other key is refused by name.
 
@@ -120,13 +120,13 @@ prumi serve
 - **The environment wins.** A variable overrides the same key in `prumi.toml`; the keys no variable sets keep the file's values.
 - **An empty variable counts as unset,** so a compose file can pass an optional setting through as `${X:-}`.
 - **Values are text, and Prumi converts them:** `PRUMI__SERVER__PORT=9000` is the port 9000, `PRUMI__SERVER__AS_OF=2026-10-15` a date, and `PRUMI__SOURCE__DBT__CONNECTION__PORT=5433` the Postgres port. Nothing else is guessed: a database named `2024` stays text.
-- **Lists are comma-separated:** `PRUMI__SERVER__SCRIPT_HOSTS=cdn.jsdelivr.net,unpkg.com`, and the same for `style_hosts` and `font_hosts`. A variable replaces the whole list.
+- **Lists are comma-separated:** `PRUMI__SERVER__SCRIPT_HOSTS=cdn.jsdelivr.net,unpkg.com`, and the same for `style_hosts` and `font_hosts`. A variable replaces the whole list; one of only commas and spaces empties it (only an empty variable counts as unset).
 - **`prumi.toml` is optional.** Without `--config`, Prumi reads `./prumi.toml` if it exists, and otherwise starts from the variables alone. A file named with `--config` must exist. With neither a file nor any `PRUMI__` variable, Prumi stops with a message naming the file it looked for.
 - **Relative paths** in a variable resolve against the config file's folder, or against the current folder when there's no file.
 - **Mistakes stop Prumi.** A name that isn't upper-case words joined by double underscores, an unknown section, an unknown key in `[server]` or `[source]`, or a bad value for a `[server]` setting gets a message naming the variable (`PRUMI__SERVER__PORT: …`), never its value. The adapter's messages name the key (`[source.dbt.connection] port`), which maps to its variable as in the table above.
 - **Only `PRUMI__`, with two underscores, means a setting.** `PRUMI_CONTAINER` and other names with one underscore are never read as settings.
 
-Every command reads them, not only `prumi serve`, in a `uv` install as in a container.
+Every command that reads settings reads them, not only `prumi serve`, in a `uv` install as in a container.
 
 ## Running in a container
 

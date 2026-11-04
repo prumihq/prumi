@@ -1,4 +1,4 @@
-"""prumi.toml: the server, the allowed CDN hosts and the source."""
+"""prumi.toml and PRUMI__ environment variables: the server, the allowed CDN hosts, the source."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import os
 import re
 import tomllib
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -64,6 +64,9 @@ class Config:
     path: Path | None  # None when the settings came from PRUMI__ variables alone
     server: ServerConfig
     sources: Mapping[str, SourceConfig]  # exactly one in this milestone, named "default"
+    # `key path -> variable name` for each setting a PRUMI__ variable gave, so a later message
+    # can name the variable instead of showing a value that may be a secret.
+    set_by: Mapping[tuple[str, ...], str] = field(default_factory=lambda: MappingProxyType({}))
 
     @property
     def source_label(self) -> str:
@@ -182,6 +185,7 @@ def load_config(path: str | Path | None = None, environ: Mapping[str, str] | Non
         sources=MappingProxyType(
             {DEFAULT_SOURCE: _source(where, config_dir, data.get("source"), variables)}
         ),
+        set_by=MappingProxyType(variables),
     )
 
 
@@ -244,7 +248,7 @@ def _describe(
             message = "unknown key"
         # A list item's location ends in its index; the variable set the whole list.
         name = next(
-            (variables[path[:n]] for n in range(len(path), 1, -1) if path[:n] in variables), None
+            (variables[path[:n]] for n in range(len(path), 0, -1) if path[:n] in variables), None
         )
         if name is None:
             problems.append(f"{'.'.join(path)}: {message}")

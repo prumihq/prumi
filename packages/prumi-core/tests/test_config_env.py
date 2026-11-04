@@ -161,6 +161,12 @@ def test_a_bad_value_from_a_variable_is_reported_by_its_name(empty_cwd):
     assert str(caught.value).startswith("the environment: PRUMI__SERVER__PORT: ")
 
 
+def test_a_variable_that_replaced_the_server_section_is_named(empty_cwd):
+    with pytest.raises(ConfigError) as caught:
+        load_config(None, {**ADAPTER, "PRUMI__SERVER": "x"})
+    assert str(caught.value).startswith("the environment: PRUMI__SERVER: ")
+
+
 def test_a_bad_value_from_the_file_is_still_reported_by_its_key(tmp_path):
     path = write(tmp_path, '[server]\nport = "eighty"\n' + MINIMAL)
     with pytest.raises(ConfigError) as caught:
@@ -206,6 +212,7 @@ SECRET = "s3cret-value"
         "PRUMI__SERVER__HOST",
         "PRUMI__SERVER__LOCALE",
         "PRUMI__SERVER__PASSWORD",  # an unknown key
+        "PRUMI__SERVER",  # over a whole section
     ],
 )
 def test_a_refused_variable_is_named_without_its_value(empty_cwd, monkeypatch, name):

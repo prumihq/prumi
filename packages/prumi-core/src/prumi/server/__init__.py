@@ -6,7 +6,7 @@ import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from prumi.config import ConfigError
+from prumi.config import ENVIRONMENT, Config, ConfigError
 from prumi.container import log_open_hint, warn_if_unreachable
 from prumi.reload import watcher_for
 from prumi.services import Services
@@ -39,6 +39,21 @@ def _logs_shown() -> Iterator[None]:
             log.setLevel(level)
 
 
+def _unknown_locale(config: Config) -> str:
+    """The message for a locale the browser doesn't know, naming the variable if one set it."""
+    variable = config.set_by.get(("server", "locale"))
+    # A variable's value never appears in a message: it may hold a secret.
+    where = (
+        f"{ENVIRONMENT}: {variable}: the value"
+        if variable is not None
+        else f"{config.source_label}: server.locale: {config.server.locale!r}"
+    )
+    return (
+        f"{where} isn't a locale the browser knows, so numbers can't be formatted in it. Use a "
+        "tag such as en-US, pt-BR or de-DE."
+    )
+
+
 def serve(services: Services) -> None:
     """Check the source and Chromium, then listen on the configured loopback address."""
     import uvicorn
@@ -58,11 +73,7 @@ def serve(services: Services) -> None:
             if watcher is not None:
                 watcher.start()
             if not services.checker.supports_locale(server.locale):
-                raise ConfigError(
-                    f"{services.config.source_label}: server.locale: {server.locale!r} isn't a "
-                    "locale the browser knows, so numbers can't be formatted in it. Use a tag "
-                    "such as en-US, pt-BR or de-DE."
-                )
+                raise ConfigError(_unknown_locale(services.config))
             # Ctrl+C or SIGTERM: requests still running after 5 s are cancelled. MCP keeps no
             # stream open between requests (stateless), so nothing else holds the server up.
             warn_if_unreachable(server)
