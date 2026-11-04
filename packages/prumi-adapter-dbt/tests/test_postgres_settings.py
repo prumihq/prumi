@@ -192,3 +192,42 @@ def test_timezone_goes_into_the_session_options_escaped():
     assert "-c TimeZone=America/Sao_Paulo" in s.connect_kwargs()["options"]
     odd = PostgresSettings.from_config({**BASE, "timezone": "A B\\C"})
     assert r"-c TimeZone=A\ B\\C" in odd.connect_kwargs()["options"]
+
+
+def _hint_message(monkeypatch, host, container="1", text="connection failed: refused"):
+    from prumi_adapter_dbt.connections.postgres import LOCALHOST_IN_CONTAINER_HINT
+
+    if container is None:
+        monkeypatch.delenv("PRUMI_CONTAINER", raising=False)
+    else:
+        monkeypatch.setenv("PRUMI_CONTAINER", container)
+    settings = PostgresSettings.from_config({**BASE, "host": host})
+    return connect_error_message(psycopg.OperationalError(text), settings), (
+        LOCALHOST_IN_CONTAINER_HINT
+    )
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1"])
+def test_in_a_container_a_failed_loopback_connection_points_to_host_docker_internal(
+    monkeypatch, host
+):
+    message, hint = _hint_message(monkeypatch, host)
+    assert message.endswith(hint) and "host.docker.internal" in hint
+
+
+def test_outside_a_container_there_is_no_hint(monkeypatch):
+    for container in (None, "0", "true"):
+        message, hint = _hint_message(monkeypatch, "localhost", container)
+        assert hint not in message
+
+
+def test_in_a_container_other_hosts_get_no_hint(monkeypatch):
+    message, hint = _hint_message(monkeypatch, "db.internal")
+    assert hint not in message
+
+
+def test_a_login_failure_gets_no_hint(monkeypatch):
+    message, hint = _hint_message(
+        monkeypatch, "localhost", text="FATAL: password authentication failed for user"
+    )
+    assert "refused" in message and hint not in message

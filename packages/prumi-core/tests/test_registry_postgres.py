@@ -305,3 +305,41 @@ def test_serve_stops_before_binding_when_the_registry_is_down(
     assert SENTINEL not in err
     assert "Traceback" not in err
     assert started == []
+
+
+def _hint_message(monkeypatch, host, container="1", text="connection failed: refused"):
+    import psycopg
+    from prumi.registry.postgres_errors import LOCALHOST_IN_CONTAINER_HINT, connect_message
+
+    if container is None:
+        monkeypatch.delenv("PRUMI_CONTAINER", raising=False)
+    else:
+        monkeypatch.setenv("PRUMI_CONTAINER", container)
+    settings = RegistryPostgresConfig(host, 5432, "prumi", "prumi")
+    return connect_message(psycopg.OperationalError(text), settings), LOCALHOST_IN_CONTAINER_HINT
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1"])
+def test_in_a_container_a_failed_loopback_connection_points_to_host_docker_internal(
+    monkeypatch, host
+):
+    message, hint = _hint_message(monkeypatch, host)
+    assert message.endswith(hint) and "host.docker.internal" in hint
+
+
+def test_outside_a_container_there_is_no_hint(monkeypatch):
+    for container in (None, "0", "true"):
+        message, hint = _hint_message(monkeypatch, "localhost", container)
+        assert hint not in message
+
+
+def test_in_a_container_other_hosts_get_no_hint(monkeypatch):
+    message, hint = _hint_message(monkeypatch, "db.internal")
+    assert hint not in message
+
+
+def test_a_login_failure_gets_no_hint(monkeypatch):
+    message, hint = _hint_message(
+        monkeypatch, "localhost", text="FATAL: password authentication failed for user"
+    )
+    assert "refused" in message and hint not in message

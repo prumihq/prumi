@@ -7,6 +7,7 @@ error message or anything Prumi shows.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 from collections.abc import Iterable, Mapping
@@ -36,6 +37,20 @@ _VARIABLE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _SHOWN_NAME = re.compile(r"[A-Z_][A-Z0-9_]*")
 _PASSWORD_HINT = "the password in the variable `password_env` names"
 CONNECT_TIMEOUT_SECONDS = 10
+LOCALHOST_IN_CONTAINER_HINT = (
+    "Inside a container, localhost is the container itself: a server on the host machine is "
+    "host.docker.internal (on Linux, add extra_hosts: host.docker.internal:host-gateway)."
+)
+
+
+def _is_loopback(host: str) -> bool:
+    host = host.strip("[]")
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _bad(key: str, wanted: str) -> AdapterStartupError:
@@ -222,11 +237,14 @@ def connect_error_message(exc: psycopg.Error, settings: PostgresSettings) -> str
             f"`timezone` under [source.dbt.connection]: {settings.timezone!r} isn't a time "
             "zone Postgres knows."
         )
-    return (
+    message = (
         f"Prumi can't connect to Postgres at {where} as {settings.user}: check `host`, `port` "
         f"and `sslmode`, that the server accepts connections from this machine, and "
         f"{_PASSWORD_HINT}."
     )
+    if os.environ.get("PRUMI_CONTAINER") == "1" and _is_loopback(settings.host):
+        message += f" {LOCALHOST_IN_CONTAINER_HINT}"
+    return message
 
 
 # "db"."schema"."table", as dbt writes a relation into the manifest ("" escapes a quote).

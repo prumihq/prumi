@@ -195,6 +195,8 @@ Every command that reads settings reads them, not only `prumi serve`, in a `uv` 
 
 ## Running in a container
 
+To run Prumi on your own dbt project, start from the `docker compose` install in [install.md](install.md): it sets up what this section describes, with the registry in a Postgres container of its own. This section is how the images behave, for that install and for `docker run`.
+
 The images, `ghcr.io/prumihq/prumi` and the demo's `ghcr.io/prumihq/prumi-demo`, set the environment variable `PRUMI_CONTAINER=1`. It changes how Prumi listens, because a container's loopback address is its own: a server that listens only there can't be reached from the host machine, even through a published port.
 
 | | `PRUMI_CONTAINER` unset (a `uv` install) | `PRUMI_CONTAINER=1` (the images) |
@@ -224,7 +226,7 @@ Any setting can come from a variable instead, or override the file's: `-e PRUMI_
 
 The `prumi-data` volume holds the SQLite registry (`/prumi/.prumi`: dashboards and certifications), so it survives a new container, such as one from a newer image; without it, they're lost with the container. A [Postgres registry](#registrypostgres) needs no volume: pass its password with `-e PRUMI_REGISTRY_PASSWORD`. Any folder you bind-mount that Prumi writes to must be writable by uid 10001, the user Prumi runs as in the image.
 
-Paths and host names in the config are seen from inside the container. Mount the semantic manifest and a DuckDB file too, at the paths the config names, and remember that `localhost` there is the container itself, not your machine.
+Paths and host names in the config are seen from inside the container. Mount the folders that hold the semantic manifest (the dbt project's folder, rather than `target/`, which `dbt clean` recreates) and a DuckDB file, at the paths the config names: a mounted file keeps showing the old one when it's replaced. And `localhost` there is the container itself, not your machine: a server on the host machine is `host.docker.internal` ([install.md](install.md#localhost-inside-the-container)).
 
 **The CLI** runs inside the container with `docker exec`: `docker exec <container> prumi list`, where `<container>` is the name or ID `docker ps` shows. `prumi certify` needs `--by` there, because the OS user inside is the image's, not yours:
 

@@ -64,3 +64,51 @@ jobs:
           --file deploy/demo-image/Dockerfile --build-arg PRUMI_IMAGE=prumi:ci
           --tag prumi-demo:ci .
       - run: uv run --locked python scripts/check_images.py --image prumi:ci --demo-image prumi-demo:ci
+
+  compose:
+    # The shipped deploy/compose/docker-compose.yml, unchanged, with the image built from this
+    # commit's wheels and the Postgres demo as the warehouse (not part of `uv run pytest`);
+    # nothing is pushed. Prumi reaches the service container as host.docker.internal.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv build --package prumi --out-dir dist
+      - run: uv build --package prumi-adapter-dbt --out-dir dist
+      - run: >-
+          docker buildx build --platform linux/amd64 --load
+          --file deploy/image/Dockerfile --build-arg PRUMI_WHEELS=dist
+          --tag prumi:ci .
+      - run: >-
+          uv run --locked --project examples/demo-dbt-project
+          python examples/demo-dbt-project/build.py --target postgres
+        env:
+          DEMO_POSTGRES_HOST: localhost
+          DEMO_POSTGRES_PASSWORD: postgres
+      # The read-only role the script connects as, as the Postgres tests set it up.
+      - run: |
+          psql -v ON_ERROR_STOP=1 -d postgres \
+            -c "CREATE ROLE prumi_reader LOGIN PASSWORD 'prumi-reader-test'" \
+            -c "GRANT CONNECT ON DATABASE prumi_demo TO prumi_reader"
+          psql -v ON_ERROR_STOP=1 -d prumi_demo \
+            -c "GRANT USAGE ON SCHEMA main TO prumi_reader" \
+            -c "GRANT SELECT ON ALL TABLES IN SCHEMA main TO prumi_reader"
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+      - run: >-
+          uv run --locked python scripts/check_compose.py --image prumi:ci
+          --warehouse-host host.docker.internal --warehouse-port 5432

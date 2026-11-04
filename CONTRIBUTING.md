@@ -65,6 +65,16 @@ The smoke test runs both images the way the README says and checks what they pro
 uv run python scripts/check_images.py --image prumi:dev --demo-image prumi-demo:dev
 ```
 
+## The compose install
+
+`deploy/compose/` holds the `docker-compose.yml` and `.env.example` of the [compose install](docs/install.md). Each release attaches both to its GitHub Release (the example as `env.example`: GitHub renames an asset whose name starts with a period), which is where users download them from, and release-please moves the image's version in `docker-compose.yml`: don't edit it by hand. Between releases, `main`'s copy can name an image that isn't published yet.
+
+`scripts/check_compose.py` is the compose install's smoke test: it runs the shipped `docker-compose.yml`, unchanged but for the image, against a locally built main image and a Postgres warehouse with the demo built on it, and checks that Prumi publishes and certifies a dashboard, keeps its registry in the bundled database, and picks up a new manifest through the mounted project folder. Like the other checks, it isn't part of `uv run pytest`; CI runs it as the job `compose`. `--help` lists its options.
+
+```sh
+uv run python scripts/check_compose.py --help
+```
+
 ## The README's diagrams
 
 The two diagrams in the README are drawn by a script, each in a light and a dark version. Edit the script, not the SVGs, and run it again; `--preview DIR` also renders PNGs to look at.
@@ -88,10 +98,10 @@ uv run python scripts/make_readme_images.py --preview /tmp/readme-images
 | `packages/prumi-adapter-dbt` | The `prumi-adapter-dbt` package: dbt adapter (MetricFlow compiles, Prumi executes) |
 | `packages/prumi-runtime` | Browser runtime that dashboards load; the `prumi` package carries a copy |
 | `examples/demo-dbt-project` | Demo dbt project on DuckDB, used for tests and the trial |
-| `deploy/` | The Dockerfiles of the main image (`deploy/image`) and the demo image (`deploy/demo-image`, with its config and start script) |
+| `deploy/` | The Dockerfiles of the main image (`deploy/image`) and the demo image (`deploy/demo-image`, with its config and start script), and the compose install's files (`deploy/compose`) |
 | `docs/superpowers/` | Designs and implementation plans |
-| `docs/` | The BI rules and issue codes, configuration, releasing, and architecture decision records (`docs/adr/`) |
-| `scripts/` | The install check, the images' smoke test, the release's tag check and the README's diagrams |
+| `docs/` | The BI rules and issue codes, the compose install, configuration, releasing, and architecture decision records (`docs/adr/`) |
+| `scripts/` | The install check, the images' and the compose install's smoke tests, the release's tag check and the README's diagrams |
 | `release-please-config.json`, `.release-please-manifest.json` | What the release PR bumps, and the current version |
 | `.github/` | The workflows (CI, the PR title check, the release PR and the release), the issue and pull request templates, and the Dependabot config for the actions |
 | `spikes/` | Throwaway experiments |

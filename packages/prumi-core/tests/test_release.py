@@ -455,12 +455,33 @@ def test_a_manual_run_of_the_release_skips_both_uploads(release_workflow):
 
 def test_the_release_is_published_only_after_both_uploads_and_the_images(release_workflow):
     job = release_workflow["jobs"]["publish-release"]
-    assert set(job["needs"]) == {*upload_jobs(release_workflow).values(), "images"}
+    assert set(job["needs"]) == {
+        *upload_jobs(release_workflow).values(),
+        "images",
+        "compose-assets",
+    }
     assert job["if"] == "github.event_name == 'push'"
     assert job["permissions"] == {"contents": "write"}
     [run] = [s["run"] for s in job["steps"] if "run" in s]
     assert run.split()[:3] == ["gh", "release", "edit"] and "--draft=false" in run
     assert release_workflow["permissions"] == {"contents": "read"}
+
+
+def test_the_compose_files_are_attached_to_the_draft_release_after_the_images(release_workflow):
+    job = release_workflow["jobs"]["compose-assets"]
+    assert job["needs"] == "images"
+    assert job["if"] == "github.event_name == 'push'"
+    assert job["permissions"] == {"contents": "write"}
+    [checkout] = [s for s in job["steps"] if s.get("uses", "").startswith("actions/checkout@")]
+    assert checkout["with"]["persist-credentials"] is False
+    [run] = [s["run"] for s in job["steps"] if "run" in s]
+    copy, upload = run.splitlines()[0], " ".join(run.splitlines()[1:])
+    # GitHub renames an asset with a leading period, so the example goes up without one.
+    assert copy.split() == ["cp", "deploy/compose/.env.example", '"$RUNNER_TEMP/env.example"']
+    assert upload.split()[:3] == ["gh", "release", "upload"]
+    assert "deploy/compose/docker-compose.yml" in upload
+    assert '"$RUNNER_TEMP/env.example"' in upload and ".env.example" not in upload
+    assert "--clobber" in upload
 
 
 def test_the_images_are_pushed_only_after_both_uploads_on_a_tag_push(release_workflow):
@@ -534,6 +555,7 @@ def test_every_file_release_please_bumps_has_its_marker_on_the_current_version()
             "packages/prumi-core/pyproject.toml",
             "packages/prumi-adapter-dbt/pyproject.toml",
             "packages/prumi-runtime/package.json",
+            "deploy/compose/docker-compose.yml",
         ]
     )
     for entry in extra:

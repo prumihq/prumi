@@ -157,10 +157,34 @@ jobs:
           --build-arg PRUMI_IMAGE="ghcr.io/prumihq/prumi:$VERSION"
           --tag "ghcr.io/prumihq/prumi-demo:$VERSION" --tag ghcr.io/prumihq/prumi-demo:latest .
 
-  # The release stays a draft until PyPI has both packages and GHCR both images, so nobody sees
-  # a release whose files are missing. Publishing it is also what makes it immutable.
+  # The compose files are attached to the draft before it is published, so the release never
+  # points to a file or image that isn't there. They name the image pushed above.
+  compose-assets:
+    needs: images
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # GitHub renames an asset whose name starts with a period (.env.example would become
+      # default.env.example), so .../download/.env.example would 404. The example goes up as
+      # env.example, and the install docs save it as .env.example.
+      - run: |
+          cp deploy/compose/.env.example "$RUNNER_TEMP/env.example"
+          gh release upload "$TAG" deploy/compose/docker-compose.yml "$RUNNER_TEMP/env.example" \
+            --repo "$GITHUB_REPOSITORY" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+
+  # The release stays a draft until PyPI has both packages, GHCR both images and the release
+  # its compose files, so nobody sees a release whose files are missing. Publishing it is also
+  # what makes it immutable.
   publish-release:
-    needs: [upload-prumi, upload-prumi-adapter-dbt, images]
+    needs: [upload-prumi, upload-prumi-adapter-dbt, images, compose-assets]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
