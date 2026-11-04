@@ -68,6 +68,18 @@ def build_demo(target: str = "duckdb", extra_env: dict[str, str] | None = None) 
         )
 
 
+@pytest.fixture(scope="session", autouse=True)
+def no_ambient_settings() -> Iterator[None]:
+    """Drop PRUMI__ settings from the developer's shell (a sourced .env, say), so they can't
+    change what a test loads. Session-wide, because session fixtures load configs too. A test
+    that wants some passes `environ` or sets them with monkeypatch."""
+    with pytest.MonkeyPatch.context() as env:
+        for name in list(os.environ):
+            if name.startswith("PRUMI__"):
+                env.delenv(name)
+        yield
+
+
 @pytest.fixture(scope="session")
 def demo_project() -> DemoProject:
     if demo_is_stale():

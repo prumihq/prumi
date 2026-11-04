@@ -1,5 +1,6 @@
 """Settings from PRUMI__ environment variables, merged over prumi.toml."""
 
+import datetime as dt
 from pathlib import Path
 
 import pytest
@@ -138,3 +139,79 @@ def test_relative_paths_without_a_file_resolve_against_the_current_folder(empty_
     config = load_config(None, {**ADAPTER, "PRUMI__SERVER__DATA_DIR": "data"})
     assert config.server.data_dir == empty_cwd / "data"
     assert config.sources["default"].config_dir == empty_cwd
+
+
+def test_text_values_become_core_types(empty_cwd):
+    env = {
+        **ADAPTER,
+        "PRUMI__SERVER__PORT": "9000",
+        "PRUMI__SERVER__AS_OF": "2026-10-15",
+        "PRUMI__SERVER__SCRIPT_HOSTS": "cdn.jsdelivr.net, unpkg.com",
+        "PRUMI__SERVER__FONT_HOSTS": "fonts.gstatic.com,,",
+    }
+    server = load_config(None, env).server
+    assert server.port == 9000 and server.as_of == dt.date(2026, 10, 15)
+    assert server.script_hosts == ("cdn.jsdelivr.net", "unpkg.com")
+    assert server.font_hosts == ("fonts.gstatic.com",)
+
+
+def test_a_bad_value_from_a_variable_is_reported_by_its_name(empty_cwd):
+    with pytest.raises(ConfigError) as caught:
+        load_config(None, {**ADAPTER, "PRUMI__SERVER__PORT": "eighty"})
+    assert str(caught.value).startswith("the environment: PRUMI__SERVER__PORT: ")
+
+
+def test_a_bad_value_from_the_file_is_still_reported_by_its_key(tmp_path):
+    path = write(tmp_path, '[server]\nport = "eighty"\n' + MINIMAL)
+    with pytest.raises(ConfigError) as caught:
+        load_config(path, {"PRUMI__SERVER__AS_OF": "2026-10-15"})
+    assert str(caught.value).startswith(f"{path}: server.port: ")
+
+
+def test_a_non_loopback_host_from_a_variable_is_refused_outside_a_container(empty_cwd, monkeypatch):
+    monkeypatch.delenv("PRUMI_CONTAINER", raising=False)
+    with pytest.raises(ConfigError) as caught:
+        load_config(None, {**ADAPTER, "PRUMI__SERVER__HOST": "0.0.0.0"})
+    message = str(caught.value)
+    assert "PRUMI__SERVER__HOST: " in message and "isn't a loopback address" in message
+
+
+def test_a_missing_adapter_names_the_variable_that_replaced_the_source(empty_cwd):
+    with pytest.raises(ConfigError, match=r"\[source\] \(set by PRUMI__SOURCE\) needs `adapter`"):
+        load_config(None, {"PRUMI__SOURCE": "dbt"})
+
+
+def test_an_unknown_source_key_from_a_variable_is_refused_by_name(tmp_path):
+    with pytest.raises(
+        ConfigError, match=r"unknown key\(s\) in \[source\]: dbtt.*PRUMI__SOURCE__DBTT__X"
+    ):
+        load_config(write(tmp_path, MINIMAL), {"PRUMI__SOURCE__DBTT__X": "1"})
+
+
+def test_adapter_settings_over_a_value_name_the_variable(empty_cwd):
+    with pytest.raises(ConfigError, match=r"\[source.dbt\] must be a table.*PRUMI__SOURCE__DBT"):
+        load_config(None, {**ADAPTER, "PRUMI__SOURCE__DBT": "m.json"})
+
+
+SECRET = "s3cret-value"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "PRUMI__server__password",  # a malformed name
+        "PRUMI__SOURCE__ADAPTER__PASSWORD",  # through a scalar
+        "PRUMI__SERVER__PORT",
+        "PRUMI__SERVER__AS_OF",
+        "PRUMI__SERVER__HOST",
+        "PRUMI__SERVER__LOCALE",
+        "PRUMI__SERVER__PASSWORD",  # an unknown key
+    ],
+)
+def test_a_refused_variable_is_named_without_its_value(empty_cwd, monkeypatch, name):
+    monkeypatch.delenv("PRUMI_CONTAINER", raising=False)
+    with pytest.raises(ConfigError) as caught:
+        load_config(None, {**ADAPTER, name: SECRET})
+    message = str(caught.value)
+    assert name in message
+    assert SECRET not in message

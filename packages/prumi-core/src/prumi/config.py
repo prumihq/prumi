@@ -84,6 +84,14 @@ class _Server(BaseModel):
     style_hosts: tuple[str, ...] = DEFAULT_STYLE_HOSTS
     font_hosts: tuple[str, ...] = DEFAULT_FONT_HOSTS
 
+    @field_validator("script_hosts", "style_hosts", "font_hosts", mode="before")
+    @classmethod
+    def _comma_separated(cls, hosts: Any) -> Any:
+        # A variable holds text, so a list setting comes as comma-separated hosts.
+        if isinstance(hosts, str):
+            return tuple(host.strip() for host in hosts.split(",") if host.strip())
+        return hosts
+
     @field_validator("locale")
     @classmethod
     def _locale_tag(cls, locale: str) -> str:
@@ -152,13 +160,12 @@ def load_config(path: str | Path | None = None, environ: Mapping[str, str] | Non
     config_dir = found.parent if found is not None else Path.cwd()
     unknown = sorted(set(data) - {"server", "source"})
     if unknown:
-        named = sorted(name for key, name in variables.items() if key[0] in unknown)
-        set_by = f" (set by {', '.join(named)})" if named else ""
+        set_by = _set_by(variables, *((section,) for section in unknown))
         raise ConfigError(f"{where}: unknown section(s) {', '.join(unknown)}{set_by}.")
     try:
         server = _Server.model_validate(data.get("server", {}))
     except ValidationError as exc:
-        raise ConfigError(_describe(where, "server", exc)) from None
+        raise ConfigError(_describe(where, "server", exc, variables)) from None
 
     return Config(
         path=found,
@@ -172,23 +179,34 @@ def load_config(path: str | Path | None = None, environ: Mapping[str, str] | Non
             style_hosts=server.style_hosts,
             font_hosts=server.font_hosts,
         ),
-        sources=MappingProxyType({DEFAULT_SOURCE: _source(where, config_dir, data.get("source"))}),
+        sources=MappingProxyType(
+            {DEFAULT_SOURCE: _source(where, config_dir, data.get("source"), variables)}
+        ),
     )
 
 
-def _source(where: str, config_dir: Path, table: Any) -> SourceConfig:
+def _source(
+    where: str, config_dir: Path, table: Any, variables: Mapping[tuple[str, ...], str]
+) -> SourceConfig:
     if not isinstance(table, dict) or not isinstance(table.get("adapter"), str):
-        raise ConfigError(f'{where}: [source] needs `adapter`, the adapter to use (e.g. "dbt").')
+        # Only a variable that replaced the whole section can be at fault here.
+        named = f" (set by {variables[('source',)]})" if ("source",) in variables else ""
+        raise ConfigError(
+            f'{where}: [source]{named} needs `adapter`, the adapter to use (e.g. "dbt").'
+        )
     adapter = table["adapter"]
     unknown = sorted(set(table) - {"adapter", "project", adapter})
     if unknown:
         raise ConfigError(
-            f"{where}: unknown key(s) in [source]: {', '.join(unknown)}. The adapter's settings "
-            f"go in [source.{adapter}]."
+            f"{where}: unknown key(s) in [source]: {', '.join(unknown)}"
+            f"{_set_by(variables, *(('source', key) for key in unknown))}. The adapter's "
+            f"settings go in [source.{adapter}]."
         )
     settings = table.get(adapter, {})
     if not isinstance(settings, dict):
-        raise ConfigError(f"{where}: [source.{adapter}] must be a table.")
+        raise ConfigError(
+            f"{where}: [source.{adapter}] must be a table{_set_by(variables, ('source', adapter))}."
+        )
     project = table.get("project")
     if project is not None and not isinstance(project, str):
         raise ConfigError(f"{where}: [source] `project` must be a string (the project's name).")
@@ -201,12 +219,39 @@ def _source(where: str, config_dir: Path, table: Any) -> SourceConfig:
     )
 
 
-def _describe(where: str, section: str, exc: ValidationError) -> str:
+def _set_by(variables: Mapping[tuple[str, ...], str], *sections: tuple[str, ...]) -> str:
+    """` (set by NAME, ...)` for the variables that set these keys or keys under them."""
+    named = sorted(
+        name
+        for key, name in variables.items()
+        if any(key[: len(section)] == section for section in sections)
+    )
+    return f" (set by {', '.join(named)})" if named else ""
+
+
+def _describe(
+    where: str,
+    section: str,
+    exc: ValidationError,
+    variables: Mapping[tuple[str, ...], str],
+) -> str:
+    """The validation problems, each under its key, or under the variable that set it."""
     problems = []
     for error in exc.errors():
-        key = ".".join(str(part) for part in error["loc"])
+        path = (section, *(str(part) for part in error["loc"]))
         message = error["msg"].removeprefix("Value error, ")
         if error["type"] == "extra_forbidden":
             message = "unknown key"
-        problems.append(f"{section}.{key}: {message}")
+        # A list item's location ends in its index; the variable set the whole list.
+        name = next(
+            (variables[path[:n]] for n in range(len(path), 1, -1) if path[:n] in variables), None
+        )
+        if name is None:
+            problems.append(f"{'.'.join(path)}: {message}")
+            continue
+        # A variable may hold a secret, so its value never appears in a message.
+        value = error.get("input")
+        if isinstance(value, str) and value:
+            message = message.replace(repr(value), "the value")
+        problems.append(f"{name}: {message}")
     return f"{where}: " + "; ".join(problems)
