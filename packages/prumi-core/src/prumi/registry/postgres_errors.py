@@ -6,11 +6,12 @@ connection string: either could carry the password, which comes from PRUMI_REGIS
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from prumi.config import REGISTRY_PASSWORD_VARIABLE
+from prumi.config import REGISTRY_PASSWORD_VARIABLE, is_loopback
 
 if TYPE_CHECKING:
     import psycopg
@@ -23,6 +24,10 @@ _LOGIN_REFUSED = ("28P01", "28000")  # invalid_password, invalid_authorization_s
 _NO_DATABASE = "3D000"
 _NO_CONNECT = "42501"  # insufficient_privilege: here, no CONNECT on the database
 _SHOWN_TABLES = 5
+LOCALHOST_IN_CONTAINER_HINT = (
+    "Inside a container, localhost is the container itself: a server on the host machine is "
+    "host.docker.internal (on Linux, add extra_hosts: host.docker.internal:host-gateway)."
+)
 
 # psycopg gives no SQLSTATE when a connection attempt fails, only libpq's text. These server
 # messages stand in for their codes; they only pick the advice and are never shown. A message
@@ -70,11 +75,14 @@ def connect_message(exc: psycopg.Error, settings: RegistryPostgresConfig) -> str
             f"{where}: grant it (`GRANT CONNECT ON DATABASE {settings.dbname} TO "
             f"{settings.user}`), or check `user` and `dbname` under {SECTION}."
         )
-    return (
+    message = (
         f"Prumi can't connect to the registry database {settings.dbname} on {where} as "
         f"{settings.user}: check `host`, `port`, `dbname` and `sslmode` under {SECTION}, that "
         f"the server accepts connections from this machine, and {_PASSWORD_HINT}."
     )
+    if os.environ.get("PRUMI_CONTAINER") == "1" and is_loopback(settings.host.strip("[]")):
+        message += f" {LOCALHOST_IN_CONTAINER_HINT}"
+    return message
 
 
 def not_its_own_database_message(settings: RegistryPostgresConfig, tables: Sequence[str]) -> str:
