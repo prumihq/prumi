@@ -6,7 +6,22 @@ Install it with Prumi: `uv tool install "prumi[dbt]"` installs both, with the Du
 
 ## Connecting to Postgres
 
-On Postgres, Prumi connects with its own role, separate from the one in your dbt profile, and every session is read-only. That role needs `CONNECT` on the database dbt built, `USAGE` on the schemas of the tables in the semantic manifest, and `SELECT` on those tables; Postgres applies its grants and row policies to every query. Prumi never takes a password in `prumi.toml`: libpq finds it in `PGPASSWORD` or `~/.pgpass` (or a service file). The keys go under `[source.dbt.connection]`; see [Configuration](https://github.com/prumihq/prumi/blob/main/docs/configuration.md#sourcedbtconnection).
+On Postgres, Prumi connects with its own role, separate from the one in your dbt profile, and every session is read-only. That role needs `CONNECT` on the database dbt built, `USAGE` on the schemas of the tables in the semantic manifest, and `SELECT` on those tables; Postgres applies its grants and row policies to every query. The keys go under `[source.dbt.connection]`. Prumi never takes a password in `prumi.toml`: put it in an environment variable and name that variable in `password_env`.
+
+```toml
+[source.dbt.connection]
+type = "postgres"
+host = "db.internal"
+dbname = "analytics"
+user = "prumi_reader"
+password_env = "WAREHOUSE_PASSWORD"
+```
+
+If the variable `password_env` names is unset or empty, the server stops at startup. Without `password_env`, Prumi connects without a password. Every key is in [Configuration](https://github.com/prumihq/prumi/blob/main/docs/configuration.md#sourcedbtconnection).
+
+## Settings as text
+
+The adapter's settings may arrive as text: Prumi reads every setting from `PRUMI__…` environment variables too ([Settings from environment variables](https://github.com/prumihq/prumi/blob/main/docs/configuration.md#settings-from-environment-variables)), and a variable's value is a string. The adapter converts its own settings, so `port = "5433"` works like `port = 5433`. An unknown key in `[source.dbt]` or `[source.dbt.connection]` stops the server, naming the key.
 
 ## Preparing your dbt project
 

@@ -1,6 +1,6 @@
 # Configuration
 
-Prumi reads one file, passed with `--config` (`prumi serve --config prumi.toml`). Relative paths in it resolve against the folder the file is in. An unknown section or key stops the server with a message that names it.
+Prumi reads its settings from a file, `prumi.toml`, from `PRUMI__…` environment variables, or from both: see [Settings from environment variables](#settings-from-environment-variables). The file is passed with `--config` (`prumi serve --config prumi.toml`); without `--config`, Prumi reads `./prumi.toml` if it exists. Relative paths in the file resolve against the folder the file is in. An unknown section or key stops the server with a message that names it.
 
 ```toml
 [server]
@@ -69,13 +69,64 @@ For `postgres`:
 | `host` | Required. The Postgres server: a host name, not a connection string. |
 | `dbname` | Required. The database dbt built: its name, not a connection string. |
 | `user` | Required. The role Prumi connects as. |
+| `password_env` | The name of the environment variable that holds the role's password, such as `WAREHOUSE_PASSWORD`. Unset, Prumi connects without a password. |
 | `port` | An integer. Default `5432`. |
 | `sslmode` | One of `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`. Unset, libpq decides. |
 | `timezone` | A time zone name (such as `America/Sao_Paulo`) for the session. Unset, the connection keeps its own time zone, from the server, database or role setting, or `PGTZ`. Set, Prumi refuses to start if `PGTZ` overrides it. |
 
-There is no `password` key, and Prumi refuses one. libpq finds the password itself: `PGPASSWORD`, `~/.pgpass` or a service file. It never goes in `prumi.toml`. Every Postgres session is read-only (`default_transaction_read_only = on`), so nothing Prumi runs can write, and prints dates in ISO format (`DateStyle = ISO`), whatever the role or database sets. Any other key is refused by name.
+There is no `password` key, and Prumi refuses one: the password never goes in `prumi.toml`. Put it in an environment variable and name that variable in `password_env`:
+
+```toml
+[source.dbt.connection]
+type = "postgres"
+host = "db.internal"
+dbname = "analytics"
+user = "prumi_reader"
+password_env = "WAREHOUSE_PASSWORD"
+```
+
+Prumi reads the variable at startup and hands the password to the driver. If the variable is unset, empty or only spaces, Prumi stops at startup and says so; no message or log ever shows the password. Without `password_env`, Prumi connects without a password, for a server that doesn't ask for one (trust or peer authentication, client certificates). If the server refuses the login, the message points to `user` and `password_env`.
+
+Every Postgres session is read-only (`default_transaction_read_only = on`), so nothing Prumi runs can write, and prints dates in ISO format (`DateStyle = ISO`), whatever the role or database sets. Any other key is refused by name.
 
 Changes to the config take effect when Prumi restarts. The server reloads the manifest when it changes: a new one that fails a check is logged and the current one stays in use.
+
+## Settings from environment variables
+
+Every setting can also come from an environment variable: `PRUMI__`, then the section's path and the key, in upper case, joined by double underscores.
+
+| `prumi.toml` | Variable |
+|---|---|
+| `[server] port` | `PRUMI__SERVER__PORT` |
+| `[source] adapter` | `PRUMI__SOURCE__ADAPTER` |
+| `[source.dbt] semantic_manifest` | `PRUMI__SOURCE__DBT__SEMANTIC_MANIFEST` |
+| `[source.dbt.connection] host` | `PRUMI__SOURCE__DBT__CONNECTION__HOST` |
+| `[source.dbt.connection] password_env` | `PRUMI__SOURCE__DBT__CONNECTION__PASSWORD_ENV` |
+
+For example, a Postgres setup with no `prumi.toml` at all:
+
+```sh
+export PRUMI__SOURCE__ADAPTER=dbt
+export PRUMI__SOURCE__DBT__SEMANTIC_MANIFEST=/srv/analytics/target/semantic_manifest.json
+export PRUMI__SOURCE__DBT__CONNECTION__TYPE=postgres
+export PRUMI__SOURCE__DBT__CONNECTION__HOST=db.internal
+export PRUMI__SOURCE__DBT__CONNECTION__DBNAME=analytics
+export PRUMI__SOURCE__DBT__CONNECTION__USER=prumi_reader
+export PRUMI__SOURCE__DBT__CONNECTION__PASSWORD_ENV=WAREHOUSE_PASSWORD
+# WAREHOUSE_PASSWORD itself comes from wherever you keep secrets.
+prumi serve
+```
+
+- **The environment wins.** A variable overrides the same key in `prumi.toml`; the keys no variable sets keep the file's values.
+- **An empty variable counts as unset,** so a compose file can pass an optional setting through as `${X:-}`.
+- **Values are text, and Prumi converts them:** `PRUMI__SERVER__PORT=9000` is the port 9000, `PRUMI__SERVER__AS_OF=2026-10-15` a date, and `PRUMI__SOURCE__DBT__CONNECTION__PORT=5433` the Postgres port. Nothing else is guessed: a database named `2024` stays text.
+- **Lists are comma-separated:** `PRUMI__SERVER__SCRIPT_HOSTS=cdn.jsdelivr.net,unpkg.com`, and the same for `style_hosts` and `font_hosts`. A variable replaces the whole list.
+- **`prumi.toml` is optional.** Without `--config`, Prumi reads `./prumi.toml` if it exists, and otherwise starts from the variables alone. A file named with `--config` must exist. With neither a file nor any `PRUMI__` variable, Prumi stops with a message naming the file it looked for.
+- **Relative paths** in a variable resolve against the config file's folder, or against the current folder when there's no file.
+- **Mistakes stop Prumi.** A name that isn't upper-case words joined by double underscores, an unknown section, an unknown key in `[server]` or `[source]`, or a bad value for a `[server]` setting gets a message naming the variable (`PRUMI__SERVER__PORT: …`), never its value. The adapter's messages name the key (`[source.dbt.connection] port`), which maps to its variable as in the table above.
+- **Only `PRUMI__`, with two underscores, means a setting.** `PRUMI_CONTAINER` and other names with one underscore are never read as settings.
+
+Every command reads them, not only `prumi serve`, in a `uv` install as in a container.
 
 ## Running in a container
 
@@ -97,12 +148,14 @@ Only `1` turns it on: any other value, `0` included, counts as unset. Don't set 
 
 **Another port.** The images listen on `8484`, and their healthcheck checks `8484`. To use another port, change the host side of `-p` (`-p 127.0.0.1:9000:8484`), not `port` in the config. The links Prumi hands out then name the port you chose, and the MCP endpoint is `http://127.0.0.1:9000/mcp`.
 
-**Your own project.** The main image reads `/prumi/prumi.toml`. Started without one, it stops with a message naming that path; it never falls back to the demo. Mount your config there:
+**Your own project.** The main image reads `/prumi/prumi.toml`, and the `PRUMI__…` variables passed with `-e` or `--env-file` ([Settings from environment variables](#settings-from-environment-variables)). Started with neither, it stops with a message naming that path; it never falls back to the demo. Mount your config there:
 
 ```sh
 docker run -p 127.0.0.1:8484:8484 -v "$PWD/prumi.toml:/prumi/prumi.toml:ro" \
   -v prumi-data:/prumi/.prumi ghcr.io/prumihq/prumi
 ```
+
+Any setting can come from a variable instead, or override the file's: `-e PRUMI__SOURCE__DBT__CONNECTION__HOST=db.internal`. A relative path in a variable resolves against `/prumi`. Pass the warehouse password the same way, under the name `password_env` gives: `-e WAREHOUSE_PASSWORD` with no value copies it from your shell, so it stays off the command line.
 
 The `prumi-data` volume holds the registry (`/prumi/.prumi`: dashboards and certifications), so it survives a new container, such as one from a newer image; without it, they're lost with the container. Any folder you bind-mount that Prumi writes to must be writable by uid 10001, the user Prumi runs as in the image.
 
