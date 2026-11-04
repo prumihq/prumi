@@ -28,7 +28,7 @@ Every key is optional.
 |---|---|---|
 | `host` | `127.0.0.1`, or `0.0.0.0` in the container image | The address Prumi listens on. Outside a container it must be a loopback address (`127.0.0.1`, `::1` or `localhost`): this release has no login, so anything else would expose the warehouse to the network. In the container image any address is allowed, and publishing with `-p 127.0.0.1:…` keeps Prumi off the network; see [Running in a container](#running-in-a-container). |
 | `port` | `8484` | The port. The MCP endpoint is `http://<host>:<port>/mcp`. In the container images, leave it at `8484` and change the host side of `-p` instead. |
-| `data_dir` | `.prumi` | Where the registry (`registry.sqlite3`) is kept. Use a local disk: SQLite's WAL mode doesn't work over a network filesystem. |
+| `data_dir` | `.prumi` | Where the SQLite registry (`registry.sqlite3`) is kept, the default; see [`[registry]`](#registry). Use a local disk: SQLite's WAL mode doesn't work over a network filesystem. A Postgres registry doesn't use it. |
 | `locale` | `en-US` | The display locale, a tag such as `en-US`, `pt-BR` or `de-DE`. Every viewer sees numbers and dates formatted this way, whatever their browser's language. |
 | `as_of` | today | Pins "today" to a date (`2026-10-15`), so time windows and partial periods are computed as of that day. For demos and tests. |
 | `script_hosts` | `cdn.jsdelivr.net`, `cdnjs.cloudflare.com`, `unpkg.com` | The hosts a dashboard may load scripts from. Validation warns about a script URL with no exact version. |
@@ -91,6 +91,69 @@ Every Postgres session is read-only (`default_transaction_read_only = on`), so n
 
 Changes to the config take effect when Prumi restarts. The server reloads the manifest when it changes: a new one that fails a check is logged and the current one stays in use.
 
+## `[registry]`
+
+The registry holds what Prumi stores: dashboards and their versions, certifications, metric requests and the check reports from viewers' browsers. It lives in a Postgres database or in a SQLite file.
+
+| Key | Default | What it does |
+|---|---|---|
+| `backend` | `sqlite` | `postgres` or `sqlite`. |
+
+- **Postgres** is the registry for a real install: a database of its own, on a server you already run and back up. Its settings go in [`[registry.postgres]`](#registrypostgres).
+- **SQLite**, the default, needs nothing set up: the registry is the file `registry.sqlite3` in `data_dir`, on one machine. Without a `[registry]` section, that's the registry.
+
+Changing `backend` starts with an empty registry: nothing is copied from the other one.
+
+### `[registry.postgres]`
+
+Required with `backend = "postgres"`, and refused with `sqlite`.
+
+| Key | What it does |
+|---|---|
+| `host` | Required. The Postgres server: a host name, not a connection string. |
+| `dbname` | Required. The registry's database: its name, not a connection string. It must be a database of its own; see below. |
+| `user` | Required. The role Prumi connects as. It must be able to create tables in the database: the registry creates its own at startup. |
+| `port` | An integer. Default `5432`. |
+| `sslmode` | One of `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`. Unset, libpq decides. |
+
+Any other key is refused by name, `password` included. The password comes from the environment variable `PRUMI_REGISTRY_PASSWORD`, always under that name; unset or empty, Prumi connects without a password. It's not read with `backend = "sqlite"`. No message or log ever shows it.
+
+```toml
+[registry]
+backend = "postgres"
+
+[registry.postgres]
+host = "db.internal"
+dbname = "prumi_registry"
+user = "prumi"
+sslmode = "require"
+```
+
+```sh
+export PRUMI_REGISTRY_PASSWORD=...   # from wherever you keep secrets
+prumi serve
+```
+
+Prumi needs the psycopg driver for a Postgres registry: `prumi[dbt]` brings it, and so does the container image. Without them, install the extra `prumi[postgres]`.
+
+**A database of its own.** Create an empty database for the registry, in UTF8, owned by the role Prumi connects as, so that role can create the registry's tables:
+
+```sql
+CREATE ROLE prumi LOGIN PASSWORD '...';
+CREATE DATABASE prumi_registry OWNER prumi ENCODING 'UTF8' TEMPLATE template0;
+```
+
+The first time Prumi opens it, before the registry's tables exist, Prumi refuses a database that already holds a table or view (in any schema but Postgres's own) and names what it found, and refuses one whose encoding isn't UTF8: the registry sorts text by its bytes, which gives SQLite's order only in UTF-8. Never point the registry at the warehouse, even in a schema of its own: Prumi's warehouse role is read-only and stays that way, and the registry's tables don't belong among the ones dbt builds. Once the registry's tables exist, the check doesn't run again.
+
+**At startup** Prumi opens the registry before it starts listening, so a registry it can't use stops it with a message naming what to change: `host`, `port` or `sslmode` when the server can't be reached, `user` and `PRUMI_REGISTRY_PASSWORD` when the login is refused, `dbname` when the database doesn't exist, the role's privileges when it can't create tables, and `prumi[postgres]` when the driver is missing. The CLI commands stop with the same messages, as `prumi: ...`, without a traceback.
+
+**One registry per deployment.** One `prumi serve` uses a registry, and the CLI commands run with the same settings use it beside the server. Don't point two Prumi deployments at one registry database, and don't run several servers on one: each server keeps the candidates `validate_spec` checked in its own memory, so another server couldn't publish them.
+
+### Backing up the registry
+
+- **Postgres:** back up the registry's database like any other, with `pg_dump` (`pg_dump -Fc -d prumi_registry -f prumi_registry.dump`) or your server's own backups.
+- **SQLite:** stop the server and copy `registry.sqlite3`, or run `sqlite3 registry.sqlite3 ".backup <file>"` while it runs. In WAL mode, recent writes may still be in `registry.sqlite3-wal`, so copying the main file alone can miss them.
+
 ## Settings from environment variables
 
 Every setting can also come from an environment variable: `PRUMI__`, then the section's path and the key, in upper case, joined by double underscores.
@@ -102,6 +165,8 @@ Every setting can also come from an environment variable: `PRUMI__`, then the se
 | `[source.dbt] semantic_manifest` | `PRUMI__SOURCE__DBT__SEMANTIC_MANIFEST` |
 | `[source.dbt.connection] host` | `PRUMI__SOURCE__DBT__CONNECTION__HOST` |
 | `[source.dbt.connection] password_env` | `PRUMI__SOURCE__DBT__CONNECTION__PASSWORD_ENV` |
+| `[registry] backend` | `PRUMI__REGISTRY__BACKEND` |
+| `[registry.postgres] host` | `PRUMI__REGISTRY__POSTGRES__HOST` |
 
 For example, a Postgres setup with no `prumi.toml` at all:
 
@@ -123,8 +188,8 @@ prumi serve
 - **Lists are comma-separated:** `PRUMI__SERVER__SCRIPT_HOSTS=cdn.jsdelivr.net,unpkg.com`, and the same for `style_hosts` and `font_hosts`. A variable replaces the whole list; one of only commas and spaces empties it (only an empty variable counts as unset).
 - **`prumi.toml` is optional.** Without `--config`, Prumi reads `./prumi.toml` if it exists, and otherwise starts from the variables alone. A file named with `--config` must exist. With neither a file nor any `PRUMI__` variable, Prumi stops with a message naming the file it looked for.
 - **Relative paths** in a variable resolve against the config file's folder, or against the current folder when there's no file.
-- **Mistakes stop Prumi.** A name that isn't upper-case words joined by double underscores, an unknown section, an unknown key in `[server]` or `[source]`, or a bad value for a `[server]` setting gets a message naming the variable (`PRUMI__SERVER__PORT: …`), never its value. The adapter's messages name the key (`[source.dbt.connection] port`), which maps to its variable as in the table above.
-- **Only `PRUMI__`, with two underscores, means a setting.** `PRUMI_CONTAINER` and other names with one underscore are never read as settings.
+- **Mistakes stop Prumi.** A name that isn't upper-case words joined by double underscores, an unknown section, an unknown key in `[server]`, `[source]` or `[registry]`, or a bad value for a `[server]` or `[registry]` setting gets a message naming the variable (`PRUMI__SERVER__PORT: …`), never its value. The adapter's messages name the key (`[source.dbt.connection] port`), which maps to its variable as in the table above.
+- **Only `PRUMI__`, with two underscores, means a setting.** `PRUMI_CONTAINER`, `PRUMI_REGISTRY_PASSWORD` and other names with one underscore are never read as settings.
 
 Every command that reads settings reads them, not only `prumi serve`, in a `uv` install as in a container.
 
@@ -157,7 +222,7 @@ docker run -p 127.0.0.1:8484:8484 -v "$PWD/prumi.toml:/prumi/prumi.toml:ro" \
 
 Any setting can come from a variable instead, or override the file's: `-e PRUMI__SOURCE__DBT__CONNECTION__HOST=db.internal`. A relative path in a variable resolves against `/prumi`. Pass the warehouse password the same way, under the name `password_env` gives: `-e WAREHOUSE_PASSWORD` with no value copies it from your shell, so it stays off the command line.
 
-The `prumi-data` volume holds the registry (`/prumi/.prumi`: dashboards and certifications), so it survives a new container, such as one from a newer image; without it, they're lost with the container. Any folder you bind-mount that Prumi writes to must be writable by uid 10001, the user Prumi runs as in the image.
+The `prumi-data` volume holds the SQLite registry (`/prumi/.prumi`: dashboards and certifications), so it survives a new container, such as one from a newer image; without it, they're lost with the container. A [Postgres registry](#registrypostgres) needs no volume: pass its password with `-e PRUMI_REGISTRY_PASSWORD`. Any folder you bind-mount that Prumi writes to must be writable by uid 10001, the user Prumi runs as in the image.
 
 Paths and host names in the config are seen from inside the container. Mount the semantic manifest and a DuckDB file too, at the paths the config names, and remember that `localhost` there is the container itself, not your machine.
 

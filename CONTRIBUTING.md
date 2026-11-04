@@ -34,7 +34,7 @@ docker run -d --name prumi-postgres -e POSTGRES_PASSWORD=postgres -p 127.0.0.1:5
 PRUMI_TEST_POSTGRES_HOST=localhost uv run pytest
 ```
 
-The tests build the demo into a database `prumi_demo` on that server. Also set `PRUMI_TEST_POSTGRES_PORT`, `PRUMI_TEST_POSTGRES_USER` (default `postgres`) and `PRUMI_TEST_POSTGRES_PASSWORD` (default `postgres`) if yours differ. Set `PRUMI_REQUIRE_POSTGRES=1` to make a missing server a failure instead of a skip.
+The tests build the demo into a database `prumi_demo` on that server. The registry's tests run on it too: each one creates a throwaway `prumi_registry_…` database, and a few a `prumi_registry_…` role, and drops them when it ends, so the test user must be allowed to create databases and roles (the image's `postgres` superuser is). Also set `PRUMI_TEST_POSTGRES_PORT`, `PRUMI_TEST_POSTGRES_USER` (default `postgres`) and `PRUMI_TEST_POSTGRES_PASSWORD` (default `postgres`) if yours differ. Set `PRUMI_REQUIRE_POSTGRES=1` to make a missing server a failure instead of a skip.
 
 [AGENTS.md](AGENTS.md) describes how work is organized (branches, designs and plans, ADRs, code style, which docs a change must update), for people and coding agents alike.
 

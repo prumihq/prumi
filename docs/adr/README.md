@@ -16,9 +16,10 @@ Short records of technical decisions: context, decision, consequences. Numbered,
 | [0010](0010-no-company-data-to-the-agent.md) | No company data reaches the agent: `query` returns a profile | Accepted |
 | [0011](0011-one-display-locale.md) | One display locale per server | Accepted |
 | [0012](0012-dashboard-spec-format.md) | The dashboard spec is Prumi's own format: what a dashboard shows, never what a metric means | Accepted |
-| [0013](0013-registry-sqlite.md) | The registry is SQLite, in WAL mode, with plain-SQL migrations | Accepted |
+| [0013](0013-registry-sqlite.md) | The registry is SQLite, in WAL mode, with plain-SQL migrations | Accepted; superseded by [0019](0019-the-registry-is-sqlite-or-postgres.md) once that is accepted |
 | [0014](0014-package-names-on-pypi.md) | Package names on PyPI: the server is `prumi`, adapters stay separate, `prumi[dbt]` installs both | Accepted |
 | [0015](0015-releases-from-release-please.md) | Releases come from a release-please release PR, driven by Conventional Commit PR titles | Accepted |
 | [0016](0016-prumi-owns-its-warehouse-connection.md) | Prumi's warehouse connection is its own, and its password stays out of `prumi.toml` | Accepted; superseded by [0018](0018-the-warehouse-password-comes-from-a-named-variable.md) once that is accepted |
 | [0017](0017-docker-is-the-gate-in-the-container.md) | Inside the container, Docker's port publishing is the gate until Prumi has a login | Proposed |
 | [0018](0018-the-warehouse-password-comes-from-a-named-variable.md) | The warehouse password comes from a variable that `prumi.toml` names (`password_env`) | Proposed |
+| [0019](0019-the-registry-is-sqlite-or-postgres.md) | The registry is SQLite or Postgres, chosen in `[registry]`; on Postgres, in a database of its own | Proposed |
