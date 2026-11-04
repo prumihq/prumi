@@ -50,6 +50,14 @@ def test_unknown_connection_key_is_refused_without_its_value(config, tmp_path):
     assert "SENTINEL" not in message
 
 
+def test_unknown_keys_in_source_dbt_are_refused(config, tmp_path):
+    config["semantic_manifst"] = "SENTINEL-7f3a9c"
+    message = start(config, tmp_path)
+    assert "[source.dbt]" in message and "semantic_manifst" in message
+    assert "[source.dbt.connection]" not in message
+    assert "SENTINEL" not in message
+
+
 def test_missing_manifest(config, tmp_path):
     config["semantic_manifest"] = "target/semantic_manifest.json"
     message = start(config, tmp_path)

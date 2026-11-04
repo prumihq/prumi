@@ -107,16 +107,18 @@ class PostgresDemo:
     dbname: str = "prumi_demo"
     reader: str = "prumi_reader"
     reader_password: str = "prumi-reader-test"
+    reader_password_env: str = "PRUMI_TEST_READER_PASSWORD"
 
     def connection_config(self, **overrides: object) -> dict:
         """The `[source.dbt.connection]` table for the reader. The password is not part of it:
-        libpq finds it in `PGPASSWORD`, which the `postgres_demo` fixture sets."""
+        it's in the variable `password_env` names, which the `postgres_demo` fixture sets."""
         config = {
             "type": "postgres",
             "host": self.server.host,
             "port": self.server.port,
             "dbname": self.dbname,
             "user": self.reader,
+            "password_env": self.reader_password_env,
         }
         return config | overrides
 
@@ -193,15 +195,9 @@ def postgres_demo() -> Iterator[PostgresDemo]:
             },
         )
     _grant_reader(demo)
-    previous = os.environ.get("PGPASSWORD")
-    os.environ["PGPASSWORD"] = demo.reader_password
-    try:
+    with pytest.MonkeyPatch.context() as env:
+        env.setenv(demo.reader_password_env, demo.reader_password)
         yield demo
-    finally:
-        if previous is None:
-            os.environ.pop("PGPASSWORD", None)
-        else:
-            os.environ["PGPASSWORD"] = previous
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
