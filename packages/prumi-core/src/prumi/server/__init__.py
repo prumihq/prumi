@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from prumi.config import ConfigError
+from prumi.container import warn_if_unreachable
 from prumi.reload import watcher_for
 from prumi.services import Services
 
@@ -57,6 +58,7 @@ def serve(services: Services) -> None:
                 )
             # Ctrl+C or SIGTERM: requests still running after 5 s are cancelled. MCP keeps no
             # stream open between requests (stateless), so nothing else holds the server up.
+            warn_if_unreachable(server)
             uvicorn.run(
                 create_app(services),
                 host=server.host,

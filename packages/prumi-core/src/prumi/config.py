@@ -14,6 +14,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from prumi.container import in_container
+
 DEFAULT_SOURCE = "default"
 DEFAULT_LOCALE = "en-US"
 # A BCP 47 tag's shape. Whether the browser knows it is checked when the server starts.
@@ -64,7 +66,8 @@ class Config:
 class _Server(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    host: str = "127.0.0.1"
+    # In the container image the default is every address (docs/adr/0017).
+    host: str = Field(default_factory=lambda: "0.0.0.0" if in_container() else "127.0.0.1")
     port: int = Field(default=8484, ge=1, le=65535)
     data_dir: str = ".prumi"
     as_of: dt.date | None = None
@@ -85,6 +88,8 @@ class _Server(BaseModel):
     @field_validator("host")
     @classmethod
     def _loopback(cls, host: str) -> str:
+        if in_container():
+            return host
         if not is_loopback(host):
             raise ValueError(
                 f"{host!r} isn't a loopback address. Prumi has no login in this release, so it "
