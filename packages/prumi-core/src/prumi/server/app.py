@@ -21,7 +21,7 @@ from prumi.mcp import mcp_routes
 from prumi.registry import CheckReport, Version
 from prumi.server import pages
 from prumi.server.assets import read_asset
-from prumi.server.guards import HostCheck, allowed_hosts
+from prumi.server.guards import HostCheck, allowed_hosts, origin
 from prumi.services import Services
 from prumi.spec import DimensionFilter
 
@@ -38,13 +38,12 @@ def create_app(services: Services) -> HostCheck:
     async def index(request: Request) -> Response:
         snapshot = services.current()
         data_through = await run_in_threadpool(services.data_through, snapshot)
-        host = f"[{server.host}]" if ":" in server.host else server.host
         page = pages.home(
             services.registry,
             snapshot.source,
             services.config.sources[DEFAULT_SOURCE].project,
             data_through,
-            f"http://{host}:{server.port}/mcp",
+            f"{origin(server, request.headers.get('host'))}/mcp",
             services.registry.now(),
         )
         headers = {"Content-Security-Policy": pages.HOME_CSP, "X-Content-Type-Options": "nosniff"}

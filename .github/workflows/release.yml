@@ -1,8 +1,9 @@
 name: Release
 
 # The tag v<version> comes from the merged release PR (release-please), which also leaves a
-# draft GitHub Release. Pushing the tag checks, builds and uploads both packages to PyPI, then
-# publishes the draft. A manual run does everything except the upload and the publishing.
+# draft GitHub Release. Pushing the tag checks, builds and uploads both packages to PyPI, builds
+# both images from them and pushes them to GHCR, then publishes the draft. A manual run does
+# everything except the upload, the images and the publishing.
 # The maintainer's manual is docs/releasing.md.
 on:
   push:
@@ -104,10 +105,62 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/ dist/prumi_adapter_dbt-*
 
-  # The release stays a draft until PyPI has both packages, so nobody sees a release whose
-  # files are missing. Publishing it is also what makes it immutable.
-  publish-release:
+  # The images install the released packages from PyPI, so users get the same code either way.
+  # The smoke test runs on an amd64 copy in the runner's own builder, where the demo image's FROM
+  # finds the main image locally; the pushed images are then built for both architectures.
+  images:
     needs: [upload-prumi, upload-prumi-adapter-dbt]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+        env:
+          TAG: ${{ github.ref_name }}
+      # PyPI can take a few minutes to serve a new upload; --refresh skips uv's cache.
+      - timeout-minutes: 10
+        run: |
+          until echo "prumi[dbt]==$VERSION" \
+              | uv pip compile - --refresh --quiet --python-version 3.12 > /dev/null; do
+            sleep 20
+          done
+      - run: >-
+          docker buildx build --platform linux/amd64 --load
+          --file deploy/image/Dockerfile --build-arg PRUMI_VERSION="$VERSION"
+          --tag prumi:smoke .
+      - run: >-
+          docker buildx build --platform linux/amd64 --load
+          --file deploy/demo-image/Dockerfile --build-arg PRUMI_IMAGE=prumi:smoke
+          --tag prumi-demo:smoke .
+      - run: uv run --locked python scripts/check_images.py --image prumi:smoke --demo-image prumi-demo:smoke
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      # From here on buildx uses its own builder, which can build for arm64 but can't see the
+      # local images, so the smoke test above stays before it.
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # The demo is built on the main image just pushed, of the same version.
+      - run: >-
+          docker buildx build --platform linux/amd64,linux/arm64 --push
+          --file deploy/image/Dockerfile --build-arg PRUMI_VERSION="$VERSION"
+          --tag "ghcr.io/prumihq/prumi:$VERSION" --tag ghcr.io/prumihq/prumi:latest .
+      - run: >-
+          docker buildx build --platform linux/amd64,linux/arm64 --push
+          --file deploy/demo-image/Dockerfile
+          --build-arg PRUMI_IMAGE="ghcr.io/prumihq/prumi:$VERSION"
+          --tag "ghcr.io/prumihq/prumi-demo:$VERSION" --tag ghcr.io/prumihq/prumi-demo:latest .
+
+  # The release stays a draft until PyPI has both packages and GHCR both images, so nobody sees
+  # a release whose files are missing. Publishing it is also what makes it immutable.
+  publish-release:
+    needs: [upload-prumi, upload-prumi-adapter-dbt, images]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:

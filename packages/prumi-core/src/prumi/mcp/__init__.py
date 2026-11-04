@@ -20,7 +20,7 @@ from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp_types import CallToolResult, TextContent
 from pydantic import BaseModel, Field, ValidationError
@@ -29,9 +29,11 @@ from starlette.applications import Starlette
 from prumi.adapters import LOCAL_VIEWER, Filter, FilterOp, FilterValue, Metric
 from prumi.agent_output import QueryProfile, for_agent
 from prumi.config import is_loopback
+from prumi.container import in_container
 from prumi.engine import BlockInputs, BlockRequestError
 from prumi.issues import Issue, error
 from prumi.registry import FINGERPRINT_VERSION, Content, PageCheck, normalize_html
+from prumi.server.guards import LOOPBACK_NAMES, allowed_hosts, origin
 from prumi.services import Services, Snapshot
 from prumi.source import Source
 from prumi.spec import Block, DashboardSpec, Sort
@@ -213,11 +215,26 @@ def _fail(issues: Sequence[Issue]) -> CallToolResult:
     return CallToolResult(content=[TextContent(type="text", text=text)], is_error=True)
 
 
-def _dashboard_url(services: Services, dashboard_id: str, version: int | None = None) -> str:
-    server = services.config.server
-    host = f"[{server.host}]" if ":" in server.host else server.host
-    url = f"http://{host}:{server.port}/d/{dashboard_id}"
+def _dashboard_url(
+    services: Services,
+    dashboard_id: str,
+    version: int | None = None,
+    host_header: str | None = None,
+) -> str:
+    url = f"{origin(services.config.server, host_header)}/d/{dashboard_id}"
     return url if version is None else f"{url}/v/{version}"
+
+
+def _host_header(ctx: Context | None) -> str | None:
+    """The Host header of the HTTP request carrying this tool call; None on other transports
+    (the in-memory one in tests), where links fall back to the configured address."""
+    if ctx is None:
+        return None
+    try:
+        headers = ctx.headers
+    except ValueError:  # no request at all
+        return None
+    return None if headers is None else headers.get("host")
 
 
 def _check_for_agent(check: PageCheck) -> dict[str, Any]:
@@ -480,6 +497,7 @@ def create_mcp(services: Services) -> MCPServer:
         candidate_id: str | None = None,
         spec: dict[str, Any] | None = None,
         html: str | None = None,
+        ctx: Context | None = None,
     ) -> PublishOut:
         """Publish a dashboard: pass the candidate_id from the last successful validate_spec
         (preferred), or the spec and HTML. It's validated again, starts as an uncertified
@@ -524,17 +542,22 @@ def create_mcp(services: Services) -> MCPServer:
         return PublishOut(
             id=published.dashboard_id,
             version=published.version,
-            url=_dashboard_url(services, published.dashboard_id),
+            url=_dashboard_url(services, published.dashboard_id, host_header=_host_header(ctx)),
             status=status.status,
             warnings=list(report.warnings),
-            note=LOCAL_ONLY_NOTE if is_loopback(services.config.server.host) else None,
+            # In the image the server listens on every address, but only inside the
+            # container; the host machine publishes its port on loopback.
+            note=LOCAL_ONLY_NOTE
+            if is_loopback(services.config.server.host) or in_container()
+            else None,
         )
 
     @mcp.tool()
-    def list_dashboards() -> DashboardsOut:
+    def list_dashboards(ctx: Context | None = None) -> DashboardsOut:
         """The published dashboards you may read, with their current version and status.
         To change one, get it with get_dashboard and edit it with validate_spec(base=...)."""
         registry = services.registry
+        host_header = _host_header(ctx)
         found = []
         for d in registry.dashboards():
             if not registry.can_read(LOCAL_VIEWER, d):
@@ -548,7 +571,7 @@ def create_mcp(services: Services) -> MCPServer:
                     current_version=d.current_version,
                     status=status.status,
                     updated_at=current.created_at,
-                    url=_dashboard_url(services, d.id),
+                    url=_dashboard_url(services, d.id, host_header=host_header),
                     needs_attention=status.needs_attention,
                 )
             )
@@ -556,7 +579,7 @@ def create_mcp(services: Services) -> MCPServer:
 
     @mcp.tool()
     def get_dashboard(
-        id: str, version: int | None = None, include_html: bool = True
+        id: str, version: int | None = None, include_html: bool = True, ctx: Context | None = None
     ) -> DashboardOut:
         """A published dashboard version (default: the current one): its spec, its HTML, its
         status and what viewers' browsers found on it (checks)."""
@@ -574,7 +597,9 @@ def create_mcp(services: Services) -> MCPServer:
             spec=json.loads(stored.spec_json),
             html=stored.html if include_html else None,
             status=(status := registry.status(id, number)).status,
-            url=_dashboard_url(services, id, None if version is None else number),
+            url=_dashboard_url(
+                services, id, None if version is None else number, _host_header(ctx)
+            ),
             needs_attention=status.needs_attention,
             checks=[_check_for_agent(c) for c in registry.checks(id, number)],
         )
@@ -768,9 +793,12 @@ def _where(
 def mcp_routes(services: Services) -> tuple[list, Any]:
     """The /mcp route and the lifespan that runs the SDK's session manager."""
     server = services.config.server
-    from prumi.server.guards import allowed_hosts
-
-    hosts = sorted(allowed_hosts(server.host, server.port))
+    if in_container():
+        # HostCheck answers loopback names on any port here; the SDK's check agrees, with
+        # its ":*" port patterns (and the bare names, for a Host without a port).
+        hosts = [*LOOPBACK_NAMES, *(f"{name}:*" for name in LOOPBACK_NAMES)]
+    else:
+        hosts = sorted(allowed_hosts(server.host, server.port))
     app: Starlette = create_mcp(services).streamable_http_app(
         streamable_http_path="/mcp",
         stateless_http=True,

@@ -13,6 +13,7 @@ from pathlib import Path
 import prumi
 from prumi.adapters import AdapterStartupError
 from prumi.config import ConfigError, load_config
+from prumi.container import in_container
 from prumi.issues import Report
 from prumi.registry import PageCheck
 from prumi.services import Services
@@ -58,7 +59,9 @@ def _parser() -> argparse.ArgumentParser:
     certify = command("certify", _certify, "Re-validate a version and certify it.")
     certify.add_argument("id")
     certify.add_argument("version", type=int)
-    certify.add_argument("--by", default=None, help="default: the OS user name")
+    certify.add_argument(
+        "--by", default=None, help="default: the OS user name (required in a container)"
+    )
     uncertify = command("uncertify", _uncertify, "Revoke a dashboard's certifications.")
     uncertify.add_argument("id")
     uncertify.add_argument("--reason", default=None)
@@ -105,6 +108,11 @@ def _list(services: Services, args: argparse.Namespace) -> int:
 
 
 def _certify(services: Services, args: argparse.Namespace) -> int:
+    if args.by is None and in_container():
+        raise Refused(
+            "In a container the OS user is the image's, not yours: "
+            'pass --by with the name to record, e.g. --by "Ana Lima".'
+        )
     version = services.registry.version(args.id, args.version)
     if version is None:
         raise Refused(f"There's no version {args.version} of the dashboard {args.id!r}.")

@@ -7,28 +7,36 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from prumi.config import ConfigError
+from prumi.container import log_open_hint, warn_if_unreachable
 from prumi.reload import watcher_for
 from prumi.services import Services
 
 SHUTDOWN_TIMEOUT_S = 5
 
 
+# Their INFO lines must reach the terminal while serving: a reload that kept the old source
+# has to be seen, and so does the address to open in a container.
+SHOWN_LOGGERS = ("prumi.reload", "prumi.container")
+
+
 @contextmanager
-def _reloads_shown() -> Iterator[None]:
-    """Print the reload lines to the terminal while serving: nothing else configures logging,
-    and a reload that kept the old source has to be seen. Only this logger, and only for the
-    duration; its handlers and level are put back afterwards."""
-    log = logging.getLogger("prumi.reload")
+def _logs_shown() -> Iterator[None]:
+    """Print the SHOWN_LOGGERS lines to the terminal while serving: nothing else configures
+    logging. Only these loggers, and only for the duration; their handlers and levels are put
+    back afterwards."""
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("%(levelname)s:  %(message)s"))
-    level = log.level
-    log.addHandler(handler)
-    log.setLevel(logging.INFO)
+    logs = [logging.getLogger(name) for name in SHOWN_LOGGERS]
+    levels = [log.level for log in logs]
+    for log in logs:
+        log.addHandler(handler)
+        log.setLevel(logging.INFO)
     try:
         yield
     finally:
-        log.removeHandler(handler)
-        log.setLevel(level)
+        for log, level in zip(logs, levels, strict=True):
+            log.removeHandler(handler)
+            log.setLevel(level)
 
 
 def serve(services: Services) -> None:
@@ -38,7 +46,7 @@ def serve(services: Services) -> None:
     from prumi.server.app import create_app
 
     services.source  # noqa: B018 - load the adapter now: startup checks fail before binding
-    with _reloads_shown():
+    with _logs_shown():
         # Built right after the load, so a manifest written during the rest of startup is
         # still seen as a change. It doesn't poll until start().
         watcher = watcher_for(services)  # None when the adapter names no files to watch
@@ -57,6 +65,8 @@ def serve(services: Services) -> None:
                 )
             # Ctrl+C or SIGTERM: requests still running after 5 s are cancelled. MCP keeps no
             # stream open between requests (stateless), so nothing else holds the server up.
+            warn_if_unreachable(server)
+            log_open_hint(server)
             uvicorn.run(
                 create_app(services),
                 host=server.host,

@@ -4,7 +4,34 @@ A stand-in "customer" project: a synthetic online shop on DuckDB, with dbt model
 
 ## Try Prumi on it
 
-See Prumi work in about five minutes, without a project of your own. The shop's metrics plant the usual BI traps ([listed below](#metrics-and-the-traps-they-plant)), so you can watch what Prumi does with them. You need [uv](https://docs.astral.sh/uv/) and an AI agent that supports MCP, such as [Claude Code](https://claude.com/claude-code).
+See Prumi work in about five minutes, without a project of your own. The shop's metrics plant the usual BI traps ([listed below](#metrics-and-the-traps-they-plant)), so you can watch what Prumi does with them. You need [Docker](https://docs.docker.com/engine/install/) and an AI agent that supports MCP, such as [Claude Code](https://claude.com/claude-code).
+
+```sh
+docker run -p 127.0.0.1:8484:8484 ghcr.io/prumihq/prumi-demo
+```
+
+Keep the `127.0.0.1:` in `-p`: it makes Prumi reachable from your machine only, and Prumi has no login yet ([why](../../docs/configuration.md#running-in-a-container)). Dashboards you publish aren't kept from one run to the next unless you add a volume:
+
+```sh
+docker run -p 127.0.0.1:8484:8484 -v prumi-demo:/data ghcr.io/prumihq/prumi-demo
+```
+
+In another terminal, connect your agent, then start a new agent session:
+
+```sh
+claude mcp add --scope user --transport http prumi http://127.0.0.1:8484/mcp
+```
+
+Ask it: *"Build a dashboard of weekly revenue by region, with average order value."* It replies with a link such as `http://127.0.0.1:8484/d/weekly-revenue-by-region`, and [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard with its status. To certify it as the data team, run `prumi` inside the container (`<container>` is the name or ID `docker ps` shows):
+
+```sh
+docker exec <container> prumi list
+docker exec <container> prumi certify <id> 1 --by "Your Name"
+```
+
+`--by` is required in the container: the OS user there is the image's, not yours.
+
+Without a container engine, or to work on Prumi, you need [uv](https://docs.astral.sh/uv/):
 
 ```sh
 git clone https://github.com/prumihq/prumi && cd prumi
@@ -14,13 +41,7 @@ uv run --project examples/demo-dbt-project python examples/demo-dbt-project/buil
 uv run prumi serve --config examples/demo-dbt-project/prumi.toml
 ```
 
-In another terminal, connect your agent, then start a new agent session:
-
-```sh
-claude mcp add --scope user --transport http prumi http://127.0.0.1:8484/mcp
-```
-
-Ask it: *"Build a dashboard of weekly revenue by region, with average order value."* It replies with a link such as `http://127.0.0.1:8484/d/weekly-revenue-by-region`, and [http://127.0.0.1:8484](http://127.0.0.1:8484) lists every dashboard with its status. To certify it as the data team:
+Connect your agent and ask it as above. To certify:
 
 ```sh
 uv run prumi list --config examples/demo-dbt-project/prumi.toml
@@ -47,7 +68,7 @@ DEMO_POSTGRES_PASSWORD=... uv run --project examples/demo-dbt-project python exa
 
 It reads `DEMO_POSTGRES_HOST` (default `localhost`), `DEMO_POSTGRES_PORT` (`5432`), `DEMO_POSTGRES_USER` (`postgres`), `DEMO_POSTGRES_PASSWORD` (required) and `DEMO_POSTGRES_DBNAME` (`prumi_demo`, created when missing), drops and recreates both schemas, and writes `target-postgres/` (git-ignored; its manifest has relations like `"prumi_demo"."main"."orders"`). The DuckDB outputs are untouched. The tests build it when `PRUMI_TEST_POSTGRES_HOST` is set (see [CONTRIBUTING](../../CONTRIBUTING.md)).
 
-`prumi.toml` is the configuration the demo runs with. It pins `as_of = 2026-10-15`, so October 2026 is a partial month and the data ends the day before.
+`prumi.toml` is the configuration the demo runs with. It pins `as_of = 2026-10-15`, so October 2026 is a partial month and the data ends the day before. The demo image has its own, [`deploy/demo-image/prumi.toml`](../../deploy/demo-image/prumi.toml), with the same settings except `host`, which it leaves to the image, and `data_dir`, which is `/data`.
 
 DuckDB names the database after the file, and dbt bakes that name (`demo`) into the relations in the semantic manifest (`"demo"."main"."orders"`). Renaming `demo.duckdb` breaks the queries, which is what Prumi's startup check catches.
 

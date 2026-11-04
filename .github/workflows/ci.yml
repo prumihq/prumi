@@ -44,3 +44,23 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: uv sync --locked
       - run: uv run python scripts/check_install.py --with-deps
+
+  images:
+    # Both images built from this commit's wheels and started (not part of `uv run pytest`);
+    # nothing is pushed. The runner's own builder keeps the main image in the local Docker, where
+    # the demo image's FROM finds it (a docker-container builder would look in a registry).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv build --package prumi --out-dir dist
+      - run: uv build --package prumi-adapter-dbt --out-dir dist
+      - run: >-
+          docker buildx build --platform linux/amd64 --load
+          --file deploy/image/Dockerfile --build-arg PRUMI_WHEELS=dist
+          --tag prumi:ci .
+      - run: >-
+          docker buildx build --platform linux/amd64 --load
+          --file deploy/demo-image/Dockerfile --build-arg PRUMI_IMAGE=prumi:ci
+          --tag prumi-demo:ci .
+      - run: uv run --locked python scripts/check_images.py --image prumi:ci --demo-image prumi-demo:ci
