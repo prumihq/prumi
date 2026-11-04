@@ -1,9 +1,10 @@
 """The registry: dashboards, immutable versions, certifications, metric requests, and the
 in-browser number checks.
 
-SQLite in WAL mode, so the CLI and the server can use it at the same time. Status is computed
-from certifications on every read, never stored: a version is certified while a non-revoked
-certification of the dashboard has its fingerprint.
+Kept in a SQLite file or a Postgres database (`prumi.registry.stores`), with the same tables
+and the same behavior on both. Status is computed from certifications on every read, never
+stored: a version is certified while a non-revoked certification of the dashboard has its
+fingerprint.
 
 The registry holds no company data: check reports from viewers' browsers are stored without
 the numbers and names they saw (`PageCheck.of`).
@@ -14,12 +15,9 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
-import sqlite3
 from collections import Counter
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from dataclasses import dataclass
-from importlib.resources import files
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -27,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from prumi.adapters import LOCAL_VIEWER, Viewer
 from prumi.issues import Report, error
+from prumi.registry.stores import SqliteStore, Store
 from prumi.scrub import scrubber
 from prumi.spec import DashboardSpec, TimeFilter
 from prumi.time import Window
@@ -222,37 +221,18 @@ class Published:
 class Registry:
     def __init__(
         self,
-        data_dir: Path,
+        store: Store | Path | str,
         now: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC),
     ) -> None:
-        self.path = Path(data_dir) / "registry.sqlite3"
+        """`store` is where the tables are; a path means a SQLite registry in that directory."""
+        self.store = SqliteStore(Path(store)) if isinstance(store, Path | str) else store
         self._now = now
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            _migrate(conn)
+        _migrate(self.store)
 
-    @contextmanager
-    def _connect(self) -> Iterator[sqlite3.Connection]:
-        # One connection per operation: cheap for SQLite, and safe across threads.
-        conn = sqlite3.connect(self.path, timeout=10, isolation_level=None)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys=ON")
-        try:
-            yield conn
-        finally:
-            conn.close()
-
-    @contextmanager
-    def _transaction(self) -> Iterator[sqlite3.Connection]:
-        with self._connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            try:
-                yield conn
-            except BaseException:
-                conn.execute("ROLLBACK")
-                raise
-            conn.execute("COMMIT")
+    @property
+    def path(self) -> Path | None:
+        """The SQLite file, or None when the registry is elsewhere."""
+        return self.store.path if isinstance(self.store, SqliteStore) else None
 
     def now(self) -> dt.datetime:
         """The registry's clock, which stamps every version and request."""
@@ -277,7 +257,7 @@ class Registry:
         """Store a version (already validated). Identical content creates nothing."""
         content = Content.of(spec, html)
         dashboard_id = spec.dashboard.id
-        with self._transaction() as conn:
+        with self.store.transaction() as conn:
             row = conn.execute(
                 "SELECT current_version FROM dashboards WHERE id = ?", (dashboard_id,)
             ).fetchone()
@@ -319,17 +299,17 @@ class Registry:
         return Published(dashboard_id, version, created=True)
 
     def dashboards(self) -> list[Dashboard]:
-        with self._connect() as conn:
+        with self.store.connect() as conn:
             rows = conn.execute("SELECT * FROM dashboards ORDER BY id").fetchall()
         return [Dashboard(**dict(r)) for r in rows]
 
     def dashboard(self, dashboard_id: str) -> Dashboard | None:
-        with self._connect() as conn:
+        with self.store.connect() as conn:
             row = conn.execute("SELECT * FROM dashboards WHERE id = ?", (dashboard_id,)).fetchone()
         return Dashboard(**dict(row)) if row else None
 
     def version(self, dashboard_id: str, version: int) -> Version | None:
-        with self._connect() as conn:
+        with self.store.connect() as conn:
             row = conn.execute(
                 "SELECT * FROM versions WHERE dashboard_id = ? AND version = ?",
                 (dashboard_id, version),
@@ -337,7 +317,7 @@ class Registry:
         return Version(**dict(row)) if row else None
 
     def status(self, dashboard_id: str, version: int) -> VersionStatus | None:
-        with self._connect() as conn:
+        with self.store.connect() as conn:
             row = conn.execute(
                 """
                 SELECT v.version, v.fingerprint, d.current_version,
@@ -376,7 +356,7 @@ class Registry:
         found = self.version(dashboard_id, version)
         if found is None:
             raise KeyError(f"{dashboard_id} version {version}")
-        with self._transaction() as conn:
+        with self.store.transaction() as conn:
             conn.execute(
                 "INSERT INTO certifications (dashboard_id, version, fingerprint, certified_by,"
                 " certified_at) VALUES (?, ?, ?, ?, ?)",
@@ -386,7 +366,7 @@ class Registry:
 
     def uncertify(self, dashboard_id: str, reason: str | None = None) -> int:
         """Revoke the dashboard's active certifications; returns how many."""
-        with self._transaction() as conn:
+        with self.store.transaction() as conn:
             cursor = conn.execute(
                 "UPDATE certifications SET revoked_at = ?, revoked_reason = ?"
                 " WHERE dashboard_id = ? AND revoked_at IS NULL",
@@ -396,7 +376,7 @@ class Registry:
 
     def delete(self, dashboard_id: str) -> bool:
         """Remove the dashboard, its versions and certifications; keep its metric requests."""
-        with self._transaction() as conn:
+        with self.store.transaction() as conn:
             conn.execute("DELETE FROM page_checks WHERE dashboard_id = ?", (dashboard_id,))
             conn.execute("DELETE FROM certifications WHERE dashboard_id = ?", (dashboard_id,))
             conn.execute("DELETE FROM versions WHERE dashboard_id = ?", (dashboard_id,))
@@ -415,11 +395,15 @@ class Registry:
         if found is None:
             raise KeyError(f"{dashboard_id} version {version}")
         check = PageCheck.of(found.spec, report, self._timestamp())
-        with self._transaction() as conn:
+        with self.store.transaction() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO page_checks (dashboard_id, version, state_key,"
-                " filters_json, flagged_json, canvas, errors_json, reported_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO page_checks (dashboard_id, version, state_key, filters_json,"
+                " flagged_json, canvas, errors_json, reported_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT (dashboard_id, version, state_key) DO UPDATE SET"
+                " filters_json = excluded.filters_json, flagged_json = excluded.flagged_json,"
+                " canvas = excluded.canvas, errors_json = excluded.errors_json,"
+                " reported_at = excluded.reported_at",
                 (
                     dashboard_id,
                     version,
@@ -434,7 +418,7 @@ class Registry:
         return check
 
     def checks(self, dashboard_id: str, version: int) -> list[PageCheck]:
-        with self._connect() as conn:
+        with self.store.connect() as conn:
             rows = conn.execute(
                 "SELECT * FROM page_checks WHERE dashboard_id = ? AND version = ?"
                 " ORDER BY reported_at, state_key",
@@ -461,17 +445,16 @@ class Registry:
         dashboard_id: str | None = None,
         requested_by: str = "local",
     ) -> MetricRequest:
-        with self._transaction() as conn:
-            cursor = conn.execute(
+        with self.store.transaction() as conn:
+            [request_id] = conn.execute(
                 "INSERT INTO metric_requests (description, reason, dashboard_id, requested_by,"
-                " created_at) VALUES (?, ?, ?, ?, ?)",
+                " created_at) VALUES (?, ?, ?, ?, ?) RETURNING id",
                 (description, reason, dashboard_id, requested_by, self._timestamp()),
-            )
-            request_id = cursor.lastrowid
+            ).fetchone()
         return next(r for r in self.metric_requests() if r.id == request_id)
 
     def metric_requests(self) -> list[MetricRequest]:
-        with self._connect() as conn:
+        with self.store.connect() as conn:
             rows = conn.execute("SELECT * FROM metric_requests ORDER BY id").fetchall()
         return [MetricRequest(**dict(r)) for r in rows]
 
@@ -479,27 +462,24 @@ class Registry:
         return {r.id for r in self.metric_requests()}
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
-    conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
-    [current] = conn.execute("SELECT coalesce(max(version), 0) FROM schema_version").fetchone()
-    migrations = sorted(
-        (int(f.name.split("_", 1)[0]), f)
-        for f in files("prumi.registry").joinpath("migrations").iterdir()
-        if f.name.endswith(".sql")
-    )
-    for number, migration in migrations:
-        if number <= current:
-            continue
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            # Statement by statement: executescript() would commit on its own.
+def _migrate(store: Store) -> None:
+    """Run the migrations the registry hasn't run, each in a transaction of its own. Writers
+    take transactions one at a time, so two processes starting together don't both run one:
+    the second sees the first's version number."""
+    for number, migration in store.migration_files():
+        with store.transaction() as conn:
+            if not store.has_table(conn, "schema_version"):
+                store.before_first_migration(conn)
+                conn.execute("CREATE TABLE schema_version (version INTEGER NOT NULL)")
+            [current] = conn.execute(
+                "SELECT coalesce(max(version), 0) FROM schema_version"
+            ).fetchone()
+            if number <= current:
+                continue
+            # Statement by statement: SQLite's executescript() would commit on its own.
             for statement in _statements(migration.read_text(encoding="utf-8")):
                 conn.execute(statement)
             conn.execute("INSERT INTO schema_version (version) VALUES (?)", (number,))
-        except BaseException:
-            conn.execute("ROLLBACK")
-            raise
-        conn.execute("COMMIT")
 
 
 def _statements(script: str) -> list[str]:

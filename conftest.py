@@ -5,8 +5,9 @@ older than the generator and models, and reuses them otherwise. Every test that 
 marked `demo`, so `pytest -m "not demo"` skips them.
 
 `postgres_demo` does the same on a Postgres server, which the tests reach through
-`PRUMI_TEST_POSTGRES_HOST` (with `_PORT`, `_USER`, `_PASSWORD`). Without the host its tests
-skip, or fail when `PRUMI_REQUIRE_POSTGRES` is set. Tests using it are marked `postgres`.
+`PRUMI_TEST_POSTGRES_HOST` (with `_PORT`, `_USER`, `_PASSWORD`); `postgres_server` is that
+server. Without the host their tests skip, or fail when `PRUMI_REQUIRE_POSTGRES` is set. Tests
+using either are marked `postgres`.
 """
 
 from __future__ import annotations
@@ -111,6 +112,18 @@ class PostgresServer:
             admin_password=os.environ.get("PRUMI_TEST_POSTGRES_PASSWORD", "postgres"),
         )
 
+    def admin_connect(self, dbname: str = "postgres") -> psycopg.Connection:
+        import psycopg
+
+        return psycopg.connect(
+            host=self.host,
+            port=self.port,
+            user=self.admin_user,
+            password=self.admin_password,
+            dbname=dbname,
+            autocommit=True,
+        )
+
 
 @dataclass(frozen=True)
 class PostgresDemo:
@@ -135,16 +148,7 @@ class PostgresDemo:
         return config | overrides
 
     def admin_connect(self, dbname: str | None = None) -> psycopg.Connection:
-        import psycopg
-
-        return psycopg.connect(
-            host=self.server.host,
-            port=self.server.port,
-            user=self.server.admin_user,
-            password=self.server.admin_password,
-            dbname=dbname or self.dbname,
-            autocommit=True,
-        )
+        return self.server.admin_connect(dbname or self.dbname)
 
 
 def _postgres_demo_is_stale(demo: PostgresDemo) -> bool:
@@ -182,7 +186,7 @@ def _grant_reader(demo: PostgresDemo) -> None:
 
 
 @pytest.fixture(scope="session")
-def postgres_demo() -> Iterator[PostgresDemo]:
+def postgres_server() -> PostgresServer:
     server = PostgresServer.from_env()
     if server is None:
         message = (
@@ -194,6 +198,12 @@ def postgres_demo() -> Iterator[PostgresDemo]:
             pytest.fail(message)
         pytest.skip(message)
     pytest.importorskip("psycopg")
+    return server
+
+
+@pytest.fixture(scope="session")
+def postgres_demo(postgres_server: PostgresServer) -> Iterator[PostgresDemo]:
+    server = postgres_server
     demo = PostgresDemo(server=server, manifest_path=POSTGRES_MANIFEST)
     if _postgres_demo_is_stale(demo):
         build_demo(
@@ -217,5 +227,5 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         fixtures = getattr(item, "fixturenames", ())
         if "demo_project" in fixtures:
             item.add_marker(pytest.mark.demo)
-        if "postgres_demo" in fixtures:
+        if "postgres_server" in fixtures:  # postgres_demo uses it too
             item.add_marker(pytest.mark.postgres)

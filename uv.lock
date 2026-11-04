@@ -946,18 +946,22 @@ dependencies = [
 dbt = [
     { name = "prumi-adapter-dbt", extra = ["duckdb", "postgres"] },
 ]
+postgres = [
+    { name = "psycopg", extra = ["binary"] },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=2.3,<3" },
     { name = "playwright", specifier = ">=1.64,<2" },
     { name = "prumi-adapter-dbt", extras = ["duckdb", "postgres"], marker = "extra == 'dbt'", editable = "packages/prumi-adapter-dbt" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'" },
     { name = "pydantic", specifier = ">=2.14,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "starlette", specifier = ">=1.8,<2" },
     { name = "uvicorn", specifier = ">=0.54" },
 ]
-provides-extras = ["dbt"]
+provides-extras = ["dbt", "postgres"]
 
 [[package]]
 name = "prumi-adapter-dbt"
