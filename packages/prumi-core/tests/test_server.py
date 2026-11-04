@@ -75,6 +75,21 @@ def test_serve_refuses_a_locale_the_browser_doesnt_know(
     assert str(path) in error
 
 
+@pytest.mark.browser
+def test_a_locale_the_browser_doesnt_know_names_its_variable_not_the_value(
+    capsys, tmp_path, make_demo_config, monkeypatch
+):
+    from prumi.validate.page import PageChecker
+
+    monkeypatch.setattr("prumi.services.shared_checker", PageChecker)
+    monkeypatch.setenv("PRUMI__SERVER__LOCALE", "xx-YY")
+    path = make_demo_config(tmp_path)
+    assert main(["serve", "--config", str(path)]) == 1
+    error = capsys.readouterr().err
+    assert "the environment: PRUMI__SERVER__LOCALE: the value isn't a locale the browser" in error
+    assert "xx-YY" not in error
+
+
 # The block API
 
 

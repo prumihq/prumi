@@ -28,6 +28,8 @@ log = logging.getLogger("prumi_adapter_dbt")
 # Literals in compiled SQL: quoted strings (with '' inside) and numbers outside identifiers.
 _LITERAL = re.compile(r"'(?:[^']|'')*'|(?<![\w.])\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(?![\w.])")
 
+_KEYS = {"semantic_manifest", "connection"}
+
 
 def redact(sql: str) -> str:
     """The SQL with every literal replaced by ?: filter values and window dates are literals,
@@ -55,6 +57,7 @@ class DbtAdapter:
     def from_config(cls, config: Mapping[str, Any], config_dir: Path) -> DbtAdapter:
         """Load the manifest, open the connection and run the startup checks: anything wrong
         stops the server before it binds, with a message naming the problem."""
+        _refuse_unknown_keys(config)
         manifest = config.get("semantic_manifest")
         if not isinstance(manifest, str):
             raise AdapterStartupError(
@@ -125,6 +128,17 @@ class DbtAdapter:
             log.debug("compiled SQL (literals redacted):\n%s", redact(sql))
         names, rows = self._connection.query(sql, viewer)
         return _query.to_result(query, names, rows)
+
+
+def _refuse_unknown_keys(config: Mapping[str, Any]) -> None:
+    """Stop the server on a key [source.dbt] doesn't take, such as a misspelled one that would
+    otherwise be ignored. The message names the keys, never their values."""
+    unknown = sorted(set(config) - _KEYS)
+    if unknown:
+        raise AdapterStartupError(
+            f"[source.dbt] has {'a key' if len(unknown) == 1 else 'keys'} the dbt adapter "
+            f"doesn't take: {', '.join(unknown)}. It takes: {', '.join(sorted(_KEYS))}."
+        )
 
 
 def create_adapter(config: Mapping[str, Any], config_dir: Path) -> DbtAdapter:

@@ -54,12 +54,12 @@ def _postgres_warehouse(demo) -> Warehouse:
     import psycopg
 
     def open_reader():
-        # The password comes from PGPASSWORD, which the postgres_demo fixture sets.
         return psycopg.connect(
             host=demo.server.host,
             port=demo.server.port,
             dbname=demo.dbname,
             user=demo.reader,
+            password=demo.reader_password,
             options="-c default_transaction_read_only=on",
         )
 

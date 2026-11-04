@@ -14,11 +14,83 @@ def test_defaults():
     assert kwargs["host"] == "db.internal" and kwargs["dbname"] == "analytics"
 
 
-def test_password_key_is_refused_without_its_value():
+def test_the_password_key_points_to_password_env():
     with pytest.raises(AdapterStartupError) as e:
         PostgresSettings.from_config({**BASE, "password": "SENTINEL-7f3a9c"})
-    assert "PGPASSWORD" in str(e.value) and "pgpass" in str(e.value)
+    assert "password_env" in str(e.value)
     assert "SENTINEL" not in str(e.value) and e.value.__cause__ is None
+
+
+def test_port_may_arrive_as_text():
+    assert PostgresSettings.from_config(BASE | {"port": "5433"}).port == 5433
+
+
+@pytest.mark.parametrize(
+    "port",
+    [
+        "",
+        "five",
+        "0x10",
+        "-1",
+        " 5432",
+        "5432\n",
+        "٣",
+        pytest.param("9" * 5000, id="5000-digits"),
+        True,
+        5432.0,
+    ],
+)
+def test_a_port_that_isnt_an_integer_is_refused(port):
+    with pytest.raises(AdapterStartupError) as e:
+        PostgresSettings.from_config(BASE | {"port": port})
+    assert "`port`" in str(e.value)
+    if isinstance(port, str) and port.strip():
+        assert port.strip() not in str(e.value)
+
+
+@pytest.mark.parametrize("port", [0, 65536, "0", "70000"])
+def test_a_port_out_of_range_is_refused(port):
+    with pytest.raises(AdapterStartupError, match="`port`"):
+        PostgresSettings.from_config(BASE | {"port": port})
+
+
+def test_password_env_reads_the_named_variable():
+    s = PostgresSettings.from_config(BASE | {"password_env": "WH_PW"}, {"WH_PW": "s3cret"})
+    assert s.password_env == "WH_PW"
+    assert s.connect_kwargs()["password"] == "s3cret"
+    assert "s3cret" not in repr(s) and "s3cret" not in str(s)
+
+
+def test_the_password_is_passed_as_the_variable_holds_it():
+    s = PostgresSettings.from_config(BASE | {"password_env": "WH_PW"}, {"WH_PW": " s3cret "})
+    assert s.connect_kwargs()["password"] == " s3cret "
+
+
+@pytest.mark.parametrize("environ", [{}, {"WH_PW": ""}, {"WH_PW": "   "}])
+def test_a_named_variable_that_is_missing_or_empty_stops_startup(environ):
+    with pytest.raises(AdapterStartupError) as e:
+        PostgresSettings.from_config(BASE | {"password_env": "WH_PW"}, environ)
+    assert "WH_PW" in str(e.value) and "password_env" in str(e.value)
+
+
+@pytest.mark.parametrize("name", ["Hunter2Secret", "hunter2secret", "Wh_Pw"])
+def test_a_password_typed_into_password_env_is_not_echoed(name):
+    with pytest.raises(AdapterStartupError) as e:
+        PostgresSettings.from_config(BASE | {"password_env": name}, {})
+    assert "password_env" in str(e.value) and name not in str(e.value)
+
+
+@pytest.mark.parametrize("name", ["", "1PW", "WH-PW", "WH PW", "SENTINEL=pw", 3, True])
+def test_password_env_must_be_a_variable_name(name):
+    with pytest.raises(AdapterStartupError) as e:
+        PostgresSettings.from_config(BASE | {"password_env": name}, {})
+    assert "`password_env`" in str(e.value)
+    assert "SENTINEL" not in str(e.value)
+
+
+def test_without_password_env_no_password_is_passed():
+    s = PostgresSettings.from_config(BASE, {"PGPASSWORD": "s3cret"})
+    assert s.password_env is None and "password" not in s.connect_kwargs()
 
 
 @pytest.mark.parametrize("missing", ["host", "dbname", "user"])
@@ -31,7 +103,6 @@ def test_required_settings(missing):
 @pytest.mark.parametrize(
     "change",
     [
-        {"port": "5432"},
         {"port": True},
         {"sslmode": "always"},
         {"sslmode": 1},
@@ -70,7 +141,7 @@ def test_a_connection_string_in_host_or_dbname_is_refused_unechoed(change):
         PostgresSettings.from_config({**BASE, **change})
     message = str(e.value)
     assert f"`{key}`" in message and "connection string" in message
-    assert "PGPASSWORD" in message
+    assert "password_env" in message
     assert "SENTINEL" not in message and e.value.__cause__ is None
 
 

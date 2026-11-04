@@ -2,7 +2,7 @@
 
 The Prumi server and the `prumi` CLI. AI agents connect to its MCP endpoint and build dashboards on a company's official metrics; Prumi checks every page, hosts it, and lets the data team certify it.
 
-Import name: `prumi`. It holds the catalog, the query engine, the BI validator and the registry, and defines the adapter protocol that source adapters implement (an adapter may also offer `watched_files()`, the files whose change means the source changed). Prumi reads metrics through an adapter package; the first one is [`prumi-adapter-dbt`](https://github.com/prumihq/prumi/tree/main/packages/prumi-adapter-dbt).
+Import name: `prumi`. It holds the catalog, the query engine, the BI validator and the registry, and defines the adapter protocol that source adapters implement (an adapter may also offer `watched_files()`, the files whose change means the source changed). An adapter's settings (`[source.<name>]`) may arrive as strings, because every setting can also come from a `PRUMI__…` variable: the adapter converts its own, and core never guesses a type. Prumi reads metrics through an adapter package; the first one is [`prumi-adapter-dbt`](https://github.com/prumihq/prumi/tree/main/packages/prumi-adapter-dbt).
 
 - **Agents** connect over MCP (Streamable HTTP, `/mcp`), find the official metrics, learn the shape of the data (never its values) and publish a dashboard: a spec plus any HTML.
 - **Numbers** come only from the source, computed at the grain they're shown. Validation renders each page in headless Chromium and checks that every number it shows is a value Prumi delivered.

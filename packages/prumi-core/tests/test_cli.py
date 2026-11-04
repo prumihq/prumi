@@ -184,6 +184,21 @@ def test_a_bad_config_exits_1(capsys, tmp_path):
     assert code == 1 and "isn't a loopback address" in out
 
 
+def test_the_cli_runs_from_the_environment_alone(capsys, tmp_path, monkeypatch, demo_project):
+    monkeypatch.chdir(tmp_path)  # no prumi.toml here
+    for name, value in {
+        "PRUMI__SERVER__DATA_DIR": "data",
+        "PRUMI__SERVER__AS_OF": "2026-10-15",
+        "PRUMI__SOURCE__ADAPTER": "dbt",
+        "PRUMI__SOURCE__DBT__SEMANTIC_MANIFEST": demo_project.manifest_path.as_posix(),
+        "PRUMI__SOURCE__DBT__CONNECTION__TYPE": "duckdb",
+        "PRUMI__SOURCE__DBT__CONNECTION__PATH": demo_project.db_path.as_posix(),
+    }.items():
+        monkeypatch.setenv(name, value)
+    assert prumi(capsys, "list") == (0, "No dashboards.\n")
+    assert (tmp_path / "data").is_dir()
+
+
 def test_serve_without_the_dbt_adapter_names_the_prumi_extra(capsys, config, monkeypatch):
     from prumi import adapters
 

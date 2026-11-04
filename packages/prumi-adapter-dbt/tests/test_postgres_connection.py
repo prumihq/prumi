@@ -1,5 +1,6 @@
 """Connecting to Postgres: startup checks name what to fix, and never show the password."""
 
+import dataclasses
 import datetime as dt
 import logging
 
@@ -52,11 +53,25 @@ def test_the_demo_starts_on_postgres(postgres_demo, tmp_path):
 
 
 def test_wrong_password_never_shows_it(postgres_demo, tmp_path, monkeypatch, logs):
-    monkeypatch.setenv("PGPASSWORD", SENTINEL)
+    monkeypatch.setenv(postgres_demo.reader_password_env, SENTINEL)
     message = str(start(config_for(postgres_demo), tmp_path))
-    assert "prumi_reader" in message and "PGPASSWORD" in message
+    assert "prumi_reader" in message
     assert SENTINEL not in message
     assert SENTINEL not in all_text(logs)
+
+
+def test_login_failure_points_to_password_env(postgres_demo, tmp_path, monkeypatch):
+    monkeypatch.setenv(postgres_demo.reader_password_env, SENTINEL)
+    message = str(start(config_for(postgres_demo), tmp_path))
+    assert "refused" in message and "password_env" in message
+    assert "PGPASSWORD" not in message and "pgpass" not in message
+
+
+def test_a_named_variable_that_is_missing_stops_startup(postgres_demo, tmp_path, monkeypatch, logs):
+    monkeypatch.delenv(postgres_demo.reader_password_env)
+    message = str(start(config_for(postgres_demo), tmp_path))
+    assert postgres_demo.reader_password_env in message and "password_env" in message
+    assert "prumi-reader-test" not in message + all_text(logs)
 
 
 def test_unknown_database(postgres_demo, tmp_path, logs):
@@ -81,11 +96,16 @@ def test_sslmode_the_server_cannot_honor(postgres_demo, tmp_path):
     assert "`sslmode`" in message
 
 
+def without_password_env(config: dict) -> dict:
+    del config["connection"]["password_env"]
+    return config
+
+
 def test_no_password_anywhere_gets_login_advice(postgres_demo, tmp_path, monkeypatch, logs):
-    monkeypatch.delenv("PGPASSWORD")
+    monkeypatch.delenv("PGPASSWORD", raising=False)
     monkeypatch.setenv("PGPASSFILE", str(tmp_path / "no-such-pgpass"))
-    message = str(start(config_for(postgres_demo), tmp_path))
-    assert "prumi_reader" in message and "PGPASSWORD" in message and "refused" in message
+    message = str(start(without_password_env(config_for(postgres_demo)), tmp_path))
+    assert "prumi_reader" in message and "password_env" in message and "refused" in message
     assert "prumi-reader-test" not in message + all_text(logs)
 
 
@@ -103,20 +123,30 @@ def test_a_timezone_spelled_differently_from_the_server_is_not_an_override(postg
     assert connection.query("SHOW TimeZone", LOCAL_VIEWER)[1] == [("UTC",)]
 
 
-def test_the_password_can_come_from_a_pgpass_file(postgres_demo, tmp_path, monkeypatch):
-    monkeypatch.delenv("PGPASSWORD")
+def test_without_password_env_libpq_still_finds_a_pgpass_file(postgres_demo, tmp_path, monkeypatch):
+    # Nothing blocks libpq's own lookup for a server set up that way on purpose.
+    monkeypatch.delenv("PGPASSWORD", raising=False)
     server = postgres_demo.server
     pgpass = tmp_path / "pgpass"
     pgpass.write_text(f"{server.host}:{server.port}:prumi_demo:prumi_reader:prumi-reader-test\n")
     pgpass.chmod(0o600)
     monkeypatch.setenv("PGPASSFILE", str(pgpass))
+    config = without_password_env(config_for(postgres_demo))
+    assert DbtAdapter.from_config(config, tmp_path).name == "dbt"
+
+
+def test_password_env_wins_over_pgpassword(postgres_demo, tmp_path, monkeypatch):
+    monkeypatch.setenv("PGPASSWORD", SENTINEL)
     assert DbtAdapter.from_config(config_for(postgres_demo), tmp_path).name == "dbt"
 
 
 def test_prumi_cannot_write_even_as_a_writer(postgres_demo, tmp_path, monkeypatch):
-    monkeypatch.setenv("PGPASSWORD", postgres_demo.server.admin_password)
+    monkeypatch.setenv("PRUMI_TEST_ADMIN_PASSWORD", postgres_demo.server.admin_password)
     connection = PostgresConnection.from_config(
-        postgres_demo.connection_config(user=postgres_demo.server.admin_user), tmp_path
+        postgres_demo.connection_config(
+            user=postgres_demo.server.admin_user, password_env="PRUMI_TEST_ADMIN_PASSWORD"
+        ),
+        tmp_path,
     )
     with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
         connection.query("CREATE TABLE main.x (a int)", LOCAL_VIEWER)
@@ -158,12 +188,17 @@ def test_unreadable_table_is_named(postgres_demo, tmp_path, orders_unreadable):
 
 
 def test_a_failed_connection_at_query_time_is_clean(postgres_demo, tmp_path, monkeypatch, logs):
-    source = Source("dbt", DbtAdapter.from_config(config_for(postgres_demo), tmp_path))
-    monkeypatch.setenv("PGPASSWORD", SENTINEL)
+    adapter = DbtAdapter.from_config(config_for(postgres_demo), tmp_path)
+    source = Source("dbt", adapter)
+    # The password was read at startup; a password that stops working since, as when it's
+    # rotated on the server, is the same failure as this wrong one.
+    connection = adapter._connection
+    wrong = dataclasses.replace(connection.settings, _password=SENTINEL)
+    monkeypatch.setattr(connection, "settings", wrong)
     with pytest.raises(ConnectionFailed) as error:
         source.execute(SemanticQuery(metrics=("revenue",)), LOCAL_VIEWER)
     assert error.value.__cause__ is None and error.value.__context__ is None
-    assert "prumi_reader" in str(error.value) and "PGPASSWORD" in str(error.value)
+    assert "prumi_reader" in str(error.value) and "password_env" in str(error.value)
     assert SENTINEL not in str(error.value)
     assert SENTINEL not in all_text(logs)
     assert any("error=ConnectionFailed" in r.getMessage() for r in logs.records)
@@ -171,6 +206,7 @@ def test_a_failed_connection_at_query_time_is_clean(postgres_demo, tmp_path, mon
 
 TZ_READER = "prumi_tz_reader"
 TZ_READER_PASSWORD = "prumi-tz-reader-test"
+TZ_READER_PASSWORD_ENV = "PRUMI_TEST_TZ_READER_PASSWORD"
 
 
 def _drop_tz_check(conn) -> None:
@@ -198,7 +234,7 @@ def tz_reader(postgres_demo, monkeypatch):
         conn.execute(sql.SQL("GRANT CONNECT ON DATABASE prumi_demo TO {}").format(role))
         conn.execute(sql.SQL("GRANT USAGE ON SCHEMA tz_check TO {}").format(role))
         conn.execute(sql.SQL("GRANT SELECT ON tz_check.events TO {}").format(role))
-    monkeypatch.setenv("PGPASSWORD", TZ_READER_PASSWORD)
+    monkeypatch.setenv(TZ_READER_PASSWORD_ENV, TZ_READER_PASSWORD)
     try:
         yield TZ_READER
     finally:
@@ -212,7 +248,8 @@ def tz_reader(postgres_demo, monkeypatch):
 def test_timezone_decides_the_day_of_a_timestamptz(
     postgres_demo, tmp_path, tz_reader, timezone, day
 ):
-    overrides = {"user": tz_reader} | ({"timezone": timezone} if timezone else {})
+    overrides = {"user": tz_reader, "password_env": TZ_READER_PASSWORD_ENV}
+    overrides |= {"timezone": timezone} if timezone else {}
     connection = PostgresConnection.from_config(
         postgres_demo.connection_config(**overrides), tmp_path
     )
@@ -246,7 +283,7 @@ def german_datestyle_reader(postgres_demo, monkeypatch):
         )
         conn.execute(sql.SQL("ALTER ROLE {} SET DateStyle = 'German'").format(role))
         conn.execute(sql.SQL("GRANT CONNECT ON DATABASE prumi_demo TO {}").format(role))
-    monkeypatch.setenv("PGPASSWORD", TZ_READER_PASSWORD)
+    monkeypatch.setenv(TZ_READER_PASSWORD_ENV, TZ_READER_PASSWORD)
     try:
         yield DATESTYLE_READER
     finally:
@@ -258,7 +295,10 @@ def test_a_role_with_another_datestyle_still_reads_timestamps(
     postgres_demo, tmp_path, german_datestyle_reader
 ):
     connection = PostgresConnection.from_config(
-        postgres_demo.connection_config(user=german_datestyle_reader, timezone="UTC"), tmp_path
+        postgres_demo.connection_config(
+            user=german_datestyle_reader, password_env=TZ_READER_PASSWORD_ENV, timezone="UTC"
+        ),
+        tmp_path,
     )
     _, rows = connection.query("SELECT TIMESTAMPTZ '2026-10-14 23:30:00+00' AS at", LOCAL_VIEWER)
     assert rows == [(dt.datetime(2026, 10, 14, 23, 30, tzinfo=dt.UTC),)]

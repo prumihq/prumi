@@ -30,7 +30,7 @@ def assert_refused_without_the_sentinel(path, capsys, caplog):
     assert main(["serve", "--config", str(path)]) == REFUSED
     err = capsys.readouterr().err
     assert err.startswith("prumi:")
-    assert "PGPASSWORD" in err
+    assert "password_env" in err
     assert SENTINEL not in err
     assert SENTINEL not in all_text(caplog)
 
@@ -62,7 +62,7 @@ def test_the_home_page_shows_data_through_on_postgres(pg_services):
 def test_serve_with_a_wrong_password_never_shows_it(
     tmp_path, postgres_demo, monkeypatch, capsys, caplog
 ):
-    monkeypatch.setenv("PGPASSWORD", SENTINEL)
+    monkeypatch.setenv(postgres_demo.reader_password_env, SENTINEL)
     path = write_postgres_demo_config(tmp_path, postgres_demo)
     assert_refused_without_the_sentinel(path, capsys, caplog)
 

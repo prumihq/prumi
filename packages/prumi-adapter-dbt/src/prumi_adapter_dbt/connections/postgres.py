@@ -1,14 +1,16 @@
 """Postgres: a read-only session for each query, as a fixed role.
 
-The password never passes through Prumi: libpq finds it in PGPASSWORD, ~/.pgpass or the service
-file, so it can't reach a config file, a log or an error message.
+prumi.toml never holds the password: `password_env` names the environment variable that does.
+Prumi reads it once at startup and hands it to the driver only, so it can't reach a log, an
+error message or anything Prumi shows.
 """
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -24,8 +26,15 @@ except ImportError as exc:  # the `postgres` extra isn't installed
         "The postgres connection needs the psycopg package: install prumi-adapter-dbt[postgres]."
     ) from exc
 
-_KEYS = {"type", "host", "port", "dbname", "user", "sslmode", "timezone"}
+_KEYS = {"type", "host", "port", "dbname", "user", "password_env", "sslmode", "timezone"}
 _SSLMODES = ("disable", "allow", "prefer", "require", "verify-ca", "verify-full")
+# At most five digits: int() refuses very long digit strings with its own error.
+_PORT = re.compile(r"[0-9]{1,5}")
+_VARIABLE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# Only a name in the usual upper-case form is shown in messages: anything else may be the
+# password itself, typed into `password_env` by mistake.
+_SHOWN_NAME = re.compile(r"[A-Z_][A-Z0-9_]*")
+_PASSWORD_HINT = "the password in the variable `password_env` names"
 CONNECT_TIMEOUT_SECONDS = 10
 
 
@@ -50,8 +59,45 @@ def _refuse_connection_string(config: Mapping[str, Any], key: str, what: str) ->
         # setting's value, so it's refused before anything can echo it.
         raise _bad(
             key,
-            f"{what}, not a connection string; the password goes in PGPASSWORD or ~/.pgpass",
+            f"{what}, not a connection string; the password goes in the variable "
+            "`password_env` names",
         )
+
+
+def _port(config: Mapping[str, Any]) -> int:
+    # Settings from environment variables arrive as text, so "5433" counts as 5433.
+    port = config.get("port", 5432)
+    if isinstance(port, str) and _PORT.fullmatch(port):
+        port = int(port)
+    if not isinstance(port, int) or isinstance(port, bool):
+        raise _bad("port", "an integer")
+    if not 1 <= port <= 65535:
+        raise _bad("port", "between 1 and 65535")
+    return port
+
+
+def _password(
+    config: Mapping[str, Any], environ: Mapping[str, str]
+) -> tuple[str | None, str | None]:
+    """The variable `password_env` names, and the password it holds; (None, None) without one."""
+    name = config.get("password_env")
+    if name is None:
+        return None, None
+    if not isinstance(name, str) or not _VARIABLE_NAME.fullmatch(name):
+        raise _bad(
+            "password_env", "the name of an environment variable, such as WAREHOUSE_PASSWORD"
+        )
+    password = environ.get(name, "")
+    if not password.strip():
+        variable = (
+            f"`password_env` names the variable {name}, which is"
+            if _SHOWN_NAME.fullmatch(name)
+            else "the variable `password_env` names is"
+        )
+        raise AdapterStartupError(
+            f"[source.dbt.connection] {variable} unset or empty: set it to the Postgres password."
+        )
+    return name, password
 
 
 def _escape_option(value: str) -> str:
@@ -67,13 +113,21 @@ class PostgresSettings:
     user: str
     sslmode: str | None
     timezone: str | None
+    password_env: str | None = None
+    # Never in repr, so no message or log that shows the settings can show the password.
+    _password: str | None = field(default=None, repr=False)
 
     @classmethod
-    def from_config(cls, config: Mapping[str, Any]) -> PostgresSettings:
+    def from_config(
+        cls, config: Mapping[str, Any], environ: Mapping[str, str] | None = None
+    ) -> PostgresSettings:
+        """The settings from `[source.dbt.connection]`, with the password read from `environ`
+        (the process's environment by default)."""
         if "password" in config:
             raise AdapterStartupError(
                 "[source.dbt.connection] takes no `password`: prumi.toml never holds one. "
-                "Set PGPASSWORD, or put it in ~/.pgpass (or a libpq service file); libpq finds it."
+                "Put the password in an environment variable and name that variable in "
+                "`password_env`."
             )
         refuse_unknown_keys(config, _KEYS, "postgres")
         host = _required_str(config, "host", "the Postgres server")
@@ -82,9 +136,8 @@ class PostgresSettings:
         # `user` may hold an @ (hosted servers use logins like reader@server), so only these two.
         _refuse_connection_string(config, "host", "a host name")
         _refuse_connection_string(config, "dbname", "a database name")
-        port = config.get("port", 5432)
-        if not isinstance(port, int) or isinstance(port, bool):
-            raise _bad("port", "an integer")
+        port = _port(config)
+        password_env, password = _password(config, os.environ if environ is None else environ)
         sslmode = config.get("sslmode")
         if sslmode is not None and (not isinstance(sslmode, str) or sslmode not in _SSLMODES):
             raise _bad("sslmode", f"one of {', '.join(_SSLMODES)}")
@@ -97,10 +150,11 @@ class PostgresSettings:
             # The server splits `options` on any whitespace, so a tab or newline could smuggle in
             # another `-c` (such as one turning read-only off). Zone names have neither.
             raise _bad("timezone", "a time zone name without tabs, newlines or control characters")
-        return cls(host, port, dbname, user, sslmode, timezone)
+        return cls(host, port, dbname, user, sslmode, timezone, password_env, password)
 
     def connect_kwargs(self) -> dict[str, Any]:
-        """Keyword arguments for psycopg.connect; never a password."""
+        """Keyword arguments for psycopg.connect, with the password when `password_env` names
+        one. Without it libpq looks for a password on its own, as it always does."""
         # Read-only is set for the whole session, so no statement Prumi runs can write. DateStyle
         # only shapes how dates print, and psycopg reads timestamps only in ISO format, whatever
         # the role or database sets.
@@ -117,6 +171,8 @@ class PostgresSettings:
         }
         if self.sslmode is not None:
             kwargs["sslmode"] = self.sslmode
+        if self._password is not None:
+            kwargs["password"] = self._password
         return kwargs
 
 
@@ -157,8 +213,7 @@ def connect_error_message(exc: psycopg.Error, settings: PostgresSettings) -> str
     if code in _AUTH_FAILED:
         return (
             f"Postgres refused {settings.user}'s login to {settings.dbname} on {where}: check "
-            "`user`, and the password in PGPASSWORD or ~/.pgpass (Prumi never reads one from "
-            "prumi.toml)."
+            f"`user`, and {_PASSWORD_HINT} (Prumi never reads one from prumi.toml)."
         )
     if code == "3D000":
         return f"No database {settings.dbname} on {where}: check `dbname`."
@@ -169,8 +224,8 @@ def connect_error_message(exc: psycopg.Error, settings: PostgresSettings) -> str
         )
     return (
         f"Prumi can't connect to Postgres at {where} as {settings.user}: check `host`, `port` "
-        "and `sslmode`, that the server accepts connections from this machine, and the "
-        "password's source."
+        f"and `sslmode`, that the server accepts connections from this machine, and "
+        f"{_PASSWORD_HINT}."
     )
 
 
@@ -233,7 +288,7 @@ class PostgresConnection:
         except psycopg.Error as exc:
             message = connect_error_message(exc, self.settings)
         # Raised outside the except block, so the driver's error isn't even the __context__:
-        # its connection object still holds the password libpq found.
+        # its connection object still holds the password.
         raise failure(message) from None
 
     def query(self, sql: str, viewer: Viewer) -> tuple[list[str], list[tuple[Any, ...]]]:
