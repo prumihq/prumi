@@ -162,6 +162,15 @@ def check_html(
             "Load libraries from an allowed CDN instead of inlining them, and never inline data.",
         )
         return
+    if "\x00" in html:
+        # Browsers drop or replace it, and the registry can't store it on every backend.
+        line = html.count("\n", 0, html.index("\x00")) + 1
+        yield error(
+            "html.nul_character",
+            "html",
+            f"The HTML has a NUL character (\\x00) on line {line}.",
+            "Remove it: a page never needs one.",
+        )
     page = _parse(html)
     inline = [s for s in page.scripts if not s.attrs.get("src")]
     yield from _embedded_numbers(inline)

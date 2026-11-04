@@ -187,12 +187,14 @@ Codes that aren't about a BI rule. Errors block publishing; warnings don't.
 | `spec.unknown_block` | error | An interaction names a block the spec doesn't define |
 | `spec.invalid_interaction` | error | An interaction can't work as declared |
 | `spec.unsupported_calendar` | error | A time filter asks for a calendar other than `standard` |
+| `spec.nul_character` | error | The dashboard title has a NUL character (`\x00`), which the registry can't store |
 
 **The page's HTML**
 
 | Code | Severity | When |
 |---|---|---|
 | `html.too_large` | error | The HTML is over 2 MB |
+| `html.nul_character` | error | The HTML has a NUL character (`\x00`), which browsers drop and the registry can't store |
 | `html.unknown_block` | error | A `prumi.*` call names a block the spec doesn't define |
 | `html.binding_selector` | error | A binding key isn't an id selector |
 | `html.unbound_block` | warning | A block is neither bound to an element nor drawn with `prumi.on`, so the page never shows it |
@@ -226,7 +228,7 @@ Codes that aren't about a BI rule. Errors block publishing; warnings don't.
 | `query.failed` | error | The source couldn't run a block; the server log has the error type |
 | `result.truncated` | warning | A block has more than 5,000 rows; only the first 5,000 are shown |
 
-**Agent tools** (`validate_spec`, `publish_dashboard`, `get_dashboard`)
+**Agent tools** (`validate_spec`, `publish_dashboard`, `get_dashboard`, `request_metric`)
 
 | Code | Severity | When |
 |---|---|---|
@@ -239,3 +241,4 @@ Codes that aren't about a BI rule. Errors block publishing; warnings don't.
 | `publish.invalid_candidate` | error | The candidate didn't pass validation |
 | `dashboard.not_found` | error | No dashboard or version has that id |
 | `dashboard.forbidden` | error | The viewer may not change that dashboard |
+| `metric_request.nul_character` | error | A metric request's text has a NUL character (`\x00`), which the registry can't store |

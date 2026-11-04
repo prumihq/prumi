@@ -199,6 +199,38 @@ def test_adapter_settings_over_a_value_name_the_variable(empty_cwd):
         load_config(None, {**ADAPTER, "PRUMI__SOURCE__DBT": "m.json"})
 
 
+REGISTRY_POSTGRES = {
+    "PRUMI__REGISTRY__BACKEND": "postgres",
+    "PRUMI__REGISTRY__POSTGRES__HOST": "db",
+    "PRUMI__REGISTRY__POSTGRES__DBNAME": "prumi",
+    "PRUMI__REGISTRY__POSTGRES__USER": "prumi",
+}
+
+
+def test_a_registry_password_from_a_variable_is_refused_by_its_name(empty_cwd):
+    env = {**ADAPTER, **REGISTRY_POSTGRES, "PRUMI__REGISTRY__POSTGRES__PASSWORD": "hunter2"}
+    with pytest.raises(ConfigError) as caught:
+        load_config(None, env)
+    message = str(caught.value)
+    assert message.startswith("the environment: PRUMI__REGISTRY__POSTGRES__PASSWORD: ")
+    assert "PRUMI_REGISTRY_PASSWORD" in message and "hunter2" not in message
+
+
+def test_a_postgres_section_from_a_variable_with_sqlite_is_refused_by_its_name(tmp_path):
+    path = write(tmp_path, MINIMAL + '[registry]\nbackend = "sqlite"\n')
+    with pytest.raises(ConfigError) as caught:
+        load_config(path, {"PRUMI__REGISTRY__POSTGRES__HOST": "db"})
+    assert str(caught.value).startswith(f"{path}: PRUMI__REGISTRY__POSTGRES__HOST: ")
+    assert 'only used with backend = "postgres"' in str(caught.value)
+
+
+def test_a_sqlite_backend_from_a_variable_over_a_postgres_section_is_named(tmp_path):
+    path = write(tmp_path, MINIMAL + '[registry.postgres]\nhost = "db"\n')
+    with pytest.raises(ConfigError) as caught:
+        load_config(path, {"PRUMI__REGISTRY__BACKEND": "sqlite"})
+    assert str(caught.value).startswith(f"{path}: PRUMI__REGISTRY__BACKEND: ")
+
+
 SECRET = "s3cret-value"
 
 
@@ -213,6 +245,7 @@ SECRET = "s3cret-value"
         "PRUMI__SERVER__LOCALE",
         "PRUMI__SERVER__PASSWORD",  # an unknown key
         "PRUMI__SERVER",  # over a whole section
+        "PRUMI__REGISTRY__POSTGRES__PASSWORD",  # refused by the registry's own check
     ],
 )
 def test_a_refused_variable_is_named_without_its_value(empty_cwd, monkeypatch, name):

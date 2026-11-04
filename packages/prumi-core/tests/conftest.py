@@ -5,6 +5,7 @@ import re
 import socket
 import threading
 import time
+import uuid
 from pathlib import Path
 
 import pytest
@@ -125,6 +126,34 @@ class FakeAdapter:
         rows = (row,) * (5001 if "big_metric" in query.metrics and grouped else 1)
         rows = rows[: query.limit] if query.limit else rows
         return Result(columns=columns, rows=rows, row_count=len(rows))
+
+
+@pytest.fixture(params=["sqlite", pytest.param("postgres", marks=pytest.mark.postgres)])
+def registry_store(request, tmp_path):
+    """An empty registry store: a SQLite file, or a Postgres database of its own."""
+    from prumi.registry.stores import SqliteStore
+
+    if request.param == "sqlite":
+        yield SqliteStore(tmp_path / "data")
+        return
+    from prumi.config import RegistryPostgresConfig
+    from prumi.registry.stores import PostgresStore
+
+    server = request.getfixturevalue("postgres_server")  # skips without a server or psycopg
+    from psycopg import sql
+
+    dbname = f"prumi_registry_{uuid.uuid4().hex}"
+    with server.admin_connect() as conn:
+        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(dbname)))
+    settings = RegistryPostgresConfig(
+        host=server.host, port=server.port, dbname=dbname, user=server.admin_user
+    )
+    try:
+        yield PostgresStore(settings, server.admin_password)
+    finally:
+        with server.admin_connect() as conn:
+            drop = sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(dbname))
+            conn.execute(drop)
 
 
 @pytest.fixture

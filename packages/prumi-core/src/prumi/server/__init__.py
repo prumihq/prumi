@@ -61,6 +61,9 @@ def serve(services: Services) -> None:
     from prumi.server.app import create_app
 
     services.source  # noqa: B018 - load the adapter now: startup checks fail before binding
+    # Open the registry too: an unreachable or unusable database stops startup with its
+    # message, instead of failing the first request that reads a dashboard.
+    services.registry  # noqa: B018
     with _logs_shown():
         # Built right after the load, so a manifest written during the rest of startup is
         # still seen as a change. It doesn't poll until start().

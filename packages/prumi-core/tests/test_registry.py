@@ -1,15 +1,19 @@
-"""The registry: versions, fingerprints, computed status, delete, browser checks."""
+"""The registry: versions, fingerprints, computed status, delete, browser checks. Tests that
+take `registry` run on SQLite and on Postgres."""
 
 import datetime as dt
 import hashlib
 import json
 import sqlite3
-from contextlib import closing
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
 from prumi.issues import Report, error
-from prumi.registry import Content, Registry, canonical_spec_json, publish
+from prumi.registry import Content, Registry, UnstorableText, canonical_spec_json, publish
+from prumi.registry.stores import SqliteStore
 from prumi.spec import DashboardSpec, load_spec_file
 
 GOLDEN = Path(__file__).parent / "fixtures" / "registry"
@@ -27,10 +31,46 @@ def spec(title="Sales", **block) -> DashboardSpec:
     )
 
 
+def clock():
+    """A registry clock that ticks one second per call."""
+    times = iter(dt.datetime(2026, 10, 15, 9, 0, s, tzinfo=dt.UTC) for s in range(60))
+    return lambda: next(times)
+
+
 @pytest.fixture
-def registry(tmp_path):
-    clock = iter(dt.datetime(2026, 10, 15, 9, 0, s, tzinfo=dt.UTC) for s in range(60))
-    return Registry(tmp_path / "data", now=lambda: next(clock))
+def registry(registry_store):
+    return Registry(registry_store, now=clock())
+
+
+@pytest.fixture
+def sqlite_registry(tmp_path):
+    return Registry(tmp_path / "data", now=clock())
+
+
+def stored_bytes(registry) -> bytes:
+    """Everything the registry keeps: the SQLite file and its WAL, or every value of every
+    row on Postgres."""
+    if registry.path is not None:
+        wal = registry.path.with_name(registry.path.name + "-wal")
+        return registry.path.read_bytes() + (wal.read_bytes() if wal.exists() else b"")
+    with registry.store.connect() as conn:
+        tables = conn.execute(
+            "SELECT tablename FROM pg_tables WHERE schemaname = current_schema()"
+        ).fetchall()
+        rows = [r for [table] in tables for r in conn.execute(f"SELECT * FROM {table}").fetchall()]
+    return "\n".join(str(value) for row in rows for value in row).encode()
+
+
+@contextmanager
+def holding_the_wal(registry) -> Iterator[None]:
+    """On SQLite, a reader kept open so that writes stay in the -wal file, where they land
+    first."""
+    if registry.path is None:
+        yield
+        return
+    with closing(sqlite3.connect(registry.path)) as reader:
+        reader.execute("SELECT count(*) FROM schema_version").fetchone()
+        yield
 
 
 # Fingerprints
@@ -138,6 +178,23 @@ def test_certifying_an_unknown_version(registry):
         registry.certify("sales", 1, by="ana")
 
 
+def test_a_dashboard_id_with_a_nul_character_reads_as_a_missing_dashboard(registry):
+    registry.save(spec(), HTML)
+    unknown = "sales\x00"
+
+    assert registry.dashboard(unknown) is None
+    assert registry.version(unknown, 1) is None
+    assert registry.status(unknown, 1) is None
+    assert registry.checks(unknown, 1) == []
+    assert registry.uncertify(unknown) == 0
+    assert registry.delete(unknown) is False
+    with pytest.raises(KeyError):
+        registry.certify(unknown, 1, by="ana")
+    with pytest.raises(KeyError):
+        registry.record_check(unknown, 1, report([]))
+    assert [d.id for d in registry.dashboards()] == ["sales"]
+
+
 def test_delete_keeps_metric_requests(registry):
     registry.save(spec(), HTML)
     registry.certify("sales", 1, by="ana")
@@ -148,8 +205,9 @@ def test_delete_keeps_metric_requests(registry):
     assert registry.delete("sales") is True
     assert registry.dashboards() == [] and registry.version("sales", 1) is None
     assert registry.status("sales", 1) is None
-    with sqlite3.connect(registry.path) as conn:
-        assert conn.execute("SELECT count(*) FROM certifications").fetchone() == (0,)
+    with registry.store.connect() as conn:
+        [certifications] = conn.execute("SELECT count(*) FROM certifications").fetchone()
+    assert certifications == 0
     assert [(r.id, r.dashboard_id) for r in registry.metric_requests()] == [(1, None), (2, None)]
     assert registry.metric_request_ids() == {request.id, other.id}
     assert registry.delete("sales") is False
@@ -158,10 +216,40 @@ def test_delete_keeps_metric_requests(registry):
     assert registry.save(spec(), HTML).version == 1
 
 
+def test_html_with_a_nul_character_is_refused_on_both_backends(registry):
+    from prumi.validate.html import check_html
+
+    def validate(spec, html):
+        return Report.of(list(check_html(DashboardSpec.model_validate(spec), html)))
+
+    html = HTML + "\n<p>a\x00b</p>"
+    report, published = publish(registry, spec().model_dump(by_alias=True), html, validate)
+    assert published is None
+    assert [(e.code, e.message) for e in report.errors] == [
+        ("html.nul_character", "The HTML has a NUL character (\\x00) on line 2.")
+    ]
+    # Stored without validating, it's refused by the registry itself.
+    with pytest.raises(UnstorableText, match="HTML has a NUL character"):
+        registry.save(spec(), html)
+    with pytest.raises(UnstorableText, match="dashboard title"):
+        registry.save(spec(title="Sales\x00"), HTML)
+    assert registry.dashboards() == []
+
+
+@pytest.mark.parametrize("field", ["description", "reason", "dashboard_id"])
+def test_a_metric_request_with_a_nul_character_is_refused_on_both_backends(registry, field):
+    request = {"description": "Churn", "reason": "Retention review", "dashboard_id": "sales"}
+    with pytest.raises(UnstorableText, match=f"{field.replace('_', ' ')} has a NUL"):
+        registry.request_metric(**(request | {field: "a\x00b"}))
+    assert registry.metric_requests() == []
+    assert registry.request_metric(**request).id == 1
+
+
 # Storage
 
 
-def test_schema_version_wal_and_reopening(registry, tmp_path):
+def test_schema_version_wal_and_reopening(sqlite_registry, tmp_path):
+    registry = sqlite_registry
     registry.save(spec(), HTML)
     with sqlite3.connect(registry.path) as conn:
         versions = conn.execute("SELECT version FROM schema_version").fetchall()
@@ -176,8 +264,6 @@ def test_schema_version_wal_and_reopening(registry, tmp_path):
 def test_opening_an_older_registry_drops_the_reports_it_stored_with_data(tmp_path):
     """Before migration 3, check reports kept the numbers flagged, the filters' values and the
     browser's error messages as they came."""
-    from importlib.resources import files
-
     path = tmp_path / "data" / "registry.sqlite3"
     path.parent.mkdir()
     content = Content.of(regional(), HTML)
@@ -217,8 +303,8 @@ def test_opening_an_older_registry_drops_the_reports_it_stored_with_data(tmp_pat
     }
 
 
-def test_two_registries_on_one_file_see_each_other(registry, tmp_path):
-    cli = Registry(tmp_path / "data")
+def test_two_registries_on_one_file_see_each_other(sqlite_registry, tmp_path):
+    registry, cli = sqlite_registry, Registry(tmp_path / "data")
     registry.save(spec(), HTML)
     cli.certify("sales", 1, by="admin")
     assert registry.status("sales", 1).status == "certified"
@@ -303,8 +389,10 @@ def test_a_stored_report_keeps_no_numbers_or_names_from_the_data(registry):
     # then any number with 3+ digits.
     assert stored.errors == ["…, … and N: … of 12 (at …)"]
     assert stored.canvas
+    stored = stored_bytes(registry)
+    assert b'"selected":3' in stored  # the report is in there
     for found in ("North", "1,234", "7.5", "12%", "2742409"):
-        assert found.encode() not in registry.path.read_bytes()
+        assert found.encode() not in stored
 
 
 def test_reports_for_each_selection_of_a_filter_are_kept_apart(registry):
@@ -365,15 +453,12 @@ def test_a_time_filter_value_that_isnt_a_window_is_stored_as_invalid(registry, v
     from prumi.registry import CheckReport
 
     registry.save(regional(), HTML)
-    wal = registry.path.with_name(registry.path.name + "-wal")
-    # While another connection is open, the write stays in the -wal file.
-    with closing(sqlite3.connect(registry.path)) as reader:
-        reader.execute("SELECT count(*) FROM page_checks").fetchone()
+    with holding_the_wal(registry):
         for region in ([], ["North"]):
             filters = {"period": value, "region": region}
             sent = CheckReport(filters=filters, flagged=[], canvas=True, errors=[])
             registry.record_check("sales", 1, sent)
-        stored = registry.path.read_bytes() + wal.read_bytes()
+        stored = stored_bytes(registry)
     checks = registry.checks("sales", 1)
     assert [c.filters["period"] for c in checks] == [{"invalid": True}] * 2
     # The state key still hashes the value as sent: each state keeps its own report.
@@ -387,3 +472,87 @@ def test_a_time_filter_value_that_isnt_a_window_is_stored_as_invalid(registry, v
 def test_a_report_for_an_unknown_version_is_refused(registry):
     with pytest.raises(KeyError):
         registry.record_check("sales", 1, report([]))
+
+
+# The same registry on both backends
+
+
+def test_both_backends_store_the_same_content(registry_store, tmp_path):
+    registry = Registry(registry_store, now=clock())
+    reference = Registry(SqliteStore(tmp_path / "reference"), now=clock())
+    for each in (registry, reference):
+        each.save(regional(), HTML + "\r\n<p>Ünïcödé — 1 €</p>\r\n")
+        each.certify("sales", 1, by="ana")
+        each.save(regional(), HTML)
+        each.record_check("sales", 2, report(["North"], FLAGGED))
+        each.request_metric("Net revenue", "Finance asked", "sales")
+    for version in (1, 2):
+        stored, expected = registry.version("sales", version), reference.version("sales", version)
+        assert stored == expected
+        assert (stored.fingerprint, stored.spec_hash, stored.html_hash) == (
+            expected.fingerprint,
+            expected.spec_hash,
+            expected.html_hash,
+        )
+        assert registry.status("sales", version) == reference.status("sales", version)
+    assert registry.status("sales", 1).status == "certified"
+    assert registry.status("sales", 2).needs_attention
+    assert registry.dashboards() == reference.dashboards()
+    assert registry.checks("sales", 2) == reference.checks("sales", 2)
+    assert registry.metric_requests() == reference.metric_requests()
+
+
+def test_dashboards_are_listed_in_the_same_order(registry):
+    # Byte order, as SQLite sorts: uppercase first, then "-" before "_".
+    ids = ["a_b", "a", "B", "a-b"]
+    for dashboard_id in ids:
+        named = spec().model_copy(
+            update={"dashboard": spec().dashboard.model_copy(update={"id": dashboard_id})}
+        )
+        registry.save(named, HTML)
+    assert [d.id for d in registry.dashboards()] == sorted(ids)
+    assert sorted(ids) == ["B", "a", "a-b", "a_b"]
+
+
+def test_a_0_2_registry_opens_unchanged(tmp_path):
+    """A registry that 0.2 created and used: migrations 1 to 3, run as 0.2 ran them."""
+    path = tmp_path / "data" / "registry.sqlite3"
+    path.parent.mkdir()
+    content = Content.of(spec(), HTML)
+    with closing(sqlite3.connect(path, isolation_level=None)) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
+        names = ("0001_initial.sql", "0002_page_checks.sql", "0003_page_checks_without_data.sql")
+        for number, name in enumerate(names, start=1):
+            conn.executescript(files("prumi.registry").joinpath("migrations", name).read_text())
+            conn.execute("INSERT INTO schema_version (version) VALUES (?)", (number,))
+        conn.execute("INSERT INTO dashboards VALUES ('sales', 'Sales', 'local', '2026-10-14', 1)")
+        conn.execute(
+            "INSERT INTO versions VALUES ('sales', 1, ?, ?, ?, ?, ?, '2026-10-14T08:00:00+00:00')",
+            (content.spec_json, content.html, content.spec_hash, content.html_hash,
+             content.fingerprint),
+        )  # fmt: skip
+        conn.execute(
+            "INSERT INTO certifications (dashboard_id, version, fingerprint, certified_by,"
+            " certified_at) VALUES ('sales', 1, ?, 'ana', '2026-10-14T09:00:00+00:00')",
+            (content.fingerprint,),
+        )
+        conn.execute(
+            "INSERT INTO metric_requests (description, reason, dashboard_id, requested_by,"
+            " created_at) VALUES ('Churn', 'Retention review', NULL, 'local', '2026-10-14')"
+        )
+        schema = conn.execute("SELECT * FROM sqlite_master ORDER BY name").fetchall()
+
+    registry = Registry(tmp_path / "data", now=clock())
+    [dashboard] = registry.dashboards()
+    assert (dashboard.id, dashboard.title, dashboard.current_version) == ("sales", "Sales", 1)
+    assert registry.version("sales", 1).fingerprint == content.fingerprint
+    assert (registry.status("sales", 1).status, registry.status("sales", 1).certified_by) == (
+        "certified",
+        "ana",
+    )
+    assert registry.request_metric("Net revenue", "Finance asked").id == 2
+    assert registry.save(spec(title="Sales, weekly"), HTML).version == 2
+    with closing(sqlite3.connect(path)) as conn:
+        assert conn.execute("SELECT * FROM sqlite_master ORDER BY name").fetchall() == schema
+        assert conn.execute("SELECT version FROM schema_version").fetchall() == [(1,), (2,), (3,)]

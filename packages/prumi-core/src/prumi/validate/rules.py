@@ -20,6 +20,7 @@ REQUEST_METRIC_HINT = (
 def check_spec(
     spec: DashboardSpec, source: Source, metric_request_ids: Collection[int], as_of: dt.date
 ) -> Iterator[Issue]:
+    yield from _title(spec)
     yield from _ids(spec)
     yield from _calendars(spec)
     yield from _filter_defaults(spec)
@@ -28,6 +29,17 @@ def check_spec(
     for index, block in enumerate(spec.data):
         yield from _block(spec, index, block, source, as_of)
     yield from _interactions(spec)
+
+
+def _title(spec: DashboardSpec) -> Iterator[Issue]:
+    # The registry stores the title as text, which can't hold a NUL on every backend.
+    if "\x00" in spec.dashboard.title:
+        yield error(
+            "spec.nul_character",
+            "dashboard.title",
+            "The dashboard title has a NUL character (\\x00).",
+            "Remove it: a title never needs one.",
+        )
 
 
 def _ids(spec: DashboardSpec) -> Iterator[Issue]:

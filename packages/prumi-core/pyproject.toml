@@ -36,6 +36,8 @@ dependencies = [
 # starts. The adapter depends on prumi in turn; resolvers and the lockfile handle the cycle.
 # release-please bumps this range with each release.
 dbt = ["prumi-adapter-dbt[duckdb,postgres]~=0.2.0"]  # x-release-please-version
+# The driver for a registry kept in Postgres.
+postgres = ["psycopg[binary]>=3.1"]
 
 [project.urls]
 Repository = "https://github.com/prumihq/prumi"

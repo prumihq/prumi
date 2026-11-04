@@ -99,6 +99,8 @@ path = "warehouse.duckdb"
 
 Settings can also come from `PRUMI__…` environment variables (`PRUMI__SERVER__PORT` for `port` under `[server]`): a variable wins over the file, and with variables alone no `prumi.toml` is needed. A Postgres password never goes in the file: `password_env` names the variable that holds it ([settings from the environment](docs/configuration.md#settings-from-environment-variables)).
 
+Dashboards and certifications are kept in the registry: by default a SQLite file in `data_dir`, which is fine on one machine. For a real install, keep it in a Postgres database of its own ([`[registry]`](docs/configuration.md#registry)).
+
 **Run** Prumi, then [connect your agent](#connect-your-agent):
 
 ```sh
@@ -139,7 +141,7 @@ The server tells the agent how to work with it: build dashboards with Prumi rath
 
 - **Dashboard data:** warehouse → Prumi → browser. It never passes through the agent or its LLM.
 - **What the agent sees:** Prumi never sends company data to your agent: `query` shows the shape of the data, and the numbers appear only in the dashboard. Its LLM provider gets metric definitions, the shape of results (row counts, empties, label lengths, magnitudes), issue codes and element paths: never a value or a name from the data.
-- **What Prumi stores:** specs, HTML, certifications, metric requests and the check reports from viewers' browsers, in `registry.sqlite3` under the config's `data_dir` (`.prumi` by default). Check reports keep issue codes, element paths and counts, never numbers or names from the data. No query results, and no row data or filter values in logs.
+- **What Prumi stores:** specs, HTML, certifications, metric requests and the check reports from viewers' browsers, in the registry: `registry.sqlite3` under the config's `data_dir` (`.prumi` by default), or the Postgres database `[registry.postgres]` names ([`[registry]`](docs/configuration.md#registry)). Check reports keep issue codes, element paths and counts, never numbers or names from the data. No query results, and no row data or filter values in logs.
 
 The dashboard's HTML runs in a sandboxed frame that can't call any server, and the badge and data freshness come from Prumi, not from the HTML.
 
@@ -157,6 +159,7 @@ Known limitations:
 - One display locale per server: every viewer sees numbers formatted the same way, whatever their browser's language.
 - Tested with Claude Code only. Clients that connect from their vendor's cloud can't reach a server on your machine.
 - The container images are tested with Docker Engine on Linux only.
+- One server per registry: several Prumi servers behind one URL aren't supported. A new Postgres registry starts empty: nothing is copied from an existing SQLite one.
 
 Where it's going, in this order:
 - **Team use:** login and sharing with a team, `docker compose`, dbt on Snowflake, BigQuery and Databricks, and fiscal calendars.
@@ -170,7 +173,7 @@ Releases stay 0.x until the dashboard spec, the adapter protocol and the MCP too
 
 - **The agent has no Prumi tools** (it may ask you for a CSV instead): start Prumi before the agent session, because agents connect to their MCP servers when a session starts. In Claude Code, `/mcp` shows Prumi's state and reconnects it. If Prumi was added without `--scope user`, it's registered only in the folder where you ran `claude mcp add`.
 - **Restart your agent sessions after upgrading Prumi.** An open session keeps the tool list and the instructions it loaded when it started.
-- **`prumi serve` stops at startup:** the message names what to fix: Chromium isn't installed (`prumi install-chromium`, or `uv run prumi install-chromium` in a clone; add `--with-deps` on Linux if system libraries are missing), the semantic manifest is missing or unreadable (build the demo, or run `dbt parse` in your project), a table in the manifest doesn't exist on the connection, Prumi can't connect to Postgres or log in (the message says which setting to check: `host`, `port`, `dbname`, `user`, `sslmode`, `timezone` or `password_env`, and never shows the password), the variable `password_env` names is unset or empty, the manifest names a different Postgres database than `dbname`, a table exists but the Postgres role can't read it (grant it `SELECT`), `host` isn't a loopback address (in the container images any address is allowed, and `-p 127.0.0.1:…` keeps Prumi on your machine: see [Running in a container](docs/configuration.md#running-in-a-container)), or `locale` isn't a tag the browser knows.
+- **`prumi serve` stops at startup:** the message names what to fix: Chromium isn't installed (`prumi install-chromium`, or `uv run prumi install-chromium` in a clone; add `--with-deps` on Linux if system libraries are missing), the semantic manifest is missing or unreadable (build the demo, or run `dbt parse` in your project), a table in the manifest doesn't exist on the connection, Prumi can't connect to Postgres or log in (the message says which setting to check: `host`, `port`, `dbname`, `user`, `sslmode`, `timezone` or `password_env`, and never shows the password), the variable `password_env` names is unset or empty, the manifest names a different Postgres database than `dbname`, a table exists but the Postgres role can't read it (grant it `SELECT`), `host` isn't a loopback address (in the container images any address is allowed, and `-p 127.0.0.1:…` keeps Prumi on your machine: see [Running in a container](docs/configuration.md#running-in-a-container)), `locale` isn't a tag the browser knows, or the registry can't be used (on Postgres the message names the `[registry.postgres]` setting or `PRUMI_REGISTRY_PASSWORD` to check, or says the database must be empty and in UTF8, the role must be able to create tables, or `prumi[postgres]` is missing: see [`[registry.postgres]`](docs/configuration.md#registrypostgres)).
 - **A new manifest doesn't show up:** a manifest that fails a check while the server runs (it doesn't parse, or names a table that doesn't exist) is logged in the `prumi serve` output and the old one stays in use. Prumi tries it again every 30 seconds, so fixing the problem is enough.
 
 ## Contributing

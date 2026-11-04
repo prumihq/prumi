@@ -32,7 +32,13 @@ from prumi.config import is_loopback
 from prumi.container import in_container
 from prumi.engine import BlockInputs, BlockRequestError
 from prumi.issues import Issue, error
-from prumi.registry import FINGERPRINT_VERSION, Content, PageCheck, normalize_html
+from prumi.registry import (
+    FINGERPRINT_VERSION,
+    Content,
+    PageCheck,
+    UnstorableText,
+    normalize_html,
+)
 from prumi.server.guards import LOOPBACK_NAMES, allowed_hosts, origin
 from prumi.services import Services, Snapshot
 from prumi.source import Source
@@ -610,7 +616,11 @@ def create_mcp(services: Services) -> MCPServer:
     ) -> MetricRequestOut:
         """Ask the data team for a metric the catalog doesn't have, instead of computing or
         approximating it. Put the returned id in the spec's metric_requests."""
-        request = services.registry.request_metric(description, reason, dashboard_id)
+        try:
+            request = services.registry.request_metric(description, reason, dashboard_id)
+        except UnstorableText as exc:
+            hint = "Remove it and call request_metric again."
+            return _fail([error("metric_request.nul_character", "request_metric", str(exc), hint)])
         return MetricRequestOut(
             id=request.id,
             message=(

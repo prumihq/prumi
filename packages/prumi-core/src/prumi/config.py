@@ -11,9 +11,17 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
+from pydantic_core import PydanticCustomError
 
 from prumi.container import in_container
 
@@ -23,6 +31,11 @@ ENVIRONMENT = "the environment"
 DEFAULT_LOCALE = "en-US"
 # A BCP 47 tag's shape. Whether the browser knows it is checked when the server starts.
 _LOCALE = re.compile(r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*")
+
+REGISTRY_PASSWORD_VARIABLE = "PRUMI_REGISTRY_PASSWORD"
+SSLMODES = ("disable", "allow", "prefer", "require", "verify-ca", "verify-full")
+# At most five digits: int() refuses very long digit strings with its own error.
+_PORT = re.compile(r"[0-9]{1,5}")
 
 DEFAULT_SCRIPT_HOSTS = ("cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com")
 DEFAULT_STYLE_HOSTS = (
@@ -60,10 +73,26 @@ class SourceConfig:
 
 
 @dataclass(frozen=True)
+class RegistryPostgresConfig:
+    host: str
+    port: int
+    dbname: str
+    user: str
+    sslmode: str | None = None  # the password is never here; see REGISTRY_PASSWORD_VARIABLE
+
+
+@dataclass(frozen=True)
+class RegistryConfig:
+    backend: Literal["sqlite", "postgres"]
+    postgres: RegistryPostgresConfig | None
+
+
+@dataclass(frozen=True)
 class Config:
     path: Path | None  # None when the settings came from PRUMI__ variables alone
     server: ServerConfig
     sources: Mapping[str, SourceConfig]  # exactly one in this milestone, named "default"
+    registry: RegistryConfig = RegistryConfig("sqlite", None)
     # `key path -> variable name` for each setting a PRUMI__ variable gave, so a later message
     # can name the variable instead of showing a value that may be a secret.
     set_by: Mapping[tuple[str, ...], str] = field(default_factory=lambda: MappingProxyType({}))
@@ -118,6 +147,93 @@ class _Server(BaseModel):
         return host
 
 
+def _table_error(message: str, *keys: str) -> PydanticCustomError:
+    """A problem a check on a whole table finds, caused by its `keys`: a message names the
+    variables that set them, as it does for a problem with one key."""
+    return PydanticCustomError("table_keys", message, {"keys": keys})
+
+
+class _RegistryPostgres(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    host: str = Field(min_length=1)
+    port: int = 5432
+    dbname: str = Field(min_length=1)
+    user: str = Field(min_length=1)
+    sslmode: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _no_password(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "password" in data:
+            raise _table_error(
+                "`password` isn't a setting; the registry's password comes from the "
+                f"{REGISTRY_PASSWORD_VARIABLE} variable",
+                "password",
+            )
+        return data
+
+    @field_validator("port", mode="before")
+    @classmethod
+    def _port_number(cls, port: Any) -> Any:
+        # A variable holds text, so "6543" counts as 6543; a bool is not a number here.
+        if isinstance(port, str) and _PORT.fullmatch(port):
+            port = int(port)
+        if not isinstance(port, int) or isinstance(port, bool):
+            raise ValueError("must be an integer")
+        if not 1 <= port <= 65535:
+            raise ValueError("must be between 1 and 65535")
+        return port
+
+    @field_validator("host", "dbname")
+    @classmethod
+    def _not_a_connection_string(cls, value: str) -> str:
+        if "://" in value or "=" in value or "@" in value or any(c.isspace() for c in value):
+            # A pasted URI or `key=value` string can hold a password.
+            raise ValueError(
+                "must be a plain name, not a connection string; the password goes in the "
+                f"{REGISTRY_PASSWORD_VARIABLE} variable"
+            )
+        return value
+
+    @field_validator("sslmode")
+    @classmethod
+    def _known_sslmode(cls, mode: str | None) -> str | None:
+        if mode is not None and mode not in SSLMODES:
+            raise ValueError(f"must be one of {', '.join(SSLMODES)}")
+        return mode
+
+
+class _Registry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    backend: Literal["sqlite", "postgres"] = "sqlite"
+    postgres: _RegistryPostgres | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sqlite_has_no_postgres(cls, data: Any) -> Any:
+        # Checked before the section's own fields, so a half-written section still gets this.
+        if (
+            isinstance(data, dict)
+            and data.get("backend", "sqlite") == "sqlite"
+            and "postgres" in data
+        ):
+            raise _table_error(
+                '[registry.postgres] is only used with backend = "postgres"; '
+                "set backend, or remove the section",
+                "postgres",
+                "backend",
+            )
+        return data
+
+    @model_validator(mode="after")
+    def _postgres_needs_its_section(self) -> _Registry:
+        if self.backend == "postgres" and self.postgres is None:
+            raise ValueError('backend "postgres" needs a [registry.postgres] section')
+        return self
+
+
 def is_loopback(host: str) -> bool:
     if host == "localhost":
         return True
@@ -161,7 +277,7 @@ def load_config(path: str | Path | None = None, environ: Mapping[str, str] | Non
     where = str(found) if found is not None else ENVIRONMENT
     # Relative paths resolve against the file's folder, or the current one without a file.
     config_dir = found.parent if found is not None else Path.cwd()
-    unknown = sorted(set(data) - {"server", "source"})
+    unknown = sorted(set(data) - {"server", "source", "registry"})
     if unknown:
         set_by = _set_by(variables, *((section,) for section in unknown))
         raise ConfigError(f"{where}: unknown section(s) {', '.join(unknown)}{set_by}.")
@@ -169,7 +285,11 @@ def load_config(path: str | Path | None = None, environ: Mapping[str, str] | Non
         server = _Server.model_validate(data.get("server", {}))
     except ValidationError as exc:
         raise ConfigError(_describe(where, "server", exc, variables)) from None
-
+    try:
+        registry = _Registry.model_validate(data.get("registry", {}))
+    except ValidationError as exc:
+        raise ConfigError(_describe(where, "registry", exc, variables)) from None
+    postgres = registry.postgres
     return Config(
         path=found,
         server=ServerConfig(
@@ -184,6 +304,10 @@ def load_config(path: str | Path | None = None, environ: Mapping[str, str] | Non
         ),
         sources=MappingProxyType(
             {DEFAULT_SOURCE: _source(where, config_dir, data.get("source"), variables)}
+        ),
+        registry=RegistryConfig(
+            registry.backend,
+            RegistryPostgresConfig(**postgres.model_dump()) if postgres is not None else None,
         ),
         set_by=MappingProxyType(variables),
     )
@@ -225,12 +349,17 @@ def _source(
 
 def _set_by(variables: Mapping[tuple[str, ...], str], *sections: tuple[str, ...]) -> str:
     """` (set by NAME, ...)` for the variables that set these keys or keys under them."""
-    named = sorted(
+    named = _setting(variables, *sections)
+    return f" (set by {', '.join(named)})" if named else ""
+
+
+def _setting(variables: Mapping[tuple[str, ...], str], *sections: tuple[str, ...]) -> list[str]:
+    """The variables that set these keys or keys under them."""
+    return sorted(
         name
         for key, name in variables.items()
         if any(key[: len(section)] == section for section in sections)
     )
-    return f" (set by {', '.join(named)})" if named else ""
 
 
 def _describe(
@@ -250,6 +379,9 @@ def _describe(
         name = next(
             (variables[path[:n]] for n in range(len(path), 0, -1) if path[:n] in variables), None
         )
+        if name is None and error["type"] == "table_keys":
+            keys = error.get("ctx", {}).get("keys", ())
+            name = ", ".join(_setting(variables, *((*path, key) for key in keys))) or None
         if name is None:
             problems.append(f"{'.'.join(path)}: {message}")
             continue

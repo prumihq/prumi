@@ -12,7 +12,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "validator"
 METRIC_REQUESTS = {1, 2}
 
 # Every validator code (docs/bi-rules.md lists them).
-# html.too_large is tested in test_html.py, with a generated page.
+# html.too_large and html.nul_character are tested in test_html.py.
 CODES = {
     "spec.invalid",
     "spec.duplicate_id",
@@ -20,6 +20,7 @@ CODES = {
     "spec.unknown_block",
     "spec.unsupported_calendar",
     "spec.invalid_interaction",
+    "spec.nul_character",
     "R2.invalid_dimension",
     "R2.filter_dimension_invalid",
     "R3.no_window",

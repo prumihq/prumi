@@ -47,6 +47,13 @@ def test_too_large():
     assert (issue.code, issue.severity, issue.path) == ("html.too_large", "error", "html")
 
 
+def test_a_nul_character_is_refused():
+    html = "<!doctype html>\n<div id='kpi'>\x00</div>\n<script>prumi.on('kpi', () => {});</script>"
+    [issue] = check_html(SPEC, html)
+    assert (issue.code, issue.severity, issue.path) == ("html.nul_character", "error", "html")
+    assert issue.message == "The HTML has a NUL character (\\x00) on line 2."
+
+
 # The dataset heuristic
 
 
