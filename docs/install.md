@@ -27,7 +27,7 @@ You need Docker Engine with the `docker compose` plugin, a dbt project with sema
    curl -fL -o .env.example https://github.com/prumihq/prumi/releases/latest/download/env.example
    ```
 
-   Each release's `docker-compose.yml` names that release's image, so the two always match. The release offers the example as `env.example`, without the leading period, because GitHub renames a file whose name starts with one; the second line saves it as `.env.example`. The `-f` makes `curl` fail on a missing file instead of saving GitHub's "Not Found" page.
+   Each release's `docker-compose.yml` names that release's image. The release offers the example as `env.example` (GitHub renames files that start with a period); the second line saves it as `.env.example`.
 
 4. **Fill in `.env`.** Copy the example next to `docker-compose.yml` (compose reads it from there) and fill in your values: the path to the dbt project, the warehouse's host, database and role, the role's password, and a password of your choice for the registry.
 
@@ -81,7 +81,7 @@ The compose file sets these itself, in the `prumi` service's `environment:`, and
 | `PRUMI__REGISTRY__BACKEND` | `postgres` |
 | `PRUMI__REGISTRY__POSTGRES__HOST`, `__DBNAME`, `__USER` | the bundled `registry-db`: `registry-db`, `prumi`, `prumi` |
 
-To change one, don't edit `docker-compose.yml`: an upgrade downloads a new one over it and the change is lost. Put the change in a `docker-compose.override.yml` next to it instead. Compose reads that file automatically and merges it over the main file, and an upgrade leaves it alone. [DuckDB warehouses](#duckdb-warehouses) and [the registry on a Postgres you already run](#the-registry-on-a-postgres-you-already-run) are the two such changes this page describes.
+To change one, use a `docker-compose.override.yml`, never an edit to `docker-compose.yml` ([why](#upgrading)). [DuckDB warehouses](#duckdb-warehouses) and [the registry on a Postgres you already run](#the-registry-on-a-postgres-you-already-run) show how.
 
 ## Running Prumi's commands
 
@@ -135,9 +135,7 @@ services:
     profiles: [bundled-registry]
 ```
 
-Compose merges it over the main file: the three values replace the bundled registry's, `!reset` drops Prumi's wait for `registry-db`, and the profile keeps `registry-db` from starting (it would start only with `--profile bundled-registry`). An upgrade replaces `docker-compose.yml` and leaves this file as it is, so the registry stays where it is. `!reset` needs Docker Compose 2.24 or later; `docker compose config` shows the merged result.
-
-The three values belong in this file, not in `.env`: the compose file sets them itself, and its values win over `.env` ([what `.env` can't change](#what-env-cant-change)). `REGISTRY_PASSWORD` in `.env` is still the password, now that role's. Settings the compose file doesn't set, such as `PRUMI__REGISTRY__POSTGRES__SSLMODE=require` or `PRUMI__REGISTRY__POSTGRES__PORT`, go in `.env`. Back it up with that server; [Backing up the registry](#backing-up-the-registry) is about the bundled one.
+The three values replace the bundled registry's (they can't go in `.env`: [what `.env` can't change](#what-env-cant-change)), `!reset` drops Prumi's wait for `registry-db` (Docker Compose 2.24 or later), and the profile keeps `registry-db` from starting. `REGISTRY_PASSWORD` in `.env` is now that role's password; other settings, such as `PRUMI__REGISTRY__POSTGRES__SSLMODE=require`, go in `.env`. Back the registry up with that server.
 
 ## DuckDB warehouses
 
@@ -181,13 +179,17 @@ When you upgrade, rebuild it on the new version and change the version here too.
 
 ## Upgrading
 
-Read the [changelog](../CHANGELOG.md) for the release, then download its `docker-compose.yml` over yours (the first `curl` line of [step 3](#step-by-step)), and run:
+`docker-compose.yml` belongs to the release; `.env` and `docker-compose.override.yml` are yours. An upgrade replaces the first and leaves the other two alone, so keep every change in them: compose reads `docker-compose.override.yml` automatically and merges it over the main file (`docker compose config` shows the result).
 
-```sh
-docker compose pull && docker compose up -d
-```
+1. Read the [changelog](../CHANGELOG.md) for the release.
+2. Download its `docker-compose.yml` over yours (the first `curl` line of [step 3](#step-by-step)). Download `env.example` too, and compare it with your `.env` for new settings.
+3. Run:
 
-`.env` and a `docker-compose.override.yml` stay as they are, and the registry keeps its data on the `registry-data` volume. Restart your agent sessions afterwards: an open session keeps the tools it loaded when it started.
+   ```sh
+   docker compose pull && docker compose up -d
+   ```
+
+The registry keeps its data on the `registry-data` volume. Restart your agent sessions afterwards: an open session keeps the tools it loaded when it started.
 
 ## Backing up the registry
 
