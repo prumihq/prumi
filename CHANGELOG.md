@@ -2,6 +2,16 @@
 
 All notable changes to Prumi. Versions stay 0.x until the maintainer says otherwise. Entries come from pull request titles, through release-please.
 
+## [0.3.0](https://github.com/prumihq/prumi/compare/v0.2.0...v0.3.0) (2026-11-05)
+
+
+### Features
+
+* keep Prumi's registry in Postgres ([#37](https://github.com/prumihq/prumi/issues/37)) ([785662f](https://github.com/prumihq/prumi/commit/785662f71fbacfbf22705c6d539287d34836458f))
+* run Prumi from a container image, with a demo image to try it ([#34](https://github.com/prumihq/prumi/issues/34)) ([03ca032](https://github.com/prumihq/prumi/commit/03ca032a58d841fd39812349117f5aa3319c01ed))
+* run Prumi on your own dbt project with docker compose ([#38](https://github.com/prumihq/prumi/issues/38)) ([738d31b](https://github.com/prumihq/prumi/commit/738d31b2f5abbc65b9db48667c24e528fc38fdbf))
+* settings from environment variables, and the warehouse password from a named variable ([#36](https://github.com/prumihq/prumi/issues/36)) ([3fca593](https://github.com/prumihq/prumi/commit/3fca59398e6c0668824c2500720446ac12c5881b))
+
 ## [0.2.0](https://github.com/prumihq/prumi/compare/v0.1.1...v0.2.0) (2026-11-03)
 
 

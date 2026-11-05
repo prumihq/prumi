@@ -12,7 +12,7 @@ name: prumi
 
 services:
   prumi:
-    image: ghcr.io/prumihq/prumi:0.2.0 # x-release-please-version
+    image: ghcr.io/prumihq/prumi:0.3.0 # x-release-please-version
     ports:
       # Prumi has no login yet, so the 127.0.0.1 keeps it on this machine: anyone who can reach
       # the port can read your metrics. Keep it whatever port you choose (docs/configuration.md).
