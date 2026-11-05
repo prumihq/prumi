@@ -1,6 +1,6 @@
 {
   "name": "prumi-runtime",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Browser runtime for Prumi dashboards: data fetch, shared filters, cross-filtering, trust badge",
   "license": "Apache-2.0",
   "private": true,
